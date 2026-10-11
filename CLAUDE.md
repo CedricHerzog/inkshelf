@@ -33,7 +33,7 @@ make shots-all  # every script with its flags -> build/shots/<script>/
 make baseline   # shots-all, saved as build/baseline/shots for shots-compare
 make bench      # every benchmark x6 -> build/bench/new.txt (BENCH=Pattern PKG=./internal/...); bench-baseline, bench-compare (benchstat)
 make profile SCRIPT=emulator/scripts/calibreweb-epub.txt   # a script with -profile -> build/profile/<script>/ (cpu.pprof, trace.out, ...)
-make docs       # the documentation site (docs, Docusaurus, Node 20+), http://localhost:3000
+make docs       # the documentation site (docs, Docusaurus, Node 20+), http://localhost:3000/inkshelf/
 make docs-build # its typecheck and build, which fail on a broken link
 ```
 

@@ -8,9 +8,9 @@ import repoLinks from './src/remark/repoLinks.mjs';
 // algorithms with widgets that animate the hard ideas, and the reference (reference/), the
 // precise and complete pages for changing the code, written to read well on GitHub too.
 
-// repoUrl turns the code references into links once the repository is published, for example
-// 'https://github.com/<user>/inkshelf/blob/main'. Empty: paths are shown as text.
-const repoUrl = '';
+// repoUrl turns the code references into links into the repository. Empty: paths are shown as
+// text.
+const repoUrl = 'https://github.com/CedricHerzog/inkshelf/blob/main';
 
 const config: Config = {
   title: 'Inkshelf, explained',
@@ -21,8 +21,13 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'http://localhost',
-  baseUrl: '/',
+  // Published on GitHub Pages by .github/workflows/docs.yml; make docs serves it under the same
+  // base, at http://localhost:3000/inkshelf/.
+  url: 'https://cedricherzog.github.io',
+  baseUrl: '/inkshelf/',
+  organizationName: 'CedricHerzog',
+  projectName: 'inkshelf',
+  trailingSlash: false,
 
   onBrokenLinks: 'throw',
   onBrokenAnchors: 'throw',
@@ -78,6 +83,21 @@ const config: Config = {
   ],
 
   themeConfig: {
+    image: 'img/social-card.png',
+    metadata: [
+      {
+        name: 'description',
+        content:
+          'Inkshelf, an e-reader app for PocketBook in pure Go, explained: EPUB layout, fonts, ' +
+          'e-ink refresh, dithering, and Komga, Calibre-Web and Mealie clients.',
+      },
+      {
+        name: 'keywords',
+        content:
+          'PocketBook, InkPad, e-ink, e-reader, EPUB, CBZ, manga, comics, Komga, Calibre-Web, ' +
+          'Mealie, Go, golang, framebuffer, typesetting',
+      },
+    ],
     colorMode: {
       respectPrefersColorScheme: true,
     },
@@ -112,10 +132,21 @@ const config: Config = {
           label: 'Glossary',
           position: 'left',
         },
+        {
+          href: 'https://github.com/CedricHerzog/inkshelf',
+          label: 'GitHub',
+          position: 'right',
+        },
       ],
     },
     footer: {
       style: 'light',
+      links: [
+        {
+          label: 'Source code on GitHub',
+          href: 'https://github.com/CedricHerzog/inkshelf',
+        },
+      ],
       copyright: 'Inkshelf: an e-reader app in pure Go, for Komga, Mealie and Calibre-Web.',
     },
     prism: {

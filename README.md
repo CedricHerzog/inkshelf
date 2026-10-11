@@ -1,7 +1,12 @@
 # Inkshelf
 
-An e-reader app for PocketBook (InkPad 3), written in pure Go, that reads books, comics and
-recipes from your [Komga](https://komga.org),
+[![Documentation](https://img.shields.io/badge/docs-cedricherzog.github.io%2Finkshelf-blue)](https://cedricherzog.github.io/inkshelf/)
+[![Go Reference](https://pkg.go.dev/badge/github.com/CedricHerzog/inkshelf.svg)](https://pkg.go.dev/github.com/CedricHerzog/inkshelf)
+[![Release](https://img.shields.io/github/v/release/CedricHerzog/inkshelf)](https://github.com/CedricHerzog/inkshelf/releases)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
+
+An e-reader app for PocketBook e-ink readers (InkPad 3), written in pure Go, that reads EPUB
+books, comics and manga (CBZ) and recipes from your self-hosted [Komga](https://komga.org),
 [Calibre-Web](https://github.com/janeczku/calibre-web) and [Mealie](https://mealie.io) servers.
 
 This is a fun project: I wrote it to discover how EPUBs are handled (XHTML, CSS, line breaking,
@@ -28,12 +33,16 @@ want a solid, mature reader, use [KOReader](https://github.com/koreader/koreader
 
 ## Using it
 
-You're welcome to use it. How to build, install and configure it is in
+You're welcome to use it. Download the zip of the
+[latest release](https://github.com/CedricHerzog/inkshelf/releases/latest), connect the reader
+over USB, unzip it at the root of the reader, then write `applications/inkshelf/config.json`
+with your servers. How to configure it, or build it from source, is in
 [docs/reference/usage.md](docs/reference/usage.md); how it works inside starts at
 [docs/reference/architecture.md](docs/reference/architecture.md).
 
 To learn how it works from scratch, with animations of e-ink refreshes, dithering, EPUB
-layout and the app's threads, run `make docs` and open http://localhost:3000: the
+layout and the app's threads, read [the documentation site](https://cedricherzog.github.io/inkshelf/)
+(or run `make docs` and open http://localhost:3000/inkshelf/): the
 [learning chapters](docs/learn) go from the big picture down to the algorithms.
 
 ## Working in a container

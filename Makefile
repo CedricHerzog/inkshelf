@@ -123,7 +123,7 @@ internal/servers/calibreweb/logo.png: icons/calibreweb.svg
 	rsvg-convert -h 256 -b white $< | magick - -colorspace Gray -strip $@
 
 # The documentation site (docs, Docusaurus): the learning chapters and the reference, served
-# with live reload at http://localhost:3000, or built to docs/build, which fails on a broken
+# with live reload at http://localhost:3000/inkshelf/, or built to docs/build, which fails on a broken
 # link. Needs Node 20 or later.
 docs:
 	npm --prefix docs install

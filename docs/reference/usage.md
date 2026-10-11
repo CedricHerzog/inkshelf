@@ -17,6 +17,14 @@ directly. It targets the InkPad 3 (PB740) on firmware 6.x.
 - Also reads the recipes of a [Mealie](https://mealie.io) server: one series per category, each
   recipe laid out into pages (photo, times, ingredients, steps, notes) when it is downloaded.
 
+## Install a release
+
+Each [release](https://github.com/CedricHerzog/inkshelf/releases) has a zip laid out like the
+reader's storage. Connect the reader over USB, choose **PC link**, and unzip it at the root of
+the reader: it adds `applications/inkshelf.app` and the launcher icons
+(`applications/icons/inkshelf.bmp`, `inkshelf_f.bmp`). Then write
+`applications/inkshelf/config.json` ([Configure](#configure)) and eject the reader.
+
 ## Build and install
 
 You need Go and `make`, and golangci-lint for `make verify` (`brew install golangci-lint`). The app

@@ -1,0 +1,30 @@
+# A release for each v* tag: the app built for the reader, in a zip laid out like the reader's
+# storage (what deploy.sh copies), to unzip at its root.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: make build
+      - name: Package
+        run: |
+          mkdir -p dist/applications/icons
+          cp build/inkshelf.app dist/applications/
+          cp icons/inkshelf.bmp icons/inkshelf_f.bmp dist/applications/icons/
+          (cd dist && zip -r "../inkshelf-${GITHUB_REF_NAME}.zip" applications)
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "inkshelf-${GITHUB_REF_NAME}.zip" --generate-notes
