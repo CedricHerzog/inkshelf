@@ -1,0 +1,259 @@
+---
+title: From a scan to 16 grays
+description: How a comic page becomes a .pg4 file at download time - decode, box-filter fit, tone curve, Floyd-Steinberg dithering, two pixels per byte - so a page turn only unpacks it.
+---
+
+import PipelineOverview from '@site/src/components/grays/PipelineOverview';
+import BoxFilter from '@site/src/components/grays/BoxFilter';
+import ToneCurve from '@site/src/components/grays/ToneCurve';
+import DitherStepper from '@site/src/components/grays/DitherStepper';
+import DitherCanvas from '@site/src/components/grays/DitherCanvas';
+import NibblePacking from '@site/src/components/grays/NibblePacking';
+
+# From a scan to 16 grays
+
+<OneSentence>
+When a comic is downloaded, each page is decoded to gray, shrunk to the screen, given back its
+contrast, dithered to the panel's 16 grays and packed two pixels to a byte in a .pg4 file, so that
+turning a page only has to unpack it.
+</OneSentence>
+
+A comic page arrives from the server as a JPEG, PNG, WebP or JPEG XL file, often in color, often
+much larger than the screen. The panel shows 1404×1872 pixels in <Term id="grayscale" />, and it
+renders mid grays lighter than a computer screen does. Every page has to be translated into the
+panel's terms.
+
+The translation is slow on the reader's small ARM processor: decoding a big JPEG alone takes a
+noticeable part of a second. A page turn already waits half a second for the
+[e-ink panel](./eink.mdx); it cannot also wait for that. So Inkshelf does the work **once, when
+the book is downloaded**, and saves the result in a file that needs no decoder.
+
+<Analogy icon="🍱">
+It is meal prep. On Sunday you wash, chop, cook and portion everything into boxes. On Wednesday
+evening, dinner is just "open a box and heat it". Downloading is Sunday; turning a page is
+Wednesday.
+</Analogy>
+
+## One page, four stages
+
+All of it is one function, `pageimage.Prepare`, which runs four stages in turn. Here is a page
+going through them, computed in your browser with a faithful copy of the Go code:
+
+<Figure
+  title="A page through pageimage.Prepare"
+  tryThis="Click the stages from left to right. At stage 3 the sky and the grass get darker; at stage 4, look closely at the sky: it is made of only a few grays, mixed.">
+  <PipelineOverview />
+</Figure>
+
+The rest of the chapter takes the stages one by one. The last one, `ditherAndPack`, also packs
+the pixels into the file as it goes.
+
+## 1. Decode straight to gray
+
+`DecodeGray` (<CodeRef path="internal/graphics/pageimage/decode.go" />) opens the file and keeps
+only how bright each pixel is. For a color pixel that is its *luma*, a weighted sum of red, green
+and blue that matches how bright the eye finds each color: 0.299 R + 0.587 G + 0.114 B (green
+looks brightest, blue darkest). A JPEG already stores brightness apart from color (its Y plane),
+so for a JPEG the gray image is simply taken as it is.
+
+Transparent pixels are often stored as black. Shown as is, a transparent PNG would come out as a
+black page, so transparency is laid over white, the color of paper.
+
+## 2. Fit: average, don't pick
+
+The page must shrink to fit the screen, keeping its shape. `fit`
+(<CodeRef path="internal/graphics/pageimage/fit.go" />) first computes the output size
+(`fitSize`): as wide as the screen, or as tall, whichever comes first. Then each output pixel
+covers a small box of source pixels, and takes their **average**. That is a
+<Term id="box-filter">box filter</Term>.
+
+The obvious shortcut, taking one source pixel per box, is fast but loses thin lines: an ink
+stroke one pixel wide falls between the picked pixels and vanishes. Averaging keeps it, as a
+lighter gray.
+
+<Figure
+  title="Each output pixel averages its box"
+  tryThis="Hover (or tap) the output pixels and read the sum. Set the width to 5 and turn on “Pick one pixel”: the thin diagonal breaks up. Notice that the boxes are not all the same width.">
+  <BoxFilter />
+</Figure>
+
+The boxes come from integer division: output column *c* of *n* covers source columns from
+*c* × width ÷ *n* to (*c* + 1) × width ÷ *n* (`boxSpan`), at least one. While it writes each
+output pixel, `fit` also counts how many pixels have each gray: the image's
+<Term id="histogram">histogram</Term>, which the next stage needs.
+
+## 3. Tone: stretch, then bend
+
+Old scans are "gray on gray": yellowed paper that is not white, faded ink that is not black.
+`toneTable` (<CodeRef path="internal/graphics/pageimage/tone.go" />) builds a
+<Term id="tone-curve" /> from the histogram, in two moves:
+
+1. **Stretch.** Find the gray below which the darkest 0.5% of the pixels lie, and the gray above
+   which the lightest 0.5% lie (`clippedShare = 0.005`). The first becomes black, the second
+   white, and everything in between is spread out over the whole range.
+2. **Bend.** Raise the result to the power 1.8, the <Term id="gamma">gamma</Term> (`gamma = 1.8`). That darkens the mid grays,
+   which e-ink shows lighter than a computer screen: a gray at half intensity comes out at
+   0.5<sup>1.8</sup>, about 29%.
+
+Why clip 0.5% and not take the very darkest and lightest pixel? Because one speck of dust is
+enough to be pure black or pure white, and then nothing would stretch.
+
+<Figure
+  title="The tone table of a faded scan"
+  tryThis="Set “Clip each end” to 0%: a single dust speck at 0 and a scratch at 255 decide the stretch, and the page stays dull. Put it back, then play with gamma."
+  caption="The histogram uses square roots so the few ink pixels show next to the many paper ones.">
+  <ToneCurve />
+</Figure>
+
+The table has 256 entries, one per possible input gray, so the next stage spends a single lookup
+per pixel on it.
+
+## 4. Dither: hide the missing grays
+
+Now each pixel must become one of the 16 panel grays: 0, 17, 34, … 255 (`grayStep = 17`).
+Rounding each pixel to the nearest one is easy, but a smooth shade then turns into flat bands
+with hard edges.
+
+<Term id="dithering" /> does better. Round a pixel, note how much it was rounded by (its
+*error*), and hand that error on to the neighbours not drawn yet, so they make up for it.
+Floyd–Steinberg dithering, the classic recipe that `ditherAndPack`
+(<CodeRef path="internal/graphics/pageimage/dither.go" />) follows, splits the error in
+sixteenths: 7 to the right, 3 below left, 5 below, 1 below right.
+
+<Figure
+  title="Floyd–Steinberg, pixel by pixel"
+  tryThis="Step through the first row with ›: watch the red numbers (carried errors) appear on the next pixels. Then press Play and compare the three small grids at the bottom.">
+  <DitherStepper />
+</Figure>
+
+A few details, exactly as in the Go code: the rows always run left to right (no back-and-forth);
+the errors are kept multiplied by 16, and divided (rounding toward zero) only when a pixel reads
+them; the nearest gray is `(value + 8) / 17`, kept between 0 and 15.
+
+From afar, the eye averages the grain, and the shade looks smooth again. With 16 grays the grain
+is very fine; with fewer it shows:
+
+<Figure
+  title="Rounding against dithering"
+  tryThis="Choose 2 or 3 grays and switch between Round and Dither. Then go up to 16, the panel's number, and look at the gradient at the top.">
+  <DitherCanvas />
+</Figure>
+
+## Then pack: two pixels per byte
+
+A panel gray is a number from 0 to 15: four bits, half a byte, a <Term id="nibble" />. So
+`ditherAndPack` writes two pixels in each byte, the left one in the high half, straight into the
+output as it goes. The result is a <Term id="pg4" /> file
+(<CodeRef path="internal/graphics/pageimage/pg4.go" />):
+
+| Offset | Size | What |
+|---|---|---|
+| 0 | 4 bytes | `PG4\x01`: the format's name and version |
+| 4 | 2 bytes | the width, little-endian (low byte first) |
+| 6 | 2 bytes | the height, little-endian |
+| 8 | (width + 1) ÷ 2 bytes per row | the rows, top to bottom |
+
+<Figure
+  title="Inside a .pg4 file"
+  tryThis="Click a pixel and move the slider: watch its four bits change, then its byte in the stream. Hover a byte of the stream to find its two pixels. Look at the last byte of each row."
+  >
+  <NibblePacking />
+</Figure>
+
+Half the size of one byte per pixel, and no decoder: reading it back is a table lookup.
+
+## At page turn: just unpack
+
+When you turn a page, `Store.LoadPage` (<CodeRef path="internal/shelf/store.go" />) reads
+`0007.pg4` and `pageimage.Unpack` expands it. Unpack uses a table, `gray4`, built once: for each
+of the 256 possible bytes, the grays of its two pixels. One lookup per byte gives two pixels. The
+app then copies the image to the screen and refreshes the panel. It even unpacks the pages next
+to the one you read ahead of time, so most turns only draw.
+
+```go title="internal/graphics/pageimage/pg4.go"
+// gray4 maps a byte of a .pg4 page to the grays of its two pixels.
+var gray4 = func() (table [256][2]uint8) {
+	for packed := range table {
+		table[packed] = [2]uint8{uint8(packed>>4) * grayStep, uint8(packed&15) * grayStep}
+	}
+	return table
+}()
+```
+
+The same `Prepare` serves more than comics: book covers, the pages of a fixed-layout EPUB (drawn
+first, then prepared with `PrepareDecoded`), and pictures inside an EPUB's text, which are
+prepared when the page is drawn, at the size the layout gave them.
+
+<details>
+<summary>Going deeper</summary>
+
+- **Two teams of workers.** `Store.Download` (<CodeRef path="internal/shelf/download.go" />)
+  runs 3 fetchers (`fetchWorkers`) that ask the server for pages, and preparers that run
+  `Prepare`: one per core, at least 2, at most 8 (`prepareWorkers`), because each holds a decoded
+  page of 20 to 40 MB. A small queue between them keeps memory bounded.
+- **Hot paths.** `fit`, `ditherAndPack`, `rgbaToGray` and `Unpack` run on every page and are
+  marked `HOT PATH`. They were tuned by reading the ARM assembly: helpers small enough to inline,
+  slices shaped so the compiler drops bounds checks. Changing one needs its benchmark
+  (`BenchmarkFitDither`, `BenchmarkUnpack`…) before and after, and the same inlining for ARM.
+- **Dividing without dividing.** ARM is slow at division, so `fit` replaces "divide by the box's
+  area" by "multiply by 2³² ÷ area and keep the high 32 bits" (`reciprocalTable`, `divide`).
+  That is exact as long as the area stays below 4096 (`maxReciprocalArea`); larger boxes divide
+  normally.
+- **A test twin.** `fit` must give exactly what `fitRef`, a plain version of the same box
+  filter in `fit_test.go`, gives.
+- **Huge JPEG XL images.** Their header can claim any size, so one above `maxJXLPixels` (2²³,
+  about 8.4 million pixels) is refused before decoding, and the decoder's panics are recovered.
+- **The widgets are exact.** The TypeScript in `src/lib/pageimage.ts` follows the Go code step
+  by step; on the same input, it produces the same `.pg4` bytes as `PrepareDecoded`.
+- **Never change the format.** Books already on readers are `.pg4` files: the layout above, the
+  magic and the 16 grays stay as they are (golden tests check it). Books from older versions
+  have `NNNN.png` pages, which `LoadPage` still reads.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/graphics/pageimage/prepare.go', symbol: 'Prepare, PrepareDecoded', what: 'Runs the stages in turn; PrepareDecoded skips the decoding.'},
+  {path: 'internal/graphics/pageimage/decode.go', symbol: 'DecodeGray, toGray, luma', what: 'Any image file to gray, transparency over white.'},
+  {path: 'internal/graphics/pageimage/fit.go', symbol: 'fit, fitSize, boxSpan', what: 'The box filter down to the screen size, and the histogram.'},
+  {path: 'internal/graphics/pageimage/tone.go', symbol: 'toneTable, clippedShare, gamma', what: 'Stretch with 0.5% clipped at each end, then gamma 1.8.'},
+  {path: 'internal/graphics/pageimage/dither.go', symbol: 'ditherAndPack', what: 'Floyd–Steinberg to 16 grays, written straight as nibbles.'},
+  {path: 'internal/graphics/pageimage/pg4.go', symbol: 'newPG4, Unpack, gray4', what: 'The .pg4 layout, and reading it back with a 256-entry table.'},
+  {path: 'internal/shelf/download.go', symbol: 'fetchWorkers, prepareWorkers', what: 'Downloads pages and prepares them in parallel.'},
+  {path: 'internal/shelf/store.go', symbol: 'LoadPage', what: 'Reads a page back at page turn.'},
+]} />
+
+The full story: <RefDoc file="image-pipeline.md">The image pipeline</RefDoc>.
+
+Next: the app has its pixels, on a canvas. How does a Go program with no SDK get them onto the
+glass? That is [Running Go on a PocketBook](./no-sdk.mdx).
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'Why is a comic page prepared when it is downloaded, not when you turn to it?',
+    choices: ['The server only sends pages during the download', 'Decoding, scaling and dithering are slow on the reader; a page turn should only unpack a file', 'The panel cannot show JPEG files'],
+    answer: 1,
+    why: 'Doing the slow work once, ahead of time, leaves a page turn with only a read, an unpack and a refresh.',
+  },
+  {
+    question: 'Why does fit average a box of source pixels instead of picking one?',
+    choices: ['Averaging is faster', 'A thin line can fall between the picked pixels and vanish; averaging keeps it as a lighter gray', 'Picking would change the aspect ratio'],
+    answer: 1,
+    why: 'The box filter sees every source pixel, so no stroke is lost, however thin.',
+  },
+  {
+    question: 'A pixel worth 120 is rounded to the panel gray 119. What does Floyd–Steinberg do with the difference?',
+    choices: ['Nothing: 1 is too small to matter', 'It passes +1 on to the pixels not drawn yet: 7/16 to the right, 3/16, 5/16 and 1/16 on the next row', 'It adds it to the pixel above'],
+    answer: 1,
+    why: 'Every error is handed on, so that on average the area keeps its true gray.',
+  },
+  {
+    question: 'How many bytes does a row of a 1404-pixel-wide .pg4 page take?',
+    choices: ['1404', '702', '351'],
+    answer: 1,
+    why: 'Two pixels per byte: (1404 + 1) ÷ 2 = 702 bytes, rounded down.',
+  },
+]} />

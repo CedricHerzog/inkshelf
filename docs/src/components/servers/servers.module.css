@@ -1,0 +1,88 @@
+/* The widgets of the chapter "Three servers, one interface": what each kind of server becomes,
+   and how titles sort. */
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+.box {
+  border: 1px solid var(--ink-line);
+  border-radius: var(--ink-radius);
+  background: var(--ink-paper-2);
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.boxTitle {
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.code {
+  font-family: var(--ink-mono);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.methods {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  display: table;
+}
+
+.methods td {
+  border: none;
+  border-top: 1px solid var(--ink-line);
+  padding: 0.2rem 0.3rem;
+}
+
+.mono {
+  font-family: var(--ink-mono);
+}
+
+.yes {
+  color: var(--ink-ok);
+}
+
+.no {
+  color: var(--ink-warn);
+}
+
+.list {
+  margin: 0;
+  padding-left: 1.4rem;
+  font-size: 0.85rem;
+}
+
+.list li {
+  margin: 0.15rem 0;
+}
+
+.key {
+  font-family: var(--ink-mono);
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.dropped {
+  text-decoration: line-through;
+  color: var(--ink-warn);
+}
+
+.input {
+  flex: 1;
+  min-width: 10rem;
+  font-size: 0.95rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--ink-line);
+  border-radius: var(--ink-radius);
+  background: var(--ink-paper);
+  color: var(--ink-text);
+}

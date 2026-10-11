@@ -1,0 +1,37 @@
+# Reading an EPUB from the fake Calibre-Web, its text laid out on the reader:
+#   make shots SCRIPT=emulator/scripts/calibreweb-epub.txt EMUFLAGS="-fake-type calibreweb"
+# The series list's rows, 282 px high from y 292, are centred at y 433, 715, 997: Les Étoiles
+# (EPUB), Ruines (CBZ), No series. Book rows are the same on the books screen.
+
+tap 700 433                 # Les Étoiles
+tap 700 433                 # download Tome 1: the EPUB, then its index and cover
+idle 60s
+shot 01-downloaded          # ~N pages
+tap 700 433                 # read it: chapter 1, its heading and illustration
+shot 02-chapter-1
+tap 1200 900                # right third: next page
+shot 03-page-2
+tap 1200 900
+shot 03b-scene-break        # ◆◆◆, which the book's typeface lacks: drawn in DejaVu Sans
+tap 1200 900
+tap 1200 900
+shot 04-chapter-2           # past chapter 1's last page: chapter 2 starts on a new page, its SVG illustration (its <style>, pattern and text), and an inline SVG styled by the book's CSS
+                            # and its first paragraph's drop cap, two lines high
+tap 1200 900
+shot 04b-floated-image      # an image floated at the right, the lines beside it shortened
+key prev
+key prev                    # back across the chapter boundary: chapter 1's last page
+shot 05-back-to-chapter-1
+tap 700 900                 # toolbar: page in the chapter and percent, A− and A+
+shot 06-toolbar
+tap 1060 84                 # A+: larger text, laid out again at the same place; the toolbar stays
+shot 07-larger
+tap 906 84                  # A−: back to the size before
+shot 08-smaller
+key next                    # a page button with the toolbar shown: the whole page refreshes,
+shot 08b-turned-from-toolbar  # even when the virtual page doesn't change
+tap 700 900                 # the toolbar again, for Back
+tap 150 84                  # ‹ Back to the list: the book is Continue, "At n%"
+shot 09-books
+tap 150 84                  # ‹ Back to the series: the Continue row
+shot 10-series

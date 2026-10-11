@@ -1,0 +1,222 @@
+---
+title: Text in gray
+description: How Inkshelf draws text without the SDK, with font files and glyphs, the dot and the baseline, glyphs rasterized once into alpha masks and blended into the page, fallback fonts, and shaping.
+---
+
+import GlyphBlend from '@site/src/components/fonts/GlyphBlend';
+import FontFallback from '@site/src/components/fonts/FontFallback';
+
+# Text in gray
+
+<OneSentence>A font file describes each letter as an outline; Inkshelf turns each outline into a small mask of gray once, keeps it, and from then on drawing text is only blending those masks into the page.</OneSentence>
+
+The last chapter turned a chapter of a book into a document: blocks of styled runs, each with a
+font family, a style and a size. Before those runs can be cut into lines, every piece of text
+has to be **measured**: how wide is "Bonjour" in Liberation Serif at 44 pixels? And once the
+lines are made, every letter has to be **drawn**, in gray, into the page.
+
+On most platforms, a library does both: FreeType, or `libinkview` on a PocketBook, which wraps
+it. Inkshelf has no C code, so it does this itself, in `internal/graphics/fonts`, with pure-Go
+libraries. It does it often: every line of every page goes through it, on a slow processor. That
+is why this package is tuned more than most.
+
+<Analogy icon="🔏">A rubber stamp. Carving the stamp is slow; stamping is quick. Inkshelf carves
+each letter once (rasterizing it), then stamps it wherever it appears on the page, as many
+times as it likes.</Analogy>
+
+## Font files, glyphs and sizes
+
+A TrueType or OpenType file describes each character's <Term id="glyph" /> as an **outline**:
+curves that can be drawn at any size. With it come numbers: how far the pen moves after each
+glyph (its **advance**), and adjustments between pairs of letters, such as "AV", which
+<Term id="kerning" /> tucks together.
+
+Inkshelf keeps two things apart:
+
+- A **`File`** is a font file parsed once, by `fonts.Parse`. A font embedded in a book is a
+  `File`, used at several sizes.
+- A **`Font`** is a `File` at one size, ready to measure and draw, made by `File.Open(size)`.
+
+Sizes are in **pixels**. The font is opened at 72 DPI, where a point is a pixel, so a 44 px font
+has an <Term id="em" /> of 44 pixels: the box its letters are designed in. Book text is 44
+px by default (`defaultTextSize`), 32 to 64 with A− and A+. The interface uses three fonts,
+opened once by `widgets.OpenFonts`: 32, 40 and 44 bold, in InkPad 3 pixels, scaled by
+`widgets.Px` to the screen the app runs on.
+
+Where do the fonts come from? The reader's firmware ships a few in `/ebrmain/fonts`, which any
+app may use. `fonts.Open(family, style, size)` tries Liberation first (the fonts libinkview
+used), then DejaVu, and if none opens (on your computer, say), Go's own fonts, compiled into
+the program. Go has no serif font and no Arabic or Hebrew letters, which matters in a moment.
+
+## The dot and the baseline
+
+Text is drawn by moving a pen, the **dot**, from left to right. For each character: add the
+kerning with the previous one, stamp the glyph at the dot, move the dot by the advance.
+
+Letters sit on the <Term id="baseline" />, but Inkshelf places a line of text by its **top-left
+corner**, as libinkview did: the baseline is the font's **ascent** below the top. That way a
+screen's code never has to know about baselines, only about lines.
+
+```go title="internal/graphics/fonts/draw.go · DrawSpaced (trimmed)"
+dotX, dotY := fixed.I(topLeft.X), topLeft.Y+font.ascent
+for _, character := range text {
+	if previous >= 0 {
+		dotX += font.kern(previous, character)
+	}
+	rasterized := font.glyph(character) // from the cache
+	if rasterized.mask != nil {         // nil for a space
+		blend(dst, rasterized.mask, image.Pt(dotX.Round(), dotY).Add(rasterized.offset), gray.Y)
+	}
+	dotX += rasterized.advance + fixed.I(spacing)
+	previous = character
+}
+```
+
+`fixed.I` and `Round` are the arithmetic of `fixed.Int26_6`, the numbers font libraries count
+in: integers in 64ths of a pixel, so that sub-pixel positions need no floating point.
+
+## Rasterize once, blend many times
+
+To draw an outline, a rasterizer measures, for each pixel, how much of it the outline covers:
+0 for none, 255 for all. The result is an <Term id="alpha-mask" />. Drawing the letter is then
+**blending**: each pixel of the page moves from its gray toward the ink's gray, in proportion to
+the mask.
+
+There is a catch. Where the letter lands matters. An "o" whose left edge falls on a pixel
+boundary gives one mask; the same "o" a quarter of a pixel to the right gives another, with other
+pixels half covered. If the dot could land anywhere, every "o" would need its own mask.
+
+So Inkshelf opens every font with **full <Term id="hinting" />**: the font's outlines are snapped
+to the pixel grid, and its advances and kerning become whole pixels. The dot always lands on a
+whole pixel, every "o" looks the same, and one mask per character is exact. Hinting also makes
+small text crisper, which on e-ink is welcome.
+
+<Figure title="A glyph, its mask, and the page" tryThis="Slide where the dot lands: at each quarter pixel the mask changes, other pixels half gray. Turn full hinting on: the mask stops changing. Hover a pixel to see blend's formula. Set the page to a mid-gray, as under a highlight.">
+  <GlyphBlend />
+</Figure>
+
+The blend is a straight line between the two grays, in integers, rounded:
+
+```go title="internal/graphics/fonts/draw.go · blend"
+if alpha != 0 {
+	pixels[index] = uint8((uint32(pixels[index])*(255-uint32(alpha)) + uint32(gray)*uint32(alpha) + 127) / 255)
+}
+```
+
+There is no gamma curve here. The <Term id="gamma" /> of page images is for scanned pictures;
+antialiased text is blended linearly.
+
+A `Font` keeps what it has computed, in maps: the rasterized glyph of each character
+(`glyphs`), its advance (`advances`), the kerning of each pair (`kerns`), and, for shaped text
+below, masks by glyph index (`masks`) and whole shaped runs (`shaped`). These caches make a
+`Font` unsafe to share between <Term id="goroutine">goroutines</Term>: each one that draws
+opens its own.
+
+## When the font does not have the letter
+
+No font has every character. A French novel quotes a line of Greek; a title holds an arrow; a
+book embeds a font with only the Latin letters its publisher needed. A character the font lacks
+would be drawn as its <Term id="notdef" /> glyph, an empty box.
+
+So layout uses a <Term id="font-fallback" />: `layout.Faces` asks the font first whether it
+`Covers` the whole text, one check that almost always says yes. When it does not,
+`forEachCoveredPart` walks the text and gives each missing character to the first font of a
+list that has it (`fallbacksOf`): the reader's own typeface, then DejaVu Sans (the firmware's
+font with the most characters, from `fonts.OpenFallbacks`), then Go's. Neighbouring characters
+with the same font make one **part**, measured and drawn with that font, lowered so that all the
+parts share one baseline. A character no font has stays in the first font, as a box.
+
+<Figure title="One line, several fonts" tryThis="Pick the Greek sample: the book's font lacks the Greek, the reader's serif has it, and only DejaVu has the arrow. Switch to the reader's serif and see the parts merge. Try Kanji: no font on the reader has it.">
+  <FontFallback />
+</Figure>
+
+## Shaping
+
+One glyph per character is enough for Latin. It is not for every script. Arabic letters take a
+different form at the start, middle or end of a word and join their neighbours; Hebrew stacks
+vowel points; the scripts of India reorder their vowels. The font itself holds the rules, in its
+tables. Applying them is <Term id="shaping" />: turning a run of characters into the right glyphs
+at the right places.
+
+`Font.Shape` does it with go-text's `HarfbuzzShaper`, a pure-Go port of HarfBuzz, the shaping
+engine of Chrome and Firefox. It returns `Glyph` values: a **glyph index** in the font (no
+longer a character: a ligature is one glyph for two letters), an advance and an offset.
+`DrawGlyphs` then stamps them as `DrawSpaced` stamps characters, with masks cached by glyph
+index.
+
+Shaping costs much more than looking up characters, so layout only shapes what needs it:
+`document.NeedsShaping` lists the scripts, and a fragment is shaped only if it is right to left
+or holds one of their characters. Latin text never pays.
+
+<details>
+<summary>Going deeper</summary>
+
+- **Two parsers for one file.** `golang.org/x/image` reads outlines and rasterizes; go-text
+  reads the shaping tables. Each parses the font its own way, so a `File` keeps its bytes and
+  go-text parses them on first use (`File.textFont`, once, with `sync.Once`). If go-text cannot
+  read the font, `unshaped` gives one glyph per character, unjoined.
+- **The shaped cache forgets everything at once.** Past `maxShaped` (4096) runs, `Shape` clears
+  the map: simpler than keeping the most used, and a page is shaped again at most.
+- **Why not `imagefont.Drawer`?** The standard drawer rasterizes every glyph on every call, and
+  `image/draw` has no fast path for `*image.Gray`. `blend` writes the gray bytes directly.
+- **A <Term id="hot-path" />.** `blend` runs for every pixel of every glyph of every page. Change
+  `draw.go` only with `BenchmarkDrawString` before and after, and the inlining unchanged
+  ([Making a change](/appendix/contributing)).
+- **Small capitals** are faked: lowercase letters are drawn as capitals of a font at 75 %
+  (`smallCapsScale`), lowered to the same baseline.
+- **A book's own fonts.** EPUB fonts come as TrueType, WOFF (zlib-compressed tables) or WOFF2
+  (Brotli). Publishers often *obfuscate* them: the first 1040 bytes (IDPF) or 1024 bytes (Adobe)
+  are XORed with a key derived from the book's identifier. This is not DRM, only a deterrent.
+  `container.Book.Font` loads each font once: `webfont.Deobfuscate` with each identifier of the
+  book, then `webfont.RecoverAdobe` (which guesses the key from the bytes every font header
+  holds), then `webfont.ToSFNT` and `fonts.Parse`. `@font-face` rules map them to families
+  (`document.Fonts`), and `Faces.open` picks them by family and style.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/graphics/fonts/file.go', symbol: 'Parse, File.Open', what: 'A font file parsed once; a Font at one size, fully hinted, 72 DPI.'},
+  {path: 'internal/graphics/fonts/open.go', symbol: 'Open, OpenFallbacks', what: 'The reader’s fonts in /ebrmain/fonts, then Go’s; the fallback list.'},
+  {path: 'internal/graphics/fonts/draw.go', symbol: 'DrawSpaced, glyph, blend', what: 'HOT PATH: glyphs rasterized once, blended into an *image.Gray.'},
+  {path: 'internal/graphics/fonts/font.go', symbol: 'Font, Measure, Covers', what: 'Measuring, and the caches that make a Font single-goroutine.'},
+  {path: 'internal/graphics/fonts/shape.go', symbol: 'Shape, DrawGlyphs', what: 'Shaping with go-text’s HarfBuzz port.'},
+  {path: 'internal/typesetting/layout/faces.go', symbol: 'Faces, fallbacksOf, forEachCoveredPart', what: 'Which font draws which part of a run.'},
+  {path: 'internal/web/webfont/webfont.go', symbol: 'ToSFNT, Deobfuscate, RecoverAdobe', what: 'A book’s WOFF and WOFF2 fonts, and their obfuscation.'},
+  {path: 'internal/app/widgets/fonts.go', symbol: 'OpenFonts', what: 'The interface’s three fonts.'},
+]} />
+
+`go doc ./internal/graphics/fonts` prints the package's own introduction. The full story:
+<RefDoc file="epub-to-page.md#fonts">From EPUB to page: fonts</RefDoc>.
+
+Next: with every fragment measurable, a paragraph can be cut into lines: [Breaking lines](./lines.mdx).
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'Why can Inkshelf keep a single mask for each character of a font?',
+    choices: ['E-ink has too few grays to tell the difference', 'Full hinting makes advances and kerning whole pixels, so a glyph always lands on a whole pixel', 'It redraws the mask at each page turn anyway'],
+    answer: 1,
+    why: 'Without hinting, a glyph a fraction of a pixel to the right covers pixels differently and needs another mask.',
+  },
+  {
+    question: 'A pixel of white page (255) is covered at alpha 128 by black ink. What does blend write?',
+    choices: ['0', '127', '128'],
+    answer: 1,
+    why: '(255 × 127 + 0 × 128 + 127) ÷ 255 = 127.49…, and integer division keeps 127: halfway between paper and ink.',
+  },
+  {
+    question: 'A book’s embedded font has no Greek letters, and a paragraph quotes Greek. What happens?',
+    choices: ['The Greek is drawn as boxes', 'Those letters become a part drawn with the first fallback that has them, on the same baseline', 'The whole paragraph switches to DejaVu Sans'],
+    answer: 1,
+    why: 'forEachCoveredPart gives each missing character to the first of the reader’s typeface, DejaVu Sans and Go’s font that has it.',
+  },
+  {
+    question: 'Why is Latin text not shaped?',
+    choices: ['HarfBuzz cannot shape Latin', 'One glyph per character is right for it, and shaping costs much more', 'The firmware fonts have no shaping tables'],
+    answer: 1,
+    why: 'Only fragments that are right to left or contain a script listed by NeedsShaping go through the shaper.',
+  },
+]} />

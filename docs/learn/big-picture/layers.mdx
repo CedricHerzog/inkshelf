@@ -1,0 +1,164 @@
+---
+title: The layer cake
+description: How Inkshelf's code is stacked in domains, from the device at the bottom to the programs at the top, and the import rules that keep it that way.
+---
+
+import LayerCake from '@site/src/components/bigpicture/LayerCake';
+
+# The layer cake
+
+<OneSentence>
+Inkshelf's packages are stacked in layers, from the device at the bottom to the programs at the
+top, and a package may only import from its own layer or the ones below it.
+</OneSentence>
+
+The journey of a book crossed many parts of the code. This chapter shows how those parts are
+arranged, and the one rule that keeps them from becoming a tangle.
+
+<Analogy icon="🎂">
+A layer cake: each layer rests on the ones below and never on the ones above. You can lift off the
+top layers and the bottom still stands; you cannot pull out a bottom layer without everything above
+noticing.
+</Analogy>
+
+## Domains, bottom to top
+
+All the code lives in one Go module. Apart from the two programs in `cmd`, everything is under
+`internal/`, in folders named after a **domain**: what you need to know to work there. Fonts are
+in `graphics/fonts`, the CSS cascade in `web/css`, line breaking in `typesetting/layout`.
+
+From the bottom:
+
+- **device**: the reader itself, without its SDK: the screen's memory, e-ink refreshes, the
+  firmware's messages, taps and keys, Wi-Fi. Also the emulator that stands in for the reader on a
+  computer.
+- **graphics**: pixels. Fonts and text drawn in gray; page images prepared into `.pg4` files.
+- **web**: the web formats books are written in: CSS, SVG, MathML, web fonts, images, links.
+- **typesetting**: text on pages: the document model, line breaking, hyphenation, pagination.
+- **ebook**: book files: an EPUB's zip and its chapters, fixed-layout pages, a CBZ's pages.
+- **servers**: what the app needs from a server, and one package per kind of server.
+- **shelf**: the books downloaded on the reader.
+- **progress**: keeping the reader's progress and the server's in agreement.
+- **reading**: the engine for reading an EPUB: positions, page turns across chapters, links.
+- **app**: the user interface: the state, widgets, services and screens.
+- **cmd**: the two programs: `cmd/inkshelf` for the reader, `cmd/emulator` for your computer.
+
+On the side stand two small utilities that import nothing of Inkshelf's, so any layer may use
+them: `naturalorder` ("Tome 2" before "Tome 10") and `timing`, which times work for the log and
+for profiles.
+
+<Figure title="Inkshelf's layers" tryThis="Click a layer: green ones are those it may import. Then switch to Try an import and press the red examples: app → servers/komga, a screen → another, graphics → app.">
+  <LayerCake />
+</Figure>
+
+## The rules
+
+**One rule does most of the work:** a package imports only from its own domain or from domains
+below it. Three more keep the app independent of any one server and of itself:
+
+1. **The app and the shelf never import a specific server.** `app` and `shelf` (and everything they
+   import) talk to the `servers.Server` interface, never to `servers/komga`, `servers/mealie` or
+   `servers/calibreweb`. Only the programs in `cmd` import `servers/registry`, the one package that
+   knows every kind and builds the right one from `config.json`.
+2. **The reader side knows nothing of servers.** device, graphics, web, typesetting and ebook would
+   work the same for a book from a USB cable.
+3. **Screens never import each other.** A screen moves to another by its id, with
+   `state.ShowLocked`, and leaves to the services whatever another screen must see changed.
+   `app/screens/list` is not a screen: it draws the header, rows and footer that the list screens
+   share, and they may import it.
+
+And Go adds one of its own: **no import cycles**. If `typesetting/layout` imports
+`typesetting/document`, the document can never import the layout back. The compiler refuses.
+
+The first rule is checked by a command in the project's definition of done. It must print
+nothing:
+
+```sh
+go list -deps ./internal/app/... ./internal/shelf | grep -E 'servers/(komga|mealie|calibreweb)'
+```
+
+## Why layers
+
+- **You can learn bottom-up.** Each layer only uses ideas from below it. That is why this site
+  starts with the screen, then books, then the app: you never need a part you have not seen.
+- **The reader side stays pure.** Laying out an EPUB has nothing to do with Komga's API. Keeping
+  them apart means the typesetting code can be tested with a file on disk, and a new kind of server
+  touches only `servers/` and `servers/registry`.
+- **The bottom can be swapped.** All the PocketBook-specific code is in `device/pocketbook`. A Kobo
+  or Kindle port, which the author has in mind, would add a sibling device package, and the layers
+  above would barely change. That is also why names outside those packages avoid the words
+  "PocketBook", "Komga" or "Mealie".
+- **Changes stay local.** A change to a lower layer can only affect the layers above it; a change to
+  a screen affects no other screen.
+
+<details>
+<summary>Going deeper: the imports between domains today</summary>
+
+From `go list -f '{{.ImportPath}}: {{join .Imports " "}}' ./...`, by domain (the widget's _Imports
+today_ line shows the same):
+
+| Domain | Imports |
+|---|---|
+| naturalorder, timing | nothing of Inkshelf's |
+| device, graphics | timing |
+| web | graphics |
+| typesetting | graphics, web |
+| ebook | graphics, web, typesetting, naturalorder, timing |
+| servers | naturalorder, timing |
+| shelf | graphics, web, typesetting, ebook, servers, naturalorder, timing |
+| progress | servers, shelf |
+| reading | graphics, web, typesetting, ebook, shelf, timing |
+| app | device, graphics, typesetting, ebook, servers, shelf, progress, reading, timing |
+| cmd | app, device, graphics, servers, timing |
+
+Notice that `device` is used only by `app` and `cmd`: nothing that lays out a book knows it runs on
+a PocketBook.
+
+Inside the app there is a smaller cake: `widgets` (what every screen draws with), then `state`
+(everything the app knows, and its lock), then the services (`session`, `catalog`,
+`downloadqueue`, `covers`, `openbook`: functions over the state), then the screens, then `app`
+itself, which hands input to the screen shown.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/servers/server.go', symbol: 'Server', what: 'The interface every kind of server implements; all the app knows of servers.'},
+  {path: 'internal/servers/registry/registry.go', symbol: 'Opener, KindOf', what: 'The switch on config.json’s type; imported by cmd only.'},
+  {path: 'internal/app/doc.go', what: 'How the app is split into state, widgets, services and screens.'},
+  {path: 'internal/app/state/state.go', symbol: 'ShowLocked', what: 'How a screen moves to another without importing it.'},
+  {path: 'cmd/inkshelf', what: 'The program for the reader: the top of the cake, where the layers are plugged together.'},
+]} />
+
+The full story: <RefDoc file="architecture.md">Architecture</RefDoc>.
+
+Next: the bottom of the cake, the screen. It starts with what makes e-ink so different from the
+screen you are reading this on: [How e-ink works](../screen/eink.mdx).
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'The book list screen needs to show the books of a Komga server. What does it import?',
+    choices: ['servers/komga', 'servers, the neutral interface', 'servers/registry'],
+    answer: 1,
+    why: 'The app talks to servers.Server only. Which kind of server sits behind it is decided once, in cmd, through servers/registry.',
+  },
+  {
+    question: 'Can graphics/fonts import app/widgets to reuse a color?',
+    choices: ['Yes, any package may import any other', 'No: graphics sits below app, and lower layers never import upper ones'],
+    answer: 1,
+    why: 'Imports only go down the cake. (Here it would also be a cycle, since app/widgets imports graphics/fonts.)',
+  },
+  {
+    question: 'The reader screen must close a book and show the book list. How?',
+    choices: [
+      'It imports the booklist package and calls it',
+      'It calls state.ShowLocked with the book list’s screen id',
+      'It asks cmd to switch screens',
+    ],
+    answer: 1,
+    why: 'Screens never import each other: they switch by id, through the state.',
+  },
+]} />

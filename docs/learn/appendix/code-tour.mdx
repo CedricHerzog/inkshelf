@@ -1,0 +1,234 @@
+---
+title: A tour of the code
+description: A path through the source itself, part by part, with the files to open, in what order, what to notice in each, and a test or an emulator run that shows it working.
+---
+
+# A tour of the code
+
+<OneSentence>The chapters teach the ideas; this page walks you through the files that carry them, in an order where each stop only needs the ones before, with something to run at each one.</OneSentence>
+
+Inkshelf is about 34,000 lines of Go in some fifty packages. Reading them in alphabetical order
+would teach you little. This tour follows the parts of the site: read a part's chapters first,
+then come here and open its files in the editor, in order. Each stop says what to look at and
+gives a command to run (from the root of the repository), so you see the code work rather than
+only read it.
+
+Three **threads** cross the parts. Follow one end to end and you will have touched most of the
+code:
+
+1. **Start-up**: from `main` to the first screen.
+2. **A page turn in an EPUB**: from a tap to the panel refreshing.
+3. **A download**: from a tap on a book to `.pg4` files on the reader.
+
+<Analogy icon="🗺️">A guided walk through a city. The chapters are the guidebook; this is the
+route, with the stops, the order, and what to look at when you get there.</Analogy>
+
+## Before you start
+
+You need Go, and nothing else for the first stops. Run the app once, so you know what the code
+is doing:
+
+```sh
+make emu-fake          # the app against a fake Komga, at http://localhost:8740
+make test              # every test, on your computer
+```
+
+Two habits help along the way:
+
+- **Read the package's doc first.** Most packages begin with a `doc.go` that teaches their
+  domain. `go doc ./internal/shelf` prints it without opening an editor.
+- **Run one test with `-v`.** A test is the smallest program that uses a function:
+  `go test ./internal/naturalorder -run TestNaturalCompare -v`.
+
+## Stop 0: the map
+
+Read [The layer cake](/big-picture/layers), then the domain map in `CLAUDE.md` at the root of
+the repository. It lists every package with one line on what it does. Keep it open: whenever a
+stop names a package, find it on the map.
+
+Then check the rule that holds it together yourself:
+
+```sh
+go list -deps ./internal/app/... ./internal/shelf | grep -E 'servers/(komga|mealie|calibreweb)'
+```
+
+It prints nothing: the app and the shelf never import a specific server.
+
+## Part 1: start-up (thread 1)
+
+Open the two programs. They are short, and everything else hangs from them.
+
+<CodeMap entries={[
+  {path: 'cmd/inkshelf/main.go', symbol: 'main', what: 'Logging, profiling, then app.New and pocketbook.Run. The registry is handed in here.'},
+  {path: 'internal/app/app.go', symbol: 'New, Init', what: 'The application: its screens, and the three goroutines Init starts (session.Load, the preloader, the cover loader).'},
+  {path: 'internal/device/pocketbook/app.go', symbol: 'App, Run, run', what: 'The six methods every app implements, and the select loop that calls them.'},
+  {path: 'cmd/emulator/main.go', symbol: 'run, prepareAppDir', what: 'The same app on your computer: fake servers, an emulated reader, a web page or a script.'},
+]} />
+
+**Notice:** `run` in `pocketbook/app.go` is the heart of the program. One goroutine, one
+`select`: repaint requests call `app.Draw`, a ticker polls the firmware, which ends in
+`app.Key`, `app.Pointer` or `app.System`. Everything the app does starts from one of these
+calls.
+
+```sh
+go doc ./internal/device/pocketbook
+go test ./internal/device/pocketbook -run TestEventLoop -v
+```
+
+**Ask yourself:** `cmd/inkshelf` and `cmd/emulator` both call `app.New`. What is different
+about what they pass it?
+
+## Part 2: the screen
+
+Chapters: [How e-ink works](/screen/eink) to [The emulator](/screen/emulator). Follow the
+event loop down to the panel, then come back up through the images.
+
+<CodeMap entries={[
+  {path: 'internal/device/pocketbook/event_loop.go', symbol: 'eventLoop.poll', what: 'One tick: replies, firmware messages, the foreground, input, held keys, long presses.'},
+  {path: 'internal/device/pocketbook/touch.go', symbol: 'handleTouch', what: 'Raw touches become Down, Long and Up for app.Pointer.'},
+  {path: 'internal/device/pocketbook/canvas.go', symbol: 'Canvas, ClearScreen', what: 'The gray image every screen draws into.'},
+  {path: 'internal/device/pocketbook/eink_refresh.go', symbol: 'Refresh, FlashRefresh, mxcfbUpdate', what: 'Asking the panel to refresh a rectangle, with a waveform.'},
+  {path: 'internal/device/pocketbook/framebuffer_linux_arm.go', symbol: 'readerFirmware.flush', what: 'Wait for an overlapping refresh, copy, ioctl. Builds only for the reader.'},
+  {path: 'internal/device/pocketbook/framebuffer_copy.go', symbol: 'copyRotated', what: 'HOT PATH: the canvas copied, rotated, into the framebuffer.'},
+  {path: 'internal/device/pocketbook/emulated_firmware.go', symbol: 'Emulator.flush', what: 'The same flush, into memory, for the emulator.'},
+  {path: 'internal/graphics/pageimage/prepare.go', symbol: 'Prepare', what: 'Decode, fit, tone, dither to 16 grays, pack into .pg4.'},
+]} />
+
+**Notice:** files ending in `_linux_arm.go` build only for the reader; elsewhere, `_other.go`
+stubs and the emulator stand in. And notice what `flush` logs: the time spent waiting for the
+previous refresh, copying and sending. Page turns on the reader are timed from those lines in
+`inkshelf.log`.
+
+```sh
+go test ./internal/device/pocketbook -run 'TestGestures|TestCopyRotated' -v
+go test ./internal/graphics/pageimage -run 'TestFit|TestGray4RoundTrip' -v
+GOOS=linux GOARCH=arm go vet ./internal/device/pocketbook   # the reader-only files too
+```
+
+**Ask yourself:** why is `copyRotated` a hot path, and `Prepare` not?
+([From a scan to 16 grays](/screen/grays) has the answer.)
+
+## Part 3: books (thread 2, a page turn)
+
+Chapters: [What is an EPUB?](/books/epub) to [Pages and positions](/books/pages). This is the
+largest part of the code. Read it in the order the data flows: a zip, a document, fonts, lines,
+pages, then the engine that holds them.
+
+<CodeMap entries={[
+  {path: 'internal/ebook/epub/container', symbol: 'Open', what: 'The zip, the OPF, the spine, the navigation, fonts and DRM detection.'},
+  {path: 'internal/ebook/epub/epub.go', symbol: 'Open', what: 'An EPUB opened for reading.'},
+  {path: 'internal/ebook/epub/chapter.go', symbol: 'Book.Chapter', what: 'A chapter of XHTML and CSS becomes a document (through the build_*.go files).'},
+  {path: 'internal/typesetting/document/document.go', symbol: 'Document', what: 'The model: blocks of styled runs.'},
+  {path: 'internal/graphics/fonts/draw.go', symbol: 'DrawSpaced, blend', what: 'Measuring and drawing text in gray.'},
+  {path: 'internal/typesetting/layout/line_breaking.go', symbol: 'breakLines', what: 'Words onto lines, greedily, with hyphenation.'},
+  {path: 'internal/typesetting/layout/paginate.go', symbol: 'Paginate', what: 'Lines onto pages.'},
+  {path: 'internal/typesetting/layout/draw.go', symbol: 'Page.Draw', what: 'A laid-out page drawn into an image.'},
+  {path: 'internal/reading/textbook.go', symbol: 'Open, TextBook.Turn', what: 'The reading engine: positions, page turns across chapters.'},
+  {path: 'internal/reading/renderer.go', symbol: 'renderer.pagesLocked', what: 'Lays out a chapter on first use and keeps its pages.'},
+]} />
+
+Now follow **thread 2**, a page turn, from the tap to the panel. Open each function in turn:
+
+1. `reader.Screen.Command` (`internal/app/screens/reader/reader.go`) receives "next page".
+2. `openbook.TurnPage` (`internal/app/openbook/openbook.go`) changes the state inside
+   `app.Update`.
+3. `TextBook.Turn` (`internal/reading/textbook.go`) moves the position, asking the renderer for
+   the chapter's pages.
+4. `renderer.pagesLocked` calls `Book.Chapter` then `layout.Paginate`, once per chapter.
+5. The repaint reaches `app.Draw`, which calls the reader's `DrawAndRefreshLocked`: the page is
+   drawn with `Page.Draw`, then `pocketbook.Refresh` updates the panel.
+6. Back in `TurnPage`, `Syncer.Schedule` will send the progress a few seconds later.
+
+```sh
+go doc ./internal/typesetting/layout
+go test ./internal/ebook/epub -run 'TestOpen|TestChapter' -v
+go test ./internal/typesetting/layout -run 'TestHyphenatedWord|TestLongWord' -v
+go test ./internal/reading -run TestTurnPages -v
+make emu-fake EMUFLAGS="-fake-type calibreweb"   # open an EPUB and turn pages
+```
+
+The showcase EPUB of the fake Calibre-Web has Arabic, Hebrew, Chinese and emphasis marks:
+`make shots SCRIPT=emulator/scripts/calibreweb-showcase.txt EMUFLAGS="-fake-type calibreweb"`
+saves the screenshots in `build/shots`.
+
+**Ask yourself:** where does a chapter's layout run the first time you open the book, and where
+on the next page turns?
+
+## Part 4: the app (thread 3, a download)
+
+Chapters: [Life of a tap](/app/tap) to [Syncing reading progress](/app/sync).
+
+<CodeMap entries={[
+  {path: 'internal/app/input.go', symbol: 'Pointer, touchTargetLocked', what: 'A tap becomes a target, then a command for the screen.'},
+  {path: 'internal/app/state/state.go', symbol: 'State, Update, ShowLocked', what: 'The one mutex, and how other goroutines change the state and ask for a repaint.'},
+  {path: 'internal/app/screens.go', symbol: 'Screen', what: 'What a screen is: DrawLocked and Command.'},
+  {path: 'internal/servers/server.go', symbol: 'Server', what: 'What the app needs from any server.'},
+  {path: 'internal/servers/registry/registry.go', symbol: 'Opener, KindOf', what: 'The one switch on the kind of server.'},
+  {path: 'internal/progress/syncer.go', symbol: 'Syncer.Schedule, PushNow', what: 'Progress sent back, debounced.'},
+  {path: 'internal/progress/progress.go', symbol: 'Merge', what: 'The reader’s progress against the server’s.'},
+]} />
+
+Then follow **thread 3**, a download:
+
+1. A tap on a book not on the reader calls `downloadqueue.EnqueueLocked`
+   (`internal/app/downloadqueue/downloadqueue.go`). If the queue was idle, it starts
+   `downloader` with `app.Go`.
+2. `downloader` calls `Store.Download` (`internal/shelf/download.go`), which branches on the
+   book's `Format`.
+3. For page images, fetchers (`fetchLoop`) ask the server for pages, a few at a time, and
+   preparers (`prepareLoop`, then `preparePage`) call `pageimage.Prepare` and write each `.pg4`
+   with `writeFileAtomic`.
+4. For an EPUB, `downloadReflowable` (`internal/shelf/prepare_epub.go`) fetches the file whole,
+   builds its index and its cover.
+5. `book.json` is written last; `downloader` records the result inside an `Update` and takes
+   the next book.
+
+```sh
+go doc ./internal/shelf
+go test ./internal/shelf -run TestDownloadPreparesPages -v
+go test ./internal/progress -run 'TestMerge|TestSyncerSchedule' -v
+go test ./internal/servers -run TestCompareTitles -v
+make shots SCRIPT=emulator/scripts/mealie.txt EMUFLAGS="-fake-type mealie"
+```
+
+**Ask yourself:** `downloader` runs on its own goroutine. Find every place where it touches the
+state, and check that each is inside `app.Update` ([Threads and locks](/app/locks) says why).
+
+## Part 5: a first change
+
+You have now read the code of each thread. A good first change is a small one that runs the
+whole loop of [Making a change](/appendix/contributing):
+
+- **Add a case to a test.** Add a title to `TestCompareTitles`
+  (`internal/servers/sorting_test.go`), such as a French title with an article, and run it.
+- **Write an emulator script.** Copy `emulator/scripts/smoke.txt`, take a `shot` of a screen you
+  have read the code of, and run it with `make shots SCRIPT=…`.
+- **Profile a page turn.** `make profile SCRIPT=emulator/scripts/calibreweb-epub.txt`, then
+  open the CPU profile and find `Paginate` and `blend` in it ([Finding what is
+  slow](/reference/profiling)).
+
+When the change is real, `make verify` runs everything: the build, the linter, the tests, every
+script, and the comparison of screenshots with the baseline.
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'Where does every call into the app come from?',
+    choices: ['From several goroutines started by the firmware', 'From run, the one event loop in pocketbook/app.go', 'From the screens themselves'],
+    answer: 1,
+    why: 'Init, Draw, Key, Pointer, System and Close are all called by the event loop, on one goroutine.',
+  },
+  {
+    question: 'You want to read how a chapter’s XHTML becomes a document. Which file do you open first?',
+    choices: ['internal/typesetting/layout/paginate.go', 'internal/ebook/epub/chapter.go, then the build_*.go files', 'internal/reading/textbook.go'],
+    answer: 1,
+    why: 'Book.Chapter builds the document; layout and reading only use it.',
+  },
+  {
+    question: 'A download’s preparers write pages to disk. Which function makes sure no half-written page is ever read?',
+    choices: ['pageimage.Prepare', 'writeFileAtomic', 'downloadqueue.EnqueueLocked'],
+    answer: 1,
+    why: 'It writes a .tmp, then renames it: the real name is whole or absent.',
+  },
+]} />

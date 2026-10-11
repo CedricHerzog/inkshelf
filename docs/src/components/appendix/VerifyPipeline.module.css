@@ -1,0 +1,94 @@
+.widget {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.pipeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.stage {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem 0.3rem 0.35rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--ink-line);
+  background: var(--ink-paper-2);
+  font-family: var(--ink-mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+.mark {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--ink-line);
+  color: var(--ink-text);
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.name {
+  white-space: nowrap;
+}
+
+.waiting {
+  opacity: 0.6;
+}
+
+.running {
+  border-color: var(--ink-blue);
+  background: var(--ink-blue-soft);
+}
+
+.running .mark {
+  background: var(--ink-blue);
+  color: var(--ink-paper);
+}
+
+.passed {
+  border-color: var(--ink-ok);
+  background: var(--ink-ok-soft);
+}
+
+.passed .mark {
+  background: var(--ink-ok);
+  color: var(--ink-paper);
+}
+
+.failed {
+  border-color: var(--ink-accent);
+  background: var(--ink-accent-soft);
+}
+
+.failed .mark {
+  background: var(--ink-accent);
+  color: var(--ink-paper);
+}
+
+.terminal {
+  margin: 0;
+  max-height: 11rem;
+  overflow: auto;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage {
+    transition: none;
+  }
+}

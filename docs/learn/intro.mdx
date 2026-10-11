@@ -1,0 +1,99 @@
+---
+title: Start here
+slug: /
+description: What Inkshelf is, a two-minute tour of the app, and how to read this site.
+---
+
+import PhoneTour from '@site/src/components/intro/PhoneTour';
+import PartsPath from '@site/src/components/intro/PartsPath';
+
+# Inkshelf, explained
+
+<OneSentence>
+Inkshelf is an app for a PocketBook e-reader that reads comics, books and recipes from your own
+servers, written in pure Go, and drawing on the e-ink screen by itself, without the vendor's
+SDK.
+</OneSentence>
+
+This site explains how it works, from the first pixel to the last page. You need to know how to
+program. You do not need to know anything about e-readers, EPUB or Go's internals: every idea is
+introduced before it is used.
+
+## What Inkshelf does
+
+An e-reader is a small computer with a screen of <Term id="eink">e-ink</Term>: paper-like, easy
+on the eyes, and very slow. The one Inkshelf runs on is a PocketBook InkPad 3: a screen
+of 1404 × 1872 pixels, 16 shades of gray, a modest ARM processor.
+
+Inkshelf connects that reader to three kinds of <Term id="server">server</Term> you may run at
+home:
+
+- **Komga**, a server of comics and manga, which sends a comic page by page as pictures;
+- **Calibre-Web**, a server of books, which sends a whole <Term id="epub">EPUB</Term> (or a CBZ
+  of comic pages);
+- **Mealie**, a server of recipes, whose recipes Inkshelf lays out into pages.
+
+You pick a book, it downloads, and you read it. Your progress goes back to the server, so another
+device opens the book where you left it.
+
+## A two-minute tour
+
+These are real screenshots, taken by the <Term id="emulator">emulator</Term>, which runs the app
+on a computer against fake servers.
+
+<Figure title="The app, screen by screen" tryThis="Press Next to walk through the app, or Play to let it run. The black blink between shots is a nod to the e-ink flash.">
+  <PhoneTour />
+</Figure>
+
+## Why it is interesting
+
+Most PocketBook apps are written in C against PocketBook's SDK, a library called `libinkview`
+that draws, refreshes the screen and reads the buttons for them. Inkshelf uses none of it. It is a
+plain Go program with no C code at all (no <Term id="cgo">cgo</Term>), so one command builds it on
+any computer:
+
+```sh
+make build   # CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build … -o build/inkshelf.app ./cmd/inkshelf
+```
+
+So everything the SDK did, Inkshelf does itself, and that is what this site shows:
+
+- it writes pixels straight into the screen's memory, the <Term id="framebuffer" />, and asks the
+  panel to refresh with an <Term id="ioctl" />;
+- it talks to the reader's firmware through Linux <Term id="ipc">IPC</Term>, to learn when it is
+  in front, when Wi-Fi is up, and to receive taps and keys;
+- it opens EPUB files and lays out their text itself: CSS, line breaking, hyphenation,
+  justification, pages;
+- it turns a color comic page into the panel's 16 grays, once, when the book downloads.
+
+## How to read this site
+
+The site is one path, from the easiest ideas to the hardest. Each part only uses what came
+before it.
+
+<PartsPath />
+
+Along the way:
+
+- **Widgets.** Most chapters have a figure marked _Interactive_. Each shows one idea, and its
+  **Try this** line says what to do with it. Playing with them is the fastest way to understand.
+- **Words.** A dotted word, like <Term id="dithering" />, is in the
+  [glossary](/glossary): hover over it for a short definition, click it for the full list.
+- **Code.** Each chapter ends with _Where it lives in the code_: the real files and functions.
+  Every name and number on this site was checked in the Go code.
+- **Quizzes.** A chapter ends with a few questions. Click an answer to see why.
+- **Going deeper.** Folded _Going deeper_ boxes hold the details you can skip on a first read.
+
+When you want to read the code itself, [A tour of the code](/appendix/code-tour) gives the
+files to open for each part, in order, with a test or an emulator run at each stop.
+
+The [Reference](/reference/architecture) (in the menu at the top) holds the precise, complete
+version of each chapter, for when you change the code. Each chapter links to its own.
+
+## What you need to know
+
+Nothing about e-readers. Some programming, in any language: Go code is shown in short snippets, and
+they read like most C-family languages. When a Go idea matters (a <Term id="goroutine" />, a
+<Term id="mutex" />), the site explains it.
+
+Start with [A book's journey](/big-picture/journey): one book, from the server to your eyes.

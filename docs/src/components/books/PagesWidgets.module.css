@@ -1,0 +1,322 @@
+/* The widgets of the chapter "Pages and positions": blocks dropping onto pages, the rune ruler,
+   the book-wide progress bar, and the download-time and read-time timeline. */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.svgFluid {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  font-family: var(--ink-mono);
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+
+.readout strong {
+  color: var(--ink-text);
+  font-weight: 600;
+}
+
+.page {
+  fill: var(--ink-paper);
+  stroke: var(--ink-line);
+}
+
+.pageCurrent {
+  stroke: var(--ink-accent);
+  stroke-width: 2;
+}
+
+.lineBar {
+  fill: var(--ink-muted);
+}
+
+.headingBar {
+  fill: var(--ink-text);
+}
+
+.imageBox {
+  fill: var(--ink-blue-soft);
+  stroke: var(--ink-blue);
+}
+
+.marginBand {
+  fill: var(--ink-warn-soft);
+}
+
+.fresh {
+  animation: pagesDrop 0.4s ease-out;
+}
+
+.cursor {
+  stroke: var(--ink-accent);
+  stroke-width: 2;
+}
+
+.cursorLabel {
+  fill: var(--ink-accent);
+  font-family: var(--ink-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.smallLabel {
+  fill: var(--ink-muted);
+  font-family: var(--ink-mono);
+  font-size: 10px;
+}
+
+.ghost {
+  fill: var(--ink-accent-soft);
+  stroke: var(--ink-accent);
+  stroke-dasharray: 4 3;
+}
+
+@keyframes pagesDrop {
+  from {
+    transform: translateY(-26px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* The rune ruler and the book bar */
+
+.ruler {
+  position: relative;
+  height: 64px;
+  border: 1px solid var(--ink-line);
+  border-radius: 6px;
+  background: var(--ink-paper-2);
+  cursor: pointer;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-right: 1px solid var(--ink-line);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  font-family: var(--ink-mono);
+  font-size: 0.68rem;
+  color: var(--ink-muted);
+  padding-top: 4px;
+  transition: left 0.45s ease, width 0.45s ease;
+  overflow: hidden;
+}
+
+.spanEven {
+  background: var(--ink-paper);
+}
+
+.spanOdd {
+  background: var(--ink-blue-soft);
+}
+
+.spanHit {
+  background: var(--ink-accent-soft);
+  color: var(--ink-accent);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 2px var(--ink-accent);
+}
+
+.pin {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid var(--ink-accent);
+  pointer-events: none;
+}
+
+.pin::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: -8px;
+  width: 14px;
+  height: 18px;
+  background: var(--ink-accent);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+}
+
+.startMark {
+  position: absolute;
+  top: 22px;
+  bottom: 22px;
+  width: 0;
+  border-left: 2px dashed var(--ink-ok);
+  pointer-events: none;
+  transition: left 0.45s ease;
+}
+
+.ticks {
+  position: relative;
+  height: 1.1rem;
+  font-family: var(--ink-mono);
+  font-size: 0.66rem;
+  color: var(--ink-muted);
+}
+
+.ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.chapter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-right: 2px solid var(--ink-paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--ink-text);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.chapterHit {
+  outline: 2px solid var(--ink-accent);
+  outline-offset: -2px;
+}
+
+.virtualTick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 10px;
+  background: var(--ink-muted);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.formula {
+  font-family: var(--ink-mono);
+  font-size: 0.85rem;
+  line-height: 1.7;
+  background: var(--ink-paper-2);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.formula b {
+  color: var(--ink-accent);
+}
+
+/* The timeline */
+
+.lanes {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.6rem;
+}
+
+.lane {
+  border: 1px solid var(--ink-line);
+  border-radius: 8px;
+  padding: 0.5rem;
+  background: var(--ink-paper-2);
+}
+
+.laneTitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  margin-bottom: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.laneSteps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+
+.stageBox {
+  border: 1px solid var(--ink-line);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  background: var(--ink-paper);
+  font-size: 0.78rem;
+  max-width: 11rem;
+  opacity: 0.45;
+  transition: opacity 0.3s, border-color 0.3s, background 0.3s;
+}
+
+.stageBox code {
+  font-size: 0.7rem;
+}
+
+.stageDone {
+  opacity: 1;
+}
+
+.stageNow {
+  opacity: 1;
+  border-color: var(--ink-accent);
+  background: var(--ink-accent-soft);
+  box-shadow: 0 0 0 1px var(--ink-accent);
+}
+
+.files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  min-height: 1.8rem;
+  font-size: 0.8rem;
+}
+
+.file {
+  font-family: var(--ink-mono);
+  font-size: 0.74rem;
+  border: 1px solid var(--ink-ok);
+  color: var(--ink-ok);
+  background: var(--ink-ok-soft);
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+  animation: pagesDrop 0.35s ease-out;
+}
+
+.fileGone {
+  text-decoration: line-through;
+  border-color: var(--ink-muted);
+  color: var(--ink-muted);
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fresh,
+  .file {
+    animation: none;
+  }
+  .span,
+  .startMark,
+  .stageBox {
+    transition: none;
+  }
+}

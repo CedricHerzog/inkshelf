@@ -1,0 +1,11 @@
+# The server picker, with two fake servers:
+# make shots SCRIPT=emulator/scripts/servers.txt EMUFLAGS="-servers 2"
+# Server buttons are 200 px high from y 580, 240 px apart: centres at y 680, 920…
+
+shot 01-servers
+tap 700 920                 # Fake 2
+shot 02-series
+tap 700 640                 # Beta Chronicles
+shot 03-books
+tap 150 84                  # ‹ Back
+tap 150 84                  # Exit

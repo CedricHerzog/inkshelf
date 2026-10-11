@@ -1,0 +1,399 @@
+/* Styles of the "What is an EPUB?" widgets (EpubUnzip, EpubDrm, EpubSpine, EpubLayouts). */
+
+/* ---------- EpubUnzip ---------- */
+
+.unzip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.tree {
+  position: relative;
+  width: 262px;
+  flex: 0 0 auto;
+  font-family: var(--ink-mono);
+  font-size: 0.8rem;
+}
+
+.bookFile {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.bookIcon {
+  width: 46px;
+  height: 60px;
+  border-radius: 3px 8px 8px 3px;
+  background: var(--ink-accent);
+  color: var(--ink-paper);
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  box-shadow: inset 6px 0 0 rgba(0, 0, 0, 0.18);
+}
+
+.row {
+  position: absolute;
+  left: 0;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  border: 0;
+  background: none;
+  padding: 0 0.3rem;
+  border-radius: 4px;
+  color: var(--ink-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--ink-paper-2);
+}
+
+.rowFolder {
+  color: var(--ink-muted);
+  cursor: default;
+}
+
+.rowFolder:hover {
+  background: none;
+}
+
+.rowSelected {
+  background: var(--ink-accent-soft);
+  outline: 1.5px solid var(--ink-accent);
+}
+
+.rowTarget {
+  background: var(--ink-blue-soft);
+}
+
+.rowFly {
+  animation: flyOut 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+}
+
+@keyframes flyOut {
+  from {
+    opacity: 0;
+    transform: translate(10px, var(--from-y)) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.arrows {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.arrowsFade {
+  animation: fadeIn 0.5s both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.viewer {
+  flex: 1 1 240px;
+  min-width: 0;
+  border: 1px solid var(--ink-line);
+  border-radius: 8px;
+  background: var(--ink-paper-2);
+  overflow: hidden;
+}
+
+.viewerHead {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--ink-line);
+  font-size: 0.85rem;
+}
+
+.viewerPath {
+  font-family: var(--ink-mono);
+  font-weight: 650;
+}
+
+.viewerRole {
+  color: var(--ink-muted);
+  margin-top: 0.15rem;
+}
+
+.code {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  max-height: 300px;
+  overflow: auto;
+  font-family: var(--ink-mono);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  background: var(--ink-paper);
+  border-radius: 0;
+  white-space: pre;
+}
+
+.mark {
+  background: var(--ink-warn-soft);
+  outline: 1px solid var(--ink-warn);
+  border-radius: 2px;
+}
+
+.binary {
+  margin: 0.75rem;
+  height: 120px;
+  width: 80px;
+  border-radius: 4px;
+  background: linear-gradient(160deg, #555 0%, #999 60%, #ccc 100%);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 0.7rem;
+}
+
+.bytes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 0.4rem;
+  font-family: var(--ink-mono);
+  font-size: 0.7rem;
+}
+
+.byteGroup {
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid var(--ink-line);
+  background: var(--ink-paper-2);
+}
+
+.byteGroup small {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 0.6rem;
+}
+
+.byteHot {
+  border-color: var(--ink-accent);
+  background: var(--ink-accent-soft);
+}
+
+.zippedNote {
+  max-width: 360px;
+  font-size: 0.85rem;
+}
+
+/* ---------- EpubDrm ---------- */
+
+.drm {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.verdict {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.verdictOk {
+  background: var(--ink-ok-soft);
+  color: var(--ink-ok);
+}
+
+.verdictBad {
+  background: var(--ink-accent-soft);
+  color: var(--ink-accent);
+}
+
+.checks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.82rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.checks code {
+  font-size: 0.72rem;
+  word-break: break-all;
+}
+
+/* ---------- EpubSpine ---------- */
+
+.spineStage {
+  overflow-x: auto;
+}
+
+.spineSvg {
+  display: block;
+  font-family: var(--ink-mono);
+}
+
+.card {
+  cursor: default;
+}
+
+.cardBox {
+  fill: var(--ink-paper);
+  stroke: var(--ink-line);
+  stroke-width: 1;
+  transition: fill 0.3s, stroke 0.3s;
+}
+
+.cardHot .cardBox {
+  fill: var(--ink-accent-soft);
+  stroke: var(--ink-accent);
+}
+
+.cardDim {
+  opacity: 0.45;
+}
+
+.cardShown .cardBox {
+  fill: var(--ink-ok-soft);
+  stroke: var(--ink-ok);
+}
+
+.cardRefused .cardBox {
+  stroke: var(--ink-accent);
+  stroke-dasharray: 4 3;
+}
+
+.label {
+  fill: var(--ink-text);
+  font-size: 10.5px;
+}
+
+.sublabel {
+  fill: var(--ink-muted);
+  font-size: 9.5px;
+}
+
+.columnTitle {
+  fill: var(--ink-muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--ifm-font-family-base);
+  font-weight: 700;
+}
+
+.wire {
+  fill: none;
+  stroke: var(--ink-blue);
+  stroke-width: 1.5;
+  transition: d 0.4s, opacity 0.3s;
+}
+
+.wireWeak {
+  stroke-dasharray: 4 3;
+  stroke: var(--ink-muted);
+}
+
+.wireHop {
+  stroke: var(--ink-warn);
+  stroke-width: 2;
+}
+
+.marker {
+  fill: var(--ink-accent);
+  transition: transform 0.45s ease;
+}
+
+.popup {
+  fill: var(--ink-blue-soft);
+  stroke: var(--ink-blue);
+}
+
+/* ---------- EpubLayouts ---------- */
+
+.layouts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.screenColumn {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: center;
+}
+
+.screenTitle {
+  font-weight: 650;
+  font-size: 0.88rem;
+}
+
+.screenNote {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  text-align: center;
+  max-width: 220px;
+}
+
+.device {
+  padding: 10px 10px 22px;
+  border-radius: 12px;
+  background: #3a3833;
+  transition: width 0.4s, height 0.4s;
+}
+
+.panel {
+  width: 100%;
+  height: 100%;
+  background: #f2f0ea;
+  color: #1d1d1b;
+  overflow: hidden;
+  position: relative;
+}
+
+.reflowText {
+  padding: 8%;
+  font-family: Georgia, 'Times New Roman', serif;
+  line-height: 1.35;
+  text-align: justify;
+  hyphens: auto;
+  transition: font-size 0.3s;
+}
+
+.reflowText h4 {
+  margin: 0 0 0.5em;
+  font-size: 1.3em;
+  text-align: center;
+}
+
+.reflowText p {
+  margin: 0;
+  text-indent: 1.5em;
+}
+
+.pageCount {
+  position: absolute;
+  bottom: 2px;
+  right: 6px;
+  font-size: 9px;
+  color: #6b665c;
+  background: #f2f0ea;
+  padding: 0 2px;
+}

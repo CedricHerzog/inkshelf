@@ -1,0 +1,282 @@
+/* The widgets of the chapter "Breaking lines": a paragraph broken word by word, Liang's patterns
+   sliding over a word, and the reversals of bidirectional text. */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.svg {
+  display: block;
+  max-width: none;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.svgFluid {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  font-family: var(--ink-mono);
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+
+.readout strong {
+  color: var(--ink-text);
+  font-weight: 600;
+}
+
+.wordText {
+  fill: var(--ink-text);
+}
+
+.wordNew {
+  fill: var(--ink-ok);
+  font-weight: 600;
+}
+
+.ghost {
+  fill: var(--ink-accent);
+}
+
+.flowNode rect {
+  fill: var(--ink-paper-2);
+  stroke: var(--ink-line);
+  stroke-width: 1;
+  transition: fill 0.25s, stroke 0.25s;
+}
+
+.flowNode text {
+  fill: var(--ink-muted);
+  font-size: 10.5px;
+  font-family: var(--ifm-font-family-base);
+}
+
+.flowLit rect {
+  fill: var(--ink-accent-soft);
+  stroke: var(--ink-accent);
+  stroke-width: 2;
+}
+
+.flowLit text {
+  fill: var(--ink-text);
+  font-weight: 600;
+}
+
+.flowEdge {
+  stroke: var(--ink-line);
+  stroke-width: 1.5;
+  fill: none;
+  transition: stroke 0.25s;
+}
+
+.flowEdgeLit {
+  stroke: var(--ink-accent);
+  stroke-width: 2.5;
+}
+
+.flowLabel {
+  font-size: 9.5px;
+  fill: var(--ink-muted);
+  font-family: var(--ink-mono);
+}
+
+/* Liang */
+
+.wordInput {
+  font: inherit;
+  font-family: var(--ink-mono);
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--ink-line);
+  border-radius: 6px;
+  background: var(--ink-paper);
+  color: var(--ink-text);
+  width: 13rem;
+  max-width: 100%;
+}
+
+.liangGrid {
+  font-family: var(--ink-mono);
+}
+
+.cellLetter {
+  fill: var(--ink-text);
+  font-size: 17px;
+}
+
+.cellDot {
+  fill: var(--ink-muted);
+  font-size: 17px;
+}
+
+.digit {
+  font-size: 13px;
+  fill: var(--ink-muted);
+}
+
+.digitOdd {
+  fill: var(--ink-accent);
+  font-weight: 700;
+}
+
+.digitEven {
+  fill: var(--ink-blue);
+  font-weight: 700;
+}
+
+.patternRow text {
+  font-size: 13px;
+}
+
+.patternCurrent rect {
+  fill: var(--ink-warn-soft);
+  stroke: var(--ink-warn);
+}
+
+.patternOld rect {
+  fill: transparent;
+  stroke: var(--ink-line);
+}
+
+.edgeShade {
+  fill: var(--ink-line);
+  opacity: 0.45;
+}
+
+.result {
+  font-family: var(--ink-mono);
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+}
+
+.result .hyphen {
+  color: var(--ink-accent);
+  font-weight: 700;
+}
+
+.note {
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+}
+
+/* Bidi */
+
+.bidiRow {
+  display: flex;
+  flex-direction: row;
+  direction: ltr;
+  align-items: flex-end;
+  gap: 2px;
+  flex-wrap: nowrap;
+  min-height: 4.2rem;
+  padding: 0.3rem 0;
+}
+
+.bidiItem {
+  unicode-bidi: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  transition: transform 0.35s ease;
+}
+
+.bidiText {
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--ink-line);
+  background: var(--ink-paper-2);
+  font-size: 1.1rem;
+  white-space: pre;
+  min-width: 0.9rem;
+  text-align: center;
+}
+
+.bidiGap {
+  min-width: 0.7rem;
+  background: repeating-linear-gradient(45deg, transparent 0 3px, var(--ink-line) 3px 4px);
+}
+
+.bidiReversed {
+  border-color: var(--ink-accent);
+  background: var(--ink-accent-soft);
+}
+
+.levelBadge {
+  font-family: var(--ink-mono);
+  font-size: 0.68rem;
+  border-radius: 999px;
+  padding: 0 0.4rem;
+  color: #fff;
+}
+
+.level0 {
+  background: #6b665c;
+}
+
+.level1 {
+  background: #a4452c;
+}
+
+.level2 {
+  background: #2f5d8a;
+}
+
+.bidiLabel {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  font-family: var(--ink-mono);
+  margin-top: 0.4rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bidiItem,
+  .flowNode rect,
+  .flowEdge {
+    transition: none;
+  }
+}
+
+.slideIn {
+  animation: linesSlideIn 0.45s ease-out;
+}
+
+.dropIn {
+  animation: linesDropIn 0.45s ease-out;
+}
+
+@keyframes linesSlideIn {
+  from {
+    transform: translateX(-36px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes linesDropIn {
+  from {
+    transform: translateY(-14px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slideIn,
+  .dropIn {
+    animation: none;
+  }
+}

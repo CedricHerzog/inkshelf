@@ -1,0 +1,24 @@
+# MathML in an EPUB from the fake Calibre-Web: its last chapter, Formules, with formulas in
+# lines of text and displayed, then a table:
+#   make shots SCRIPT=emulator/scripts/calibreweb-mathml.txt EMUFLAGS="-fake-type calibreweb"
+# The contents screen lists the chapters and their second scenes, 141 px lines from y 292:
+# Formules is the seventh, at y 1208.
+
+tap 700 433                 # Les Étoiles
+tap 700 433                 # download Tome 1
+idle 60s
+tap 700 433                 # read it
+tap 700 900                 # the toolbar
+tap 720 84                  # Contents
+shot 01-contents
+tap 700 1208                # Formules
+shot 02-formulas            # a fraction, scripts and a root in the text; the quadratic formula, a sum, a matrix; a box, bordered, on gray; the table, its grid
+tap 1200 900                # the next page, if the chapter has one
+shot 03-formulas-next
+key prev
+tap 700 900                 # the toolbar
+tap 1060 84                 # A+: the formulas grow with the text; the table's rows go on the next page
+shot 04-larger
+tap 906 84                  # A−
+tap 906 84                  # A−: smaller still
+shot 05-smaller

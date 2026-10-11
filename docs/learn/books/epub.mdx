@@ -1,0 +1,215 @@
+---
+title: What is an EPUB?
+description: An EPUB is a small website in a zip. How Inkshelf opens one, finds its chapters, refuses DRM and tells reflowable books from fixed-layout ones.
+---
+
+import EpubUnzip from '@site/src/components/books/EpubUnzip';
+import EpubSpine from '@site/src/components/books/EpubSpine';
+import EpubDrm from '@site/src/components/books/EpubDrm';
+import EpubLayouts from '@site/src/components/books/EpubLayouts';
+
+# What is an EPUB?
+
+<OneSentence>
+An EPUB is a small website zipped into one file: Inkshelf follows <code>container.xml</code> to
+the package document, and the package document's spine gives it the chapters, in reading order.
+</OneSentence>
+
+A comic is easy to show: it is a stack of pictures, one per page. A novel is not. Its text has
+no pages until someone lays it out for a screen and a font size. The file format that carries
+such books is <Term id="epub" />, and before Inkshelf can draw a single word it has to find
+the words: which files are chapters, in what order, styled how.
+
+This chapter opens an EPUB. The next one turns a chapter into something the reader can lay
+out.
+
+<Analogy icon="📦">
+Think of a website saved for offline reading, zipped, with a note on top saying "the index is
+in this folder". The pages are the chapters, the stylesheets are the book's design, and the note
+is there so that any program can find its way in.
+</Analogy>
+
+## A website in a zip
+
+Inside an EPUB you find web files: chapters written in XHTML (strict HTML), CSS stylesheets,
+images and sometimes fonts. Three more files are there for programs, not for readers:
+
+- **`mimetype`**, first in the zip and stored without compression. It holds the 20 characters
+  `application/epub+zip`, so a program can recognize an EPUB from its first bytes without
+  unzipping anything.
+- **`META-INF/container.xml`**, the only file whose path is fixed. It says where the package
+  document is: books put it in `OEBPS/`, `EPUB/` or at the root, as they like.
+- **The package document** (the `.opf` file), the book's description: what files it has and
+  in what order to read them.
+
+The book below is the one Inkshelf's own tests open (in `epub_test.go`): a cover, two chapters,
+a page of notes, a stylesheet, a navigation document.
+
+<Figure
+  title="Unzipping a book"
+  tryThis="Unzip it, then play the steps: each one opens the file that container.Open reads next. Click any file to see what is inside; the arrows show which files it points to.">
+  <EpubUnzip />
+</Figure>
+
+Inkshelf never unzips the book to disk. Go's `archive/zip` reads the files straight from the
+EPUB, one at a time, when they are needed. And it does not check `mimetype`: it downloaded
+the file as a book, it knows what it is.
+
+## The package document: manifest, spine and navigation
+
+The <Term id="opf" /> has three parts that matter:
+
+- The **metadata**: the title, the language, the authors, the identifiers, and whether the book
+  is reflowable or fixed layout (more on that below).
+- The <Term id="manifest" />: every file of the book, each with an id, a path and a media type.
+  The manifest is a list of *what exists*, not of what to read.
+- The <Term id="spine" />: the reading order, as a list of `itemref`s, each naming a manifest
+  id.
+
+An `itemref` with `linear="no"` is part of the book but not of the reading flow: notes,
+answers to exercises. Inkshelf keeps every spine item (`Book.Spine`), but only the linear ones
+become its **chapters** (`Book.Chapters`), the ones "Next page" walks through. A non-linear
+item is shown only when a link leads to it, in a popup over the page.
+
+A manifest item may also name a **fallback**: "if you cannot show me, show this one instead".
+A book can offer a PDF for readers that read PDF, with an XHTML version behind it.
+`firstSupported` follows that chain until it finds an item it can show (XHTML or an image),
+and stops at the first item it has already seen, because books do contain loops. An item
+marked `scripted` that has a fallback goes to its fallback too: Inkshelf runs no scripts.
+
+<Figure
+  title="Spine, manifest, chapters"
+  tryThis={<>Press play to turn pages through the chapters. Untick <code>linear="no"</code> and play again: the notes join the flow. Then point the last itemref at a PDF with fallbacks, or at a loop.</>}>
+  <EpubSpine />
+</Figure>
+
+The table of contents a person sees is a separate file again: the <Term id="nav" />, an XHTML
+page whose `<nav epub:type="toc">` holds a nested list of links. EPUB 2 books have an older
+XML file instead, the NCX; `Book.Navigation` reads the nav, and the NCX only if the nav gives
+no table of contents.
+
+## Locked books
+
+A zip can hold encrypted files, listed in `META-INF/encryption.xml`. Books sold with
+DRM encrypt their chapters, and Inkshelf cannot read those: `container.Open` refuses them with
+`ErrDRM`, "the book is protected by DRM".
+
+But many books that are not locked at all have an `encryption.xml` too. Publishers
+*obfuscate* the fonts they embed, so that nobody copies them out of the book: the first 1040
+bytes (IDPF's method) or 1024 bytes (Adobe's) are mixed with a key made from the book's
+identifier. That is not a lock, since the key is in the book. So `checkEncryption` accepts
+these two algorithms and refuses any other.
+
+<Figure title="What checkEncryption accepts" tryThis="Switch between the three cases. Only an algorithm other than the two font obfuscations stops the book.">
+  <EpubDrm />
+</Figure>
+
+## Reflowable or fixed layout
+
+Most books are <Term id="reflowable" />: the text has no pages of its own. The reader lays it
+out for its screen and its text size, and lays it out again when you change either. That is
+what the next chapters are about.
+
+Some books are <Term id="fixed-layout" />: comics, children's books, cookbooks. Each spine item
+is one page designed at a fixed size, with text and pictures placed exactly. Reflowing them
+would wreck the design, so they are only scaled to fit the screen. The package's metadata
+says which: `rendition:layout` is `pre-paginated` for fixed layout, and an `itemref` may
+override it for its own page.
+
+<Figure
+  title="The same page, reflowable and fixed"
+  tryThis="Change the text size and watch the reflowable page count; the fixed page does not move. Then switch screens: the fixed page keeps its shape and leaves bands."
+  caption="Not to scale: both screens are drawn smaller, and the reflowable text a little larger than it would be.">
+  <EpubLayouts />
+</Figure>
+
+## How Inkshelf does it
+
+`container.Open` runs once per book, in this order:
+
+1. `checkEncryption`: no `encryption.xml`, or only obfuscated fonts, else `ErrDRM`.
+2. `packageDocumentPath` reads `META-INF/container.xml`. If it names several package
+   documents (other renditions of the book), the first one is the book.
+3. `readMetadata`, `readManifest` (which also finds the nav, the NCX and the cover image) and
+   `readSpine`, which follows fallbacks and keeps the linear items as chapters. A book with no
+   chapter fails to open, and so does one whose spine names an id missing from the manifest,
+   or a chapter missing from the zip.
+
+Package `epub` then decides what each chapter becomes (`documentOf` in `chapter.go`):
+
+- a pre-paginated item becomes one image block, its page drawn whole;
+- an item nothing can show becomes one line: "This part of the book cannot be shown.";
+- an image becomes an image block;
+- XHTML is built into a document: the subject of the next chapter.
+
+A book whose chapters are *all* pre-paginated (`Book.FixedLayout`) takes another road at
+download time: each page is drawn by `Book.RenderPage`, prepared like a comic page, and the
+EPUB is deleted. From then on it is read exactly like a comic.
+
+<details>
+<summary>Going deeper</summary>
+
+- **Paths.** Every path in `container` is a path inside the zip. A link is relative to the file
+  it is in, and is percent-decoded: the test book's `images/cover%20page.png` is the file
+  `OEBPS/images/cover page.png`. A `..` at the root stays at the root.
+- **Media types books get wrong.** A spine item with no usable fallback but a media type that
+  mentions `xml` or `html` (some books write `text/xml`), or none at all, is read as XHTML
+  anyway.
+- **Mixed books.** In a book that is partly reflowable, a pre-paginated chapter's document is
+  a single image block whose path starts with `rendered-page:`. When the layout asks for that
+  image, `Book.Resource` draws the page at 1404×1872, the InkPad 3's screen.
+- **Fonts.** For an obfuscated font, Inkshelf tries each of the book's identifiers as the key
+  (Adobe's key is a UUID that books often give as a second identifier), then recovers Adobe's
+  key from the font's own header.
+- **Encodings.** The test book's second chapter is written in Latin-1, not UTF-8. Inkshelf
+  decodes it: "Café crème." comes out right.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/ebook/epub/container/container.go', symbol: 'Open', what: 'Opens the zip and loads the book: encryption check, container.xml, package document.'},
+  {path: 'internal/ebook/epub/container/encryption.go', symbol: 'checkEncryption', what: 'Refuses DRM with ErrDRM; accepts the two font obfuscations.'},
+  {path: 'internal/ebook/epub/container/package_document.go', symbol: 'readSpine', what: 'The reading order, fallbacks followed, linear items kept as chapters.'},
+  {path: 'internal/ebook/epub/container/package_document.go', symbol: 'firstSupported', what: 'Walks a manifest fallback chain, stopping at a loop.'},
+  {path: 'internal/ebook/epub/container/navigation.go', symbol: 'Navigation', what: 'The table of contents, page list and landmarks, from the nav or the NCX.'},
+  {path: 'internal/ebook/epub/chapter.go', symbol: 'documentOf', what: 'What a spine item becomes: a built document, an image, a drawn page, or a line of apology.'},
+  {path: 'internal/ebook/epub/prepaginated.go', symbol: 'FixedLayout', what: 'Whether every chapter is pre-paginated: a book of pages.'},
+  {path: 'internal/shelf/prepare_fixed_layout.go', symbol: 'downloadFixedLayout', what: 'Turns a fixed-layout EPUB into comic pages at download time.'},
+]} />
+
+The full story: <RefDoc file="epub-to-page.md">From an EPUB to pixels</RefDoc>, and what
+Inkshelf passes of the W3C's tests in <RefDoc file="epub-conformance.md">EPUB 3.3 conformance</RefDoc>.
+
+Next: a chapter is XHTML and CSS. [From XHTML and CSS to a document](./css.mdx) turns it into
+something the layout code can use.
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'Which file of an EPUB has a path that never changes?',
+    choices: ['The package document (content.opf)', 'META-INF/container.xml', 'The navigation document'],
+    answer: 1,
+    why: 'container.xml is the fixed entry point: it says where the package document is, which can be anywhere in the zip.',
+  },
+  {
+    question: 'The test book’s spine has four itemrefs, one of them linear="no". How many chapters does Inkshelf count?',
+    choices: ['4', '3', '2'],
+    answer: 1,
+    why: 'Only linear items become chapters (Book.Chapters). The notes stay in Book.Spine, shown when a link leads to them.',
+  },
+  {
+    question: 'A book’s encryption.xml lists its fonts with the IDPF obfuscation algorithm. What happens?',
+    choices: ['Open fails with ErrDRM', 'The book opens, and the fonts are de-obfuscated when loaded', 'The book opens without its fonts'],
+    answer: 1,
+    why: 'Font obfuscation is not DRM: the key is the book’s own identifier. checkEncryption refuses only other algorithms.',
+  },
+  {
+    question: 'You make the text bigger. What happens to a pre-paginated page?',
+    choices: ['Its text reflows', 'Nothing: it is scaled to fit the screen, whatever the text size', 'It is split over two pages'],
+    answer: 1,
+    why: 'A fixed-layout page is a designed picture: Inkshelf draws it whole and scales it to fit, keeping its aspect ratio.',
+  },
+]} />

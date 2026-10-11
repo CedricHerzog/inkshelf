@@ -1,0 +1,50 @@
+{
+  "name": "Inkshelf",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "GOLANGCI_LINT_VERSION": "v2.14.0",
+      "CLAUDE_CODE_VERSION": "latest"
+    }
+  },
+  // init-firewall.sh needs to change the container's iptables.
+  "runArgs": ["--cap-add=NET_ADMIN", "--cap-add=NET_RAW"],
+  "remoteUser": "vscode",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace",
+  // Claude Code's login, the Go caches and the shell history survive a rebuild.
+  "mounts": [
+    "source=inkshelf-claude-config-${devcontainerId},target=/home/vscode/.claude,type=volume",
+    "source=inkshelf-gomod,target=/go/pkg/mod,type=volume",
+    "source=inkshelf-gocache,target=/home/vscode/.cache/go-build,type=volume",
+    "source=inkshelf-history-${devcontainerId},target=/commandhistory,type=volume"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
+    // Space-separated hosts the firewall lets through besides its own list: your Komga, Mealie
+    // or Calibre-Web servers, for make emu. Set INKSHELF_ALLOWED_DOMAINS on the host.
+    "EXTRA_ALLOWED_DOMAINS": "${localEnv:INKSHELF_ALLOWED_DOMAINS}"
+  },
+  "forwardPorts": [8740, 3000],
+  "portsAttributes": {
+    "8740": { "label": "Emulator" },
+    "3000": { "label": "Learning site" }
+  },
+  // On the first start this runs before the firewall, with the whole network.
+  "postCreateCommand": "go mod download",
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "waitFor": "postStartCommand",
+  "customizations": {
+    "vscode": {
+      "extensions": ["anthropic.claude-code", "golang.go"],
+      "settings": {
+        "go.lintTool": "golangci-lint",
+        "go.lintFlags": ["--fast-only"],
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "zsh": { "path": "zsh" }
+        }
+      }
+    }
+  }
+}

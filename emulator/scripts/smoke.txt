@@ -1,0 +1,116 @@
+# Smoke test of the main screens, against the fake Komga (make shots).
+# Coordinates are InkPad 3 pixels (1404x1872): book rows are 282 px high from y 292, so row
+# centres are at y 433, 715, 997, 1279, 1561, under the book filter's segments, centred at
+# x 262, 702, 1142, y 230 (All, Downloaded, Unread); the footer buttons are at y 1790. On the
+# series screen, the filters' segments are centred at x 207, 537, 867, 1197, y 230 (All, BD,
+# Comics, Manga) and y 334 (All, Reading, Unread, Read); series rows are 261 px high from
+# y 396, so row centres are at y 526, 787, 1048… The first row is the book to continue
+# (Alpha Saga, Vol. 2, in progress on the fake Komga), the series follow. The end panel's first button is at y 973;
+# the delete question's Delete and Keep at y 918 and 1068; a book's hold menu (3 buttons) at
+# y 813, 963, 1113. The A–Z jump's letters are 191 px apart from (223, 686), 6 a line.
+
+shot 01-series              # covers; Gamma has none
+tap 700 1048                # Beta Chronicles: 25 books, 14 read: opens on page 3, at Vol. 15
+shot 02-books
+tap 1200 1790               # Next list page
+shot 03-books-page-4
+swipe 300 900 1100 900      # swipe right: previous list page
+shot 04-books-page-3
+tap 150 84                  # ‹ Back
+shot 05-series-again
+tap 118 1048                # Beta's cover: its first book's first page, on the whole screen
+shot 05a-cover
+tap 700 900                 # any tap goes back
+tap 700 1790                # the footer's page number: the A–Z jump
+shot 05b-jump
+tap 605 1124                # T: page 3, with Tau
+shot 05c-page-t
+tap 700 1790
+tap 414 686                 # A: back to page 1
+
+tap 700 787                 # Alpha Saga (right to left)
+shot 06-alpha
+tap 700 715                 # Vol. 2 (the server has it at page 4): download it
+idle 60s
+shot 07-downloaded          # it moved up, with the downloaded books
+tap 700 433                 # open it, at page 4
+shot 08-page-4
+tap 200 900                 # left third: next page (manga order)
+shot 09-page-5
+key prev                    # the Back button: previous page
+shot 10-page-4-again
+tap 700 900                 # middle: the toolbar
+shot 11-toolbar
+home
+wait 300ms
+resume                      # back from Home: a full redraw
+shot 12-resumed
+tap 150 84                  # toolbar ‹ Back closes the book
+shot 13-books-after-reading
+tap 702 230                 # filter: Downloaded
+shot 13a-downloaded-only
+tap 1142 230                # filter: Unread
+shot 13b-unread
+tap 262 230                 # filter: All
+tap 1256 433                # Delete
+shot 14-deleted
+
+long 700 433                # hold Vol. 1: its menu
+shot 14a-menu
+tap 700 813                 # Download 3 books from here
+idle 60s
+shot 15-queue-downloaded
+tap 700 433                 # open Vol. 1 at page 1
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next                    # past page 10: the end panel
+shot 16-end
+tap 700 973                 # Read next: first, delete Vol. 1?
+shot 16a-ask-delete
+tap 700 1068                # Keep: Vol. 2 opens, at page 4
+shot 17-next-book
+tap 700 900                 # toolbar
+tap 150 84                  # ‹ Back to the books
+tap 150 84                  # ‹ Back to the series
+
+tap 537 230                 # library: BD (left to right)
+tap 700 787                 # Delta
+tap 700 433                 # download Vol. 1
+idle 60s
+tap 700 433                 # open it at page 1
+tap 1200 900                # right third: next page
+shot 18-ltr-page-2
+tap 700 900                 # toolbar
+shot 19-ltr-toolbar
+tap 1116 84                 # the direction button: right to left for Delta
+tap 700 900                 # close the toolbar
+tap 200 900                 # left third: next page now
+shot 20-flipped-page-3
+tap 700 900                 # toolbar
+tap 150 84                  # ‹ Back to the books
+tap 150 84                  # ‹ Back to the series
+
+tap 1197 230                # library: Manga
+shot 21-manga
+tap 537 334                 # status: Reading
+shot 22-manga-reading
+tap 867 230                 # library: Comics: nothing being read
+shot 23-comics-reading
+tap 207 230                 # library: All
+tap 1197 334                # status: Read
+shot 24-read
+tap 207 334                 # status: All
+tap 700 526                 # Continue: Delta, Vol. 1, read last, downloaded: opens at page 3
+shot 25-continue
+tap 700 900                 # toolbar
+tap 150 84                  # ‹ Back to the books
+tap 150 84                  # ‹ Back to the series
+tap 700 84                  # the header: refresh
+shot 26-refreshed

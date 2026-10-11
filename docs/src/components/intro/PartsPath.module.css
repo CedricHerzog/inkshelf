@@ -1,0 +1,91 @@
+.path {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0;
+  position: relative;
+}
+
+/* The line that joins the parts, behind their numbers. */
+.path::before {
+  content: '';
+  position: absolute;
+  left: 1.45rem;
+  top: 1.5rem;
+  bottom: 1.5rem;
+  border-left: 3px dotted var(--ink-line);
+}
+
+.part {
+  margin: 0 0 0.6rem;
+  position: relative;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--ink-line);
+  border-radius: var(--ink-radius);
+  background: var(--ink-paper);
+  color: var(--ink-text);
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.card:hover {
+  text-decoration: none;
+  color: var(--ink-text);
+  border-color: var(--ink-accent);
+  transform: translateX(3px);
+}
+
+.number {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--ink-accent);
+  color: var(--ink-paper);
+  font-family: var(--ifm-heading-font-family);
+  font-weight: 700;
+  position: relative;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.title {
+  font-family: var(--ifm-heading-font-family);
+  font-weight: 700;
+}
+
+.teaches {
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+
+.level {
+  flex: none;
+  color: var(--ink-accent);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+}
+
+.levelOff {
+  color: var(--ink-line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+  .card:hover {
+    transform: none;
+  }
+}

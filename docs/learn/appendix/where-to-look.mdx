@@ -1,0 +1,38 @@
+---
+title: Where do I look for…
+description: A searchable map from a task (a page turn, a CSS property, a download, the sync) to the package and file that does it.
+---
+
+import WhereToLook from '@site/src/components/appendix/WhereToLook';
+
+# Where do I look for…
+
+<OneSentence>
+A map from what you want to change to the file that does it, and to the chapter that explains it.
+</OneSentence>
+
+You know what you want to change ("the page turn feels slow", "this CSS property is ignored"), but
+not where it lives. Search for a word, or filter by area. Each line gives the files and functions
+to open, the chapter of this site that teaches the idea, and the reference document for the
+details.
+
+<Figure title="Task → code" badge="Search" tryThis="Type sync, then pg4, then css. Or pick an area, like Books.">
+  <WhereToLook />
+</Figure>
+
+## When the map is not enough
+
+- The [layer cake](/big-picture/layers) tells you which domain a question belongs to: pixels are
+  in graphics, text on pages in typesetting, files on the reader in shelf.
+- Each package starts with a `doc.go` that teaches its domain: `go doc ./internal/shelf` prints
+  it.
+- Functions marked `HOT PATH` in their comment are tuned for the reader's processor: read
+  [Making a change](/appendix/contributing) before touching one.
+- Some behavior only the reader shows: real ghosting, its speed, Wi-Fi, sleep. The app logs page
+  turn times, refresh waits, downloads and errors to `applications/inkshelf.log`, readable over
+  USB. To find where a slow page turn spends its time, profile it:
+  <RefDoc file="profiling.md">Finding what is slow</RefDoc>.
+
+The source of this map: the end of <RefDoc file="architecture.md">Architecture</RefDoc>.
+
+Found the file? [Making a change](./contributing.mdx) says how to change it safely.

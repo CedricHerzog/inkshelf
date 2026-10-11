@@ -1,0 +1,38 @@
+# The links of an EPUB from the fake Calibre-Web: a footnote, a publisher's note (a link back
+# to its call, no epub:type), another chapter, a note of a non-linear item of the spine, the
+# web; and the popup they show:
+#   make shots SCRIPT=emulator/scripts/calibreweb-links.txt EMUFLAGS="-fake-type calibreweb"
+# Chapter 1's first page has the links on one line at y 1057, under the illustration: the
+# note's call "1" at x 392, "chapitre 3" at 570, "notes de fin" at 875, "example.org" at 1170;
+# on the next line, at y 1115, the publisher's note's call "2" at x 520.
+# The popup covers the lower part of the screen, as high as its text up to y 1092.
+
+tap 700 433                 # Les Étoiles
+tap 700 433                 # download Tome 1
+idle 60s
+tap 700 433                 # read it: chapter 1, the footnote out of the text
+shot 01-links
+tap 392 1057                # the note's call: the footnote in the popup
+shot 02-footnote
+tap 700 400                 # a tap outside the popup closes it
+shot 03-closed
+tap 520 1115                # the publisher's note's call "2", without epub:type: its note in the popup
+shot 04-publisher-note
+tap 700 400                 # closed
+tap 570 1057                # chapitre 3: its first page
+shot 05-chapter-3
+tap 700 900                 # the toolbar: ‹ Return
+tap 460 84                  # ‹ Return: back to chapter 1
+shot 06-returned
+tap 875 1057                # notes de fin: the notes from note 2, in the popup, a page of two
+shot 07-notes
+key next                    # its second page
+shot 08-notes-page-2
+key back                    # Back closes the popup
+shot 09-notes-closed
+tap 1170 1057               # example.org: the URL, not opened
+shot 10-web
+tap 700 1500                # a tap in a popup of one page closes it
+shot 11-web-closed
+tap 1380 1057               # the right margin beside a link still turns the page
+shot 12-next-page

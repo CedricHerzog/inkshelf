@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Inkshelf's launcher icon: books on a shelf, in black for e-ink. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 100">
+  <!-- the shelf -->
+  <rect x="2" y="86" width="106" height="9" fill="#e8e6e1"/>
+  <!-- three books standing, with white bands on their spines -->
+  <rect x="8" y="22" width="20" height="64" fill="#e8e6e1"/>
+  <rect x="8" y="32" width="20" height="5" fill="#000"/>
+  <rect x="8" y="72" width="20" height="5" fill="#000"/>
+  <rect x="32" y="8" width="24" height="78" fill="#e8e6e1"/>
+  <rect x="38" y="20" width="12" height="22" fill="#000"/>
+  <rect x="60" y="30" width="16" height="56" fill="#e8e6e1"/>
+  <rect x="60" y="40" width="16" height="4" fill="#000"/>
+  <!-- and one leaning on them -->
+  <rect x="78" y="26" width="17" height="60" fill="#e8e6e1" transform="rotate(14 78 86)"/>
+  <rect x="78" y="38" width="17" height="4" fill="#000" transform="rotate(14 78 86)"/>
+</svg>

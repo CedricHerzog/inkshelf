@@ -1,0 +1,24 @@
+# The showcase EPUB of the fake Calibre-Web, a chapter per topic: Arabic, Hebrew, both
+# directions, Chinese and Japanese, emphasis marks and underlines:
+#   make shots SCRIPT=emulator/scripts/calibreweb-showcase.txt EMUFLAGS="-fake-type calibreweb"
+# The series list's rows, 282 px high from y 292, are centred at y 433, 715, 997: Les Étoiles
+# (EPUB), Ruines (CBZ), No series. On the books screen of No series: Contes courts, Le voyage
+# illustré, then World scripts.
+
+tap 700 997                 # No series
+tap 700 997                 # download World scripts
+idle 60s
+shot 01-downloaded          # first: downloaded books come first
+tap 700 433                 # read it: the Arabic chapter, right to left, joined, justified
+shot 02-arabic
+tap 1200 900                # right third: next page
+shot 03-hebrew              # Hebrew with points, numbers left to right, a paragraph aligned at its start
+tap 1200 900
+shot 04-mixed               # Hebrew and Arabic words in English, English in Hebrew, <bdi> and <bdo>
+tap 1200 900
+shot 05-cjk                 # lines broken between ideographs, never before 。、」 nor after 「
+tap 1200 900
+shot 06-emphasis            # marks over and under the characters, an underline under the descenders
+tap 700 900                 # the toolbar, for Back
+tap 150 84                  # ‹ Back to the list
+shot 07-books

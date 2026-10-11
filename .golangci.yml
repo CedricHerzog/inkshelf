@@ -1,0 +1,90 @@
+# golangci-lint v2: make lint runs it on the host and for the reader (GOOS=linux GOARCH=arm).
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # standard: errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errorlint
+    - gocritic
+    - gosec
+    - intrange
+    - misspell
+    - modernize
+    - noctx
+    - nolintlint
+    - revive
+    - unconvert
+    - unparam
+    - usestdlibvars
+  settings:
+    nolintlint:
+      require-specific: true
+      require-explanation: true
+    gocritic:
+      enabled-tags: [diagnostic, performance, style]
+      disabled-checks:
+        # Values are passed and ranged over by copy on purpose; what is slow is found with
+        # benchmarks on the hot paths, not by the size of a struct.
+        - hugeParam
+        - rangeValCopy
+        # Results are named only where the name says more than the type.
+        - unnamedResult
+        # A loop that finds and breaks keeps its test in the if.
+        - nestingReduce
+        # %q quotes as Go does, not as the XML and HTML that the fake servers write.
+        - sprintfQuotedString
+    govet:
+      enable-all: true
+      disable: [fieldalignment, shadow]
+    gosec:
+      excludes:
+        - G104 # unchecked errors: errcheck's job.
+        - G115 # integer conversions: everywhere in pixel code, ranges checked where they matter.
+        # File modes: the reader's storage is FAT, read over USB, with one user.
+        - G301
+        - G302
+        - G306
+  exclusions:
+    generated: strict
+    presets: [std-error-handling, common-false-positives]
+    rules:
+      - path: _test\.go
+        linters: [gosec, noctx, unparam]
+      # Methods that implement an interface keep their parameters' names, used or not; unparam
+      # reports the parameters that no caller needs.
+      - linters: [revive]
+        text: "^unused-parameter:"
+      # The fake's methods are servers.Server's, documented there.
+      - path: internal/servers/servertest/fake\.go
+        linters: [revive]
+        text: '^exported: exported method Fake\.'
+      # !(a || b) reads as "none of these" better than De Morgan's !a && !b.
+      - linters: [staticcheck]
+        text: "^QF1001:"
+      # Statfs_t's fields change type with the platform (Bsize: int32 on the reader, uint32 on
+      # darwin, int64 on 64-bit Linux), so a conversion one needs is unnecessary on another; a
+      # //nolint would be unused where it is needed.
+      - path: internal/shelf/system_unix\.go
+        linters: [unconvert]
+      # A book in French.
+      - path: internal/servers/calibreweb/fakecalibreweb/chapters\.go
+        linters: [misspell]
+      # The firmware's layout, written down whole; on the host, the reader-only code that reads
+      # it is not built. The pass for the reader still finds what is unused.
+      - path: internal/device/pocketbook/(firmware_shared_memory|firmware_messages|eink_refresh)\.go
+        linters: [unused]
+        text: "^const \\w+ is unused$"
+
+formatters:
+  enable: [gofmt, goimports]
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes: [github.com/CedricHerzog/inkshelf]

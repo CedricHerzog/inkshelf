@@ -1,0 +1,22 @@
+# A fixed-layout EPUB from the fake Calibre-Web, downloaded as page images and read as a comic:
+#   make shots SCRIPT=emulator/scripts/calibreweb-fxl.txt EMUFLAGS="-fake-type calibreweb"
+# The series list's rows, 282 px high from y 292, are centred at y 433, 715, 997: Les Étoiles
+# (EPUB), Ruines (CBZ), No series. On the books screen of No series: Contes courts, then Le
+# voyage illustré, then World scripts.
+
+tap 700 997                 # No series
+shot 01-no-series           # Le voyage illustré: an EPUB, its pages unknown
+tap 700 715                 # download it: the EPUB, then its pages drawn
+idle 60s
+shot 02-downloaded          # 3 pages, and first: downloaded books come first
+tap 700 433                 # read it: page 1, one image
+shot 03-page-1
+tap 1200 900                # right third: next page (left to right)
+shot 04-page-2              # text placed over a background image, a gradient band, a translucent panel
+tap 1200 900
+shot 05-page-3              # an SVG: its <style>, a pattern as gray, its <text>
+key prev                    # back to page 2
+tap 700 900                 # toolbar
+shot 06-toolbar             # 2 / 3, left to right as the EPUB says
+tap 150 84                  # ‹ Back: its last page was reached, so the end panel asks to delete it
+shot 07-end-panel

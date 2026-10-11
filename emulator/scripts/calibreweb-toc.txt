@@ -1,0 +1,34 @@
+# The table of contents of an EPUB from the fake Calibre-Web, its printed pages and landmarks,
+# and the toolbar's Return:
+#   make shots SCRIPT=emulator/scripts/calibreweb-toc.txt EMUFLAGS="-fake-type calibreweb"
+# On the contents screen, the tabs are at x 262, 702, 1142 and y 230, and the lines 141 px
+# high from y 292 (centred at y 362, 503, 644, 785, 926…); the printed pages are a grid of 5
+# columns, centred at x 169, 435, 702, 968, 1234, on the same lines.
+
+tap 700 433                 # Les Étoiles
+tap 700 433                 # download Tome 1
+idle 60s
+tap 700 433                 # read it: chapter 1
+tap 1200 900                # next page
+tap 700 900                 # the toolbar: Contents left of A− and A+
+shot 01-toolbar
+tap 720 84                  # Contents: chapters and their scenes, the one read marked
+shot 02-contents
+tap 700 926                 # Chapitre 3: its first page, the toolbar closed
+shot 03-chapter-3
+tap 700 900                 # the toolbar: ‹ Return left of Contents
+shot 04-toolbar-return
+tap 460 84                  # ‹ Return: back to page 2 of chapter 1
+shot 05-returned
+tap 700 900
+tap 720 84                  # Contents again
+tap 702 230                 # the Pages tab: the printed pages, the one read inverted
+shot 06-pages
+tap 435 503                 # page 7: in chapter 2
+shot 07-page-7
+tap 700 900
+tap 720 84
+tap 1142 230                # the Landmarks tab
+shot 08-landmarks
+key back                    # Back: the reader, where it was
+shot 09-back

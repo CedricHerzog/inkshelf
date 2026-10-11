@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inkshelf emulator</title>
+<style>
+  :root {
+    --background: #e9e7e2;
+    --surface: #ffffff;
+    --text: #1d1d1b;
+    --muted: #6b6a66;
+    --border: #c9c6bf;
+    --bezel: #2b2b2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: #1b1b1a;
+      --surface: #262625;
+      --text: #ecebe7;
+      --muted: #9b9a95;
+      --border: #3d3c3a;
+      --bezel: #0d0d0d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; gap: 24px; padding: 16px;
+    align-items: flex-start; justify-content: center;
+    background: var(--background); color: var(--text);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  #device { background: var(--bezel); padding: 14px; border-radius: 18px; flex: none; }
+  #screen { position: relative; line-height: 0; touch-action: none; cursor: crosshair; user-select: none; }
+  #panel { height: calc(100vh - 60px); width: auto; display: block; background: #fff; }
+  #overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  aside { width: 240px; display: flex; flex-direction: column; gap: 16px; }
+  section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  h2 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  button {
+    flex: 1; padding: 7px 8px; font: inherit; color: var(--text); cursor: pointer;
+    background: var(--background); border: 1px solid var(--border); border-radius: 7px;
+  }
+  button:active { filter: brightness(.9); }
+  label { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+  input[type=range] { flex: 1; }
+  kbd { font: 12px ui-monospace, monospace; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+  #status { font: 12px ui-monospace, monospace; color: var(--muted); white-space: pre-line; }
+  .legend span { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+  @media (max-width: 700px) {
+    body { flex-direction: column; align-items: stretch; }
+    #panel { height: auto; width: 100%; }
+    aside { width: auto; }
+  }
+</style>
+</head>
+<body>
+<div id="device">
+  <div id="screen">
+    <img id="panel" alt="The emulated e-ink panel" draggable="false">
+    <canvas id="overlay"></canvas>
+  </div>
+</div>
+<aside>
+  <section>
+    <h2>Buttons</h2>
+    <div class="row">
+      <button data-key="prev" title="Back button ([)">‹ Prev</button>
+      <button data-key="next" title="Forward button (])">Next ›</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button data-key="menu" title="Menu (m)">Menu</button>
+      <button data-key="back" title="Back key (Backspace)">Back</button>
+    </div>
+    <p style="margin:8px 0 0;color:var(--muted)">
+      Keys: <kbd>[</kbd> <kbd>]</kbd> page buttons, arrows, <kbd>m</kbd> menu, <kbd>Enter</kbd> ok,
+      <kbd>Backspace</kbd> back. Click to tap; hold for a long press; drag to swipe.
+    </p>
+  </section>
+  <section>
+    <h2>Firmware</h2>
+    <div class="row">
+      <button id="home">Home</button>
+      <button id="exit">Exit</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button data-control="net-down">Wi-Fi down</button>
+      <button data-control="net-up">Wi-Fi up</button>
+    </div>
+    <label>Battery <input id="battery" type="range" min="0" max="100" value="80"> <span id="percent">80%</span></label>
+    <label><input id="charging" type="checkbox"> Charging</label>
+  </section>
+  <section>
+    <h2>Refreshes</h2>
+    <label><input id="show" type="checkbox" checked> Outline refreshes</label>
+    <div class="legend" style="margin-top:6px">
+      <div><span style="background:#2f80ed"></span>GL16 / GC16 partial</div>
+      <div><span style="background:#27ae60"></span>DU / A2 / GC4 / DU4</div>
+      <div><span style="background:#eb5757"></span>Full GC16 (flash)</div>
+    </div>
+    <div id="status" style="margin-top:8px">Waiting for the panel…</div>
+  </section>
+</aside>
+<script>
+const panel = document.getElementById("panel");
+const overlay = document.getElementById("overlay");
+const screenArea = document.getElementById("screen");
+const statusLine = document.getElementById("status");
+const context2d = overlay.getContext("2d");
+
+// Requests go one after the other, so that touches and key presses arrive in order.
+let pending = Promise.resolve();
+function post(path, body) {
+  pending = pending.then(() => fetch(path, {method: "POST", body: JSON.stringify(body)})).catch(() => {});
+}
+
+// The panel image is reloaded after refreshes, one load at a time.
+let loading = false, stale = false, objectURL = null;
+async function reloadPanel() {
+  if (loading) { stale = true; return; }
+  loading = true;
+  try {
+    const response = await fetch("panel.png", {cache: "no-store"});
+    const url = URL.createObjectURL(await response.blob());
+    await new Promise(resolve => { panel.onload = resolve; panel.onerror = resolve; panel.src = url; });
+    if (objectURL) URL.revokeObjectURL(objectURL);
+    objectURL = url;
+    resizeOverlay();
+  } catch (error) {
+    statusLine.textContent = "Disconnected: " + error;
+  }
+  loading = false;
+  if (stale) { stale = false; reloadPanel(); }
+}
+
+// Refresh outlines, drawn for a moment after each refresh.
+const outlines = [];
+let refreshCount = 0;
+function resizeOverlay() {
+  const width = panel.clientWidth, height = panel.clientHeight;
+  if (overlay.width !== width || overlay.height !== height) { overlay.width = width; overlay.height = height; }
+}
+function drawOutlines() {
+  const now = performance.now();
+  context2d.clearRect(0, 0, overlay.width, overlay.height);
+  const scale = overlay.width / (panel.naturalWidth || 1);
+  for (let index = outlines.length - 1; index >= 0; index--) {
+    const outline = outlines[index];
+    const age = now - outline.at;
+    if (age > 900) { outlines.splice(index, 1); continue; }
+    const opacity = 1 - age / 900;
+    if (outline.full && age < 150) {
+      context2d.fillStyle = "rgba(0,0,0,0.6)";
+      context2d.fillRect(0, 0, overlay.width, overlay.height);
+    }
+    context2d.globalAlpha = opacity;
+    context2d.strokeStyle = outline.full ? "#eb5757" : outline.fast ? "#27ae60" : "#2f80ed";
+    context2d.lineWidth = 3;
+    context2d.strokeRect(outline.x * scale + 1.5, outline.y * scale + 1.5, outline.width * scale - 3, outline.height * scale - 3);
+    context2d.globalAlpha = 1;
+  }
+  if (outlines.length) requestAnimationFrame(drawOutlines);
+}
+
+const events = new EventSource("refreshes");
+events.onopen = reloadPanel;
+events.onerror = () => { statusLine.textContent = "Disconnected: is the emulator running?"; };
+events.onmessage = message => {
+  const refresh = JSON.parse(message.data);
+  refreshCount++;
+  statusLine.textContent = `#${refreshCount} ${refresh.full ? "full " : ""}${refresh.waveform}\n` +
+    `${refresh.width}×${refresh.height} at ${refresh.x},${refresh.y}`;
+  reloadPanel();
+  if (document.getElementById("show").checked) {
+    const fast = ["DU", "A2", "GC4", "DU4"].includes(refresh.waveform);
+    if (outlines.push({...refresh, fast, at: performance.now()}) === 1) requestAnimationFrame(drawOutlines);
+  }
+};
+
+// Touches: the screen point under the mouse, in panel pixels.
+function screenPoint(event) {
+  const bounds = panel.getBoundingClientRect();
+  const scale = panel.naturalWidth / bounds.width;
+  const clamp = (value, limit) => Math.min(Math.max(Math.round(value), 0), limit - 1);
+  return {x: clamp((event.clientX - bounds.left) * scale, panel.naturalWidth),
+          y: clamp((event.clientY - bounds.top) * scale, panel.naturalHeight)};
+}
+let touching = false;
+screenArea.addEventListener("pointerdown", event => {
+  if (event.button !== 0 || !panel.naturalWidth) return;
+  touching = true;
+  screenArea.setPointerCapture(event.pointerId);
+  post("pointer", {state: "down", ...screenPoint(event)});
+});
+screenArea.addEventListener("pointermove", event => {
+  if (touching) post("pointer", {state: "move", ...screenPoint(event)});
+});
+for (const type of ["pointerup", "pointercancel"]) {
+  screenArea.addEventListener(type, event => {
+    if (!touching) return;
+    touching = false;
+    post("pointer", {state: "up", ...screenPoint(event)});
+  });
+}
+
+// Buttons: held while the mouse or key is down, so that the app's key repeats work.
+for (const button of document.querySelectorAll("[data-key]")) {
+  const key = button.dataset.key;
+  button.addEventListener("pointerdown", () => post("key", {key, state: "press"}));
+  button.addEventListener("pointerup", () => post("key", {key, state: "release"}));
+  button.addEventListener("pointerleave", event => { if (event.buttons) post("key", {key, state: "release"}); });
+}
+const keyboard = {
+  "[": "prev", "]": "next", ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down",
+  m: "menu", Enter: "ok", Backspace: "back", "+": "plus", "-": "minus",
+};
+document.addEventListener("keydown", event => {
+  const key = keyboard[event.key];
+  if (!key || event.target.tagName === "INPUT") return;
+  event.preventDefault();
+  if (!event.repeat) post("key", {key, state: "press"});
+});
+document.addEventListener("keyup", event => {
+  const key = keyboard[event.key];
+  if (key && event.target.tagName !== "INPUT") post("key", {key, state: "release"});
+});
+
+// Firmware controls.
+let inBackground = false;
+const home = document.getElementById("home");
+home.onclick = () => {
+  inBackground = !inBackground;
+  post("control", {action: inBackground ? "home" : "resume"});
+  home.textContent = inBackground ? "Return" : "Home";
+  panel.style.opacity = inBackground ? 0.35 : 1;
+};
+document.getElementById("exit").onclick = () => post("control", {action: "exit"});
+for (const button of document.querySelectorAll("[data-control]")) {
+  button.onclick = () => post("control", {action: button.dataset.control});
+}
+const battery = document.getElementById("battery"), charging = document.getElementById("charging");
+function sendBattery() {
+  document.getElementById("percent").textContent = battery.value + "%";
+  post("control", {action: "battery", percent: Number(battery.value), charging: charging.checked});
+}
+battery.oninput = sendBattery;
+charging.onchange = sendBattery;
+window.addEventListener("resize", resizeOverlay);
+</script>
+</body>
+</html>

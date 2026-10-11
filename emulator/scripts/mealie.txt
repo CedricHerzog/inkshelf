@@ -1,0 +1,23 @@
+# The Mealie source, against the fake Mealie:
+#   make shots SCRIPT=emulator/scripts/mealie.txt EMUFLAGS="-fake-type mealie"
+# Mealie has no libraries, so the series list has only the status filter (y 230) and its rows,
+# 282 px high from y 292, are centred at y 433, 715, 997, 1279, 1561: Desserts, Entrées
+# (no photo), Pâtisserie, Plats, Uncategorized. Book rows are the same on the books screen.
+
+shot 01-categories
+tap 700 1279                # Plats: Bœuf bourguignon, a recipe of several pages
+shot 02-plats
+tap 700 433                 # download it: its pages are drawn from the recipe
+idle 60s
+shot 03-downloaded
+tap 700 433                 # read it: photo, times, ingredients
+shot 04-page-1
+tap 1200 900                # right third: next page (left to right)
+shot 05-page-2
+key prev                    # the Back button: previous page
+tap 700 900                 # toolbar
+shot 06-toolbar
+tap 150 84                  # ‹ Back to the list: the recipe is Continue, its progress kept on the reader
+shot 07-continue
+tap 150 84                  # ‹ Back to the categories: Plats is Started
+shot 08-started

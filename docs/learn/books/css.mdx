@@ -1,0 +1,275 @@
+---
+title: From XHTML and CSS to a document
+description: How Inkshelf reads a chapter's XHTML as a stream, styles each element with the CSS cascade, turns every length into ems, and flattens it all into blocks of runs.
+---
+
+import CssStream from '@site/src/components/books/CssStream';
+import CssCascade from '@site/src/components/books/CssCascade';
+import CssEm from '@site/src/components/books/CssEm';
+import CssFlatten from '@site/src/components/books/CssFlatten';
+
+# From XHTML and CSS to a document
+
+<OneSentence>
+The builder reads a chapter once, token by token, gives each element its style from the CSS
+cascade the moment it opens, and writes what it reads as a flat list of blocks of styled runs,
+every length in ems and every position in characters.
+</OneSentence>
+
+A chapter of an EPUB is a web page. A browser would show it with an HTML parser, a CSS
+engine and a layout engine. The reader has no browser, so Inkshelf carries its own small
+version of each, limited to what books use.
+
+This chapter covers the first half: from the chapter's XHTML and CSS to a **document**, a
+simple model that the layout code turns into pages. The document knows nothing of HTML or
+CSS. It is a list of paragraphs, each a list of pieces of text in one style.
+
+<Analogy icon="🎙️">
+Picture someone taking notes during a talk. They write each sentence as they hear it, in its
+final form, and never go back. They know what was said before, never what comes next. The
+builder works like that.
+</Analogy>
+
+## Reading as a stream
+
+The builder does not load the chapter into a tree first. It reads the XHTML as a stream of
+**tokens**: a start tag, some text, an end tag. It keeps a **stack** of the elements that are
+open: a start tag pushes one, its end tag pops it. Text goes straight into the document, in
+the style of the element on top of the stack.
+
+Each element remembers two things besides its name and attributes: its parent, and its
+previous sibling (the last child its parent closed before it opened). When an element closes,
+its own children are forgotten.
+
+<Figure
+  title="A chapter read token by token"
+  tryThis="Step through the tokens. When an element opens, its ancestors light up blue and its previous siblings green; everything after it is still unread. Watch the ':last-child' badge.">
+  <CssStream />
+</Figure>
+
+So an element gets its style **as soon as it opens**, from what is known at that moment: the
+element, its ancestors, its previous siblings. That decides which CSS selectors can work:
+
+- `div p`, `div > p`, `h1 + p` and `h1 ~ p` look back: they work.
+- `:first-child`, `:first-of-type`, `:nth-child()`, `:root`, `:link` and `:not()` look at
+  the element and what came before it: they work.
+- `:last-child`, `:only-child`, `:empty`, `:last-of-type` need to know what comes *after*
+  the element. When it opens, nobody knows. Inkshelf drops these selectors when it reads the
+  stylesheet, as it drops `:hover` and the others that need a user.
+
+Only the selector is dropped: in `p:last-child, p.end { … }` the rule still applies to
+`p.end`. Books are full of CSS written for other readers, so nothing in a stylesheet ever
+makes a chapter fail.
+
+## The cascade: which rule wins
+
+Several rules often give the same element the same property. The <Term id="cascade" /> decides
+which one wins. Inkshelf's cascade holds, in order:
+
+1. Its own **user-agent stylesheet** (`userAgentCSS` in `style.go`), the defaults: `<p>` has
+   a 1em margin above and below, `<h1>` is bold and 1.7 times larger, `<em>` is italic.
+2. The **book's stylesheets**, in the order the chapter gives them: each `<link>`ed sheet
+   (after the sheets it `@import`s) and each `<style>` block. Rules inside `@media` are kept
+   only if the media matches the reader, taken as a 600×800 screen: the test book's
+   `@media amzn-kf8 { … }`, meant for Kindles, is dropped.
+
+To compute an element's style, `Cascade.Compute` takes the rules whose selectors match it and
+sorts them by <Term id="specificity" />, then by their order. The element's `style` attribute
+goes above them all. Then it applies every normal declaration in that order, and then every
+`!important` declaration in the same order. The last value written wins. In other words:
+
+- an `!important` declaration beats a normal one;
+- at the same importance, the `style` attribute beats any rule;
+- then the more specific selector wins: ids over classes over element names;
+- and between equals, the later rule wins.
+
+Specificity is counted as three numbers (ids, classes, element names), packed into one
+integer: `ids×2²⁰ + classes×2¹⁰ + names`. `div.chapter p` is (0, 1, 2) and beats `p.first`,
+(0, 1, 1), even though `p.first` sounds more precise.
+
+<Figure
+  title="The cascade, card by card"
+  tryThis="Pick the first paragraph: its text-indent comes from 'div.chapter p', not 'p.first'. Edit 'p.first' into 'div p.first', or click a declaration to make it !important, or add a style attribute. Then rewrite the dropped 'p:last-child' as 'p:first-child'.">
+  <CssCascade />
+</Figure>
+
+## Computed style: everything in ems
+
+The cascade gives *declared* values, as the book wrote them: `1.5em`, `24px`, `80%`,
+`small`. The layout wants numbers. `computeStyle` turns the declared values into the few
+properties Inkshelf follows, with inheritance (a `<span>` inside an italic `<p>` is italic),
+and every length in **hundredths of an <Term id="em" /> of the reader's font size**.
+
+Why ems? Because the reader picks the text size, from 32 to 64 pixels. A margin stored in ems
+grows with the text, as in a browser when you zoom. Nothing in the document is in pixels.
+
+- **The font size comes first**, since the other lengths depend on it. It is kept in percent of
+  the reader's size, and clamped between 50% and 300%: a book's tiny footnote text or giant
+  title stays readable. A pre-paginated page keeps its own sizes, unclamped.
+- **An em** is the element's font size: `1.5em` in a normal paragraph is 150.
+- **A CSS pixel** is 1/16 em, as browsers count it by default, so `24px` is 150 too. It is not
+  a screen pixel: it grows with the reader's text.
+- **A percentage** of a margin or an indent is of the page's width, taken as a 600 pixel CSS
+  page: 3750 hundredths.
+- **Margins and indents are capped** at 600, six ems (`maxMargin`): books written for wide
+  screens indent too much for a reader's page. Paddings are added to the margins.
+
+```go title="internal/ebook/epub/style.go · lengthOf (trimmed)"
+switch length.Unit {
+case "em":
+	hundredths = length.Value * float64(fontSize)
+case "rem":
+	hundredths = length.Value * 100
+case "%":
+	hundredths = length.Value * float64(hundred) / 100
+default: // px, pt, in, cm…
+	pixels, _ := length.Pixels()
+	hundredths = pixels * 100 / pixelsPerEm // 16
+}
+```
+
+Only when a page is laid out do hundredths become pixels: `length × FontSize / 100`, at the
+reader's text size.
+
+<Figure
+  title="From em to pixels"
+  tryThis="Drag the font size below 0.5em or above 3em and watch the clamp. Push the margin past 6em at a large font size. Then switch the indent to 24px and change the font size: it does not move.">
+  <CssEm />
+</Figure>
+
+## Flattening: blocks of runs
+
+HTML nests elements inside elements. The document does not. It is a flat list of
+<Term id="block" />s, and each paragraph block is a list of <Term id="run" />s:
+
+- A **block element** (`<p>`, `<h1>`, `<li>`, `<div>`) ends the block being built and starts
+  another. A block is a `Paragraph`, a `Heading` (with its `Level`, 1 to 6), an `Image` or a
+  `Rule`, with its margins, indent, alignment and font scale.
+- An **inline element** (`<em>`, `<span>`, `<a>`) does not make a block. It changes the style
+  of the text inside it: that text becomes a run with its own `Style` (bold, italic…), size,
+  font or link. Neighbouring text in the same style joins the same run.
+- Whitespace is **collapsed** as HTML does: a run of spaces and newlines is one space, and none
+  at the start or end of a block.
+- What does not fit a flat list is described **beside** it. A `<div>` with a border becomes a
+  `BorderBox` that names the range of characters it surrounds.
+
+Take `<p>Hello <span class="it">world</span></p>`, with the test book's
+`p { text-indent: 1.5em; margin: 0 }` and `span.it { font-style: italic }`. The builder makes
+one block:
+
+```go
+Block{Kind: Paragraph, Indent: 150, Runs: []Run{
+	{Text: "Hello"},
+	{Text: " world", Style: Italic},
+}}
+```
+
+Look at the space. The builder holds a space back until the next character comes, and then
+writes it in that character's run. So it lands in the italic run, not after "Hello". Only when the
+difference would show (an underline, a strike-through, a link, a change of direction) does the
+space keep the style of the text it came from.
+
+Every position in a document is a <Term id="rune-offset" />: a count of characters (Go calls
+them runes) from the start of the chapter. This block is 11 runes long; an image or a rule
+counts as one. Each block knows its `Start`, and the document its total, `Chars`. These
+offsets never depend on the font or the screen, which is how a reading position survives a
+change of text size.
+
+<Figure
+  title="From a tree to a list"
+  tryThis="Press Flatten and watch the nested elements become a list of blocks. Click any run to see where its text came from, and notice which run took each space.">
+  <CssFlatten />
+</Figure>
+
+## How Inkshelf does it
+
+`Book.Chapter(index)` calls `buildDocument`, which starts a fresh `css.Cascade` with the
+user-agent sheet and hands the chapter's bytes to a `builder`. Its `parse` loop reads tokens
+with Go's `encoding/xml`:
+
+- a **start tag** goes to `start`: push the element, follow a `<link rel="stylesheet">`,
+  compute its declared values (`cascade.Compute`) and its style (`computeStyle`), hide it if
+  `display: none`, and open a block if it is a block element;
+- **text** goes to `text`, then `appendText`, which collapses whitespace into runs;
+- an **end tag** goes to `end` and `close`: a `<style>` adds its stylesheet to the cascade, a
+  block element `flush`es its runs into a `Block` and gives it its bottom margin.
+
+`Document.Add` sets each block's `Start` and adds its length to `Chars`.
+
+<details>
+<summary>Going deeper</summary>
+
+- **The user agent's sheet is just the first sheet.** In a browser, any rule of the page beats
+  the browser's defaults. Here the defaults lose ties, because they come first, but a more
+  specific default would beat a less specific book rule. They are nearly all plain element
+  names, so it rarely shows.
+- **Broken markup.** Real books have it. When the XML decoder fails, what was read before the
+  error is kept, unless nothing was.
+- **`<br>`** ends the block: the next one continues the paragraph, with no top margin and no
+  indent. A `<br>` on an empty line leaves a line's space instead.
+- **Prefixes.** EPUB 3 books write `-epub-hyphens` or `-webkit-text-emphasis`. `computeStyle`
+  reads them as the bare property, unless the bare one is declared too.
+- **More than blocks.** Tables, floats, footnotes, inline SVG and MathML formulas all come out
+  of the same builder, each described beside or inside the flat list. The document model's
+  reference covers them.
+- **Offsets are a file format.** The index saved at download time records each chapter's rune
+  count. A change to the builder that changes a chapter's count must bump `epub.IndexVersion`
+  (7 today), so that books on the reader are indexed again.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/ebook/epub/build.go', symbol: 'builder', what: 'Reads a chapter token by token, with its stack of open elements.'},
+  {path: 'internal/ebook/epub/build_text.go', symbol: 'appendText', what: 'Collapses whitespace and gathers text into runs; flush makes the block.'},
+  {path: 'internal/web/css/selector.go', symbol: 'parseSelectorList', what: 'Parses selectors and drops those a stream cannot follow.'},
+  {path: 'internal/web/css/cascade.go', symbol: 'Cascade.Compute', what: 'The declared values of an element: specificity, order, style attribute, !important.'},
+  {path: 'internal/ebook/epub/style.go', symbol: 'computeStyle', what: 'Declared values to computed style: inheritance, the font size clamp, lengths in ems.'},
+  {path: 'internal/ebook/epub/style.go', symbol: 'userAgentCSS', what: 'The default style of the elements, under the book’s.'},
+  {path: 'internal/typesetting/document/document.go', symbol: 'Document', what: 'The model: blocks of runs, rune offsets, border boxes.'},
+]} />
+
+The full story: <RefDoc file="epub-to-page.md">From an EPUB to pixels</RefDoc> and
+<RefDoc file="document-model.md">The document model</RefDoc>.
+
+Next: before the document's paragraphs can be cut into lines, every piece of text must be measured and drawn: [Text in gray](./fonts.mdx).
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'Why does Inkshelf drop the selector p:last-child?',
+    choices: [
+      'It is too slow to match',
+      'When a <p> opens, the builder cannot know yet whether another element will follow it',
+      'EPUB forbids it',
+    ],
+    answer: 1,
+    why: 'The builder styles each element as it opens, reading a stream. What follows the element is not read yet.',
+  },
+  {
+    question: 'A paragraph matches "p { text-indent: 1.5em !important }" and has style="text-indent: 3em". Which indent wins?',
+    choices: ['3em, the style attribute', '1.5em, the !important one', 'The later of the two in the file'],
+    answer: 1,
+    why: 'Compute applies all normal declarations first, the style attribute last among them, then all !important ones: an !important declaration beats a normal style attribute.',
+  },
+  {
+    question: 'What does lengthOf("24px") give, for a paragraph at the normal size?',
+    choices: ['24', '150', 'It depends on the screen'],
+    answer: 1,
+    why: 'A CSS pixel is 1/16 em: 24 × 100 / 16 = 150 hundredths of an em, which then grows with the reader’s text size.',
+  },
+  {
+    question: 'A book sets "h1 { font-size: 5em }". What size is the heading?',
+    choices: ['5 times the reader’s size', '3 times: font sizes are clamped to 300%', 'The reader’s size: em is ignored'],
+    answer: 1,
+    why: 'computeStyle keeps font sizes between 50% and 300% of the reader’s, except on pre-paginated pages.',
+  },
+  {
+    question: 'How many runes long is the block made of <p>Hello <span class="it">world</span></p>?',
+    choices: ['10', '11', '12'],
+    answer: 1,
+    why: '"Hello" (5) and " world" (6): the space between them is kept once, in the italic run.',
+  },
+]} />

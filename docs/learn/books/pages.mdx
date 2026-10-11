@@ -1,0 +1,273 @@
+---
+title: Pages and positions
+description: How Inkshelf stacks lines into pages, and why it remembers your place as a chapter and a count of characters rather than a page number.
+---
+
+import PagesFall from '@site/src/components/books/PagesFall';
+import PagesRuler from '@site/src/components/books/PagesRuler';
+import PagesBook from '@site/src/components/books/PagesBook';
+import PagesTimeline from '@site/src/components/books/PagesTimeline';
+
+# Pages and positions
+
+<OneSentence>Lines drop onto a page under a cursor that moves down, and your place in a book is kept as a chapter and a count of characters, which no change of font size can move.</OneSentence>
+
+The last chapter turned each block into lines. Two problems are left. The lines must be cut
+into screens, which is <Term id="pagination">pagination</Term>. And the reader must remember
+where you are, although the pages change every time you change the font size.
+
+<Analogy icon="🔖">"Page 112" means nothing if you switch from the paperback to the
+large-print edition. "Chapter 4, the 6,000th character" means the same sentence in both. That
+is the kind of bookmark Inkshelf keeps.</Analogy>
+
+## Lines drop onto a page
+
+The page of the InkPad 3 is 1404 × 1872 pixels. The app leaves margins of 90 pixels on the
+sides, 80 at the top and 100 at the bottom, so the text goes in a box of 1224 × 1692.
+
+`Paginate` places the blocks of a chapter one after the other, from the top of that box, with a
+cursor `y`: where the next thing goes. Each line, image or rule placed moves `y` down by its
+height. When the next line does not fit under `y`, a new page starts and `y` goes back to the
+top. A few rules make the result look like a book rather than a printout:
+
+- **Margins collapse**, as in CSS. Between two blocks, the space is the *larger* of the first
+  one's bottom margin and the second one's top margin, not their sum. A block at the top of a
+  page gets no top margin: the page's own margin is enough. Books give margins in ems, so they
+  grow with the font size.
+- **No lone first line.** A paragraph's first two lines stay together. If they do not both fit
+  at the bottom of the page, the paragraph starts on the next page, rather than leave its first
+  line alone down there (an <Term id="orphan">orphan</Term>).
+- **A heading stays with its text.** A block marked `KeepWithNext` moves to the next page unless
+  all its lines, the margin after it and the first two lines of the next block fit. Every
+  heading is marked so, and so is any block whose CSS says `break-after: avoid`.
+- **An empty page takes anything.** What does not fit even on an empty page is put there anyway:
+  the next page would be no better. And the keep rules give up when what they would keep
+  together is taller than a whole page.
+
+<Figure
+  title="Blocks dropping onto pages"
+  tryThis="Press Play and watch y. Stop at the margin steps to see two margins collapse into one. Then turn the keep rule off: the heading “A new section” ends up alone at the bottom of page 1.">
+  <PagesFall />
+</Figure>
+
+Here is the whole keep rule, as `placeText` checks it before placing a block's lines:
+
+```go title="internal/typesetting/layout/paginate.go · placeText (trimmed)"
+needed := 0
+for index, line := range lines {
+	if index < 2 || block.KeepWithNext {
+		needed += line.height // the first two lines, or all of a heading's
+	}
+}
+if block.KeepWithNext && next != nil && next.Kind != document.Image {
+	needed += max(em(next.MarginTop), em(block.MarginBottom)) + 2*lineHeight(*next)
+}
+if needed > layout.roomLeft() && !layout.pageIsEmpty() && needed <= layout.pageHeight {
+	layout.newPage(lines[0].Start)
+}
+```
+
+The opposite case, a paragraph's *last* line alone at the top of the next page (a widow), is
+allowed: Inkshelf does not check for it.
+
+## Pictures, floats and tables
+
+A few kinds of blocks need more than lines:
+
+- **An image** is centred. It is as wide as the book asks, in percent of the text's width, or
+  else its own size enlarged up to three times (`maxImageScale`), and always fitted in the
+  text's width and the page's height. If it does not fit under `y`, it goes to the next page.
+- **A float** (a picture with its caption pushed to one side, a sidebar) is laid out apart, in its
+  own width, then placed at its side where the next block starts. The lines beside it are laid
+  out again, shorter, until the float ends. A float wider than 60% of the text, or that would
+  leave less than 9 ems of text beside it, stays in the text instead. A floated letter much larger
+  than its paragraph is a drop cap, sitting on one of the paragraph's first baselines.
+- **A table** is laid out as a grid. Its rows go down the page in *bands* (rows that no cell
+  spans out of): a band that fits is kept whole, a band too tall for a page is cut between the
+  lines of its cells, and the header rows are repeated on each page if they take a quarter of it
+  at most. A table too wide shrinks its font, down to 60%, then squeezes its columns.
+
+## What a page is
+
+The result of `Paginate` is a list of `Page`s. A page is everything on it, at its place in
+pixels, plus the two numbers that tie it to the text:
+
+```go title="internal/typesetting/layout/page.go"
+type Page struct {
+	Start, End int               // the offset of the first rune shown, and past the last
+	Lines      []Line            // words at their x and y
+	Images     []PlacedImage     // image blocks, inline images and formulas
+	Rules      []image.Rectangle
+	Strokes    []Stroke          // underlines and strike-throughs
+	Links      []PlacedLink      // the areas you can tap
+	Boxes      []PlacedBorderBox // borders and backgrounds
+}
+```
+
+`Page.Draw` paints it on a white image, from the bottom layer up: the border boxes' backgrounds
+and borders first, then the underlines and strike-throughs, the rules in dark gray, the images
+and formulas, and the words last, on top of everything. The links are not drawn: the app turns
+them into places you can tap.
+
+## Why page numbers make bad bookmarks
+
+Every rune of a chapter has an **offset**: its position in the chapter, counting characters
+(Go calls them runes), spaces included. A picture or a rule counts as one. The offsets are
+fixed when the chapter is parsed, before any layout, so they never depend on the font size or
+the screen. That makes the <Term id="rune-offset">rune offset</Term> the perfect bookmark.
+
+So a reading position is a `shelf.Location`: a chapter, counted from 0 in the book's reading
+order, and the offset of the first rune of the page you are on. When you press A+, the app
+takes the Location of the page shown, lays the chapter out again at the new size (`Relayout`),
+and shows the page that holds that offset: `PageAt` returns the last page that starts at or
+before it.
+
+<Figure
+  title="A bookmark on a ruler of characters"
+  tryThis="Drag the font size from 32 to 64: the pages (colored spans) reflow, the page number of the bookmark goes from 3 to 9, but the bookmark never moves. Then press the save button and change the size again.">
+  <PagesRuler />
+</Figure>
+
+The page breaks above come from a rough model (every character half an em wide), not real
+fonts, but `PageAt` is the real rule. Notice the green mark: the page shown usually starts a
+little *before* the bookmark. As the app saves the start of the page shown, going back and forth
+between sizes can only move your place backwards, by less than a page. It never skips text you
+have not read.
+
+## Progress across the book
+
+A Location is perfect for finding your place, but it does not say how far into the book you
+are, and the servers want a page number. So a text book also has
+<Term id="virtual-page">virtual pages</Term>: slices of `shelf.CharsPerPage` = 1500 runes, the
+same at every font size. That is about one real page at the default size (a rough estimate: nothing in the code ties the two).
+
+The book's index knows how many runes each chapter has, so a Location becomes an offset from
+the start of the book, then a percentage and a virtual page:
+
+```go title="internal/reading/textbook.go"
+func (text *TextBook) VirtualPage(location shelf.Location, pages int) int {
+	return min(max(text.global(location)/shelf.CharsPerPage+1, 1), pages)
+}
+
+func (text *TextBook) Percent(location shelf.Location) int {
+	return text.global(location) * 100 / text.Index.Total
+}
+```
+
+<Figure
+  title="A position, three ways"
+  tryThis="Drag along the book. Watch the virtual page change every 1500 runes, whatever the chapter. The cover chapter is a sliver at the left: it is a single picture, one rune.">
+  <PagesBook />
+</Figure>
+
+The book's `Pages` is the total over 1500, rounded up. The virtual page is what the lists show
+and what the progress sync sends to the server. On the last real page of the book, the page is
+set to the last one and the book is marked as read. In the reader's toolbar, the app shows both worlds: the real page in this chapter, the chapter's page count, and the percentage
+(`PageLabel`: "3 / 12 · 41%").
+
+## Download time and read time
+
+Some work is done once, when the book is downloaded; the rest, every time you read.
+
+<Figure
+  title="What happens once, and what happens every time"
+  tryThis="Step through the reflowable book: no page is laid out at download time. Then switch to fixed layout: every page is drawn at download time, and reading does no layout at all.">
+  <PagesTimeline />
+</Figure>
+
+At download time, `epub.BuildIndex` reads every chapter once, only to count its runes and to
+turn the table of contents into Locations. That is `index.json`. It carries a version
+(`epub.IndexVersion`, 7 today): if a new version of Inkshelf counts runes differently, the index
+is built again when the book opens, as old offsets would point at the wrong text.
+
+At read time, nothing is laid out until it is needed: only the chapter you are in, at your font
+size. The pages of a chapter are kept by the book's renderer, and the layouts of all but your
+chapter and its two neighbours are dropped as you read. A fixed-layout EPUB (a comic, a picture
+book) is different: its pages cannot reflow, so they are all drawn at download time and the
+book becomes a book of page images, like a comic.
+
+Laying out a chapter can take a while, and two threads want it: the app, which shows the page,
+and a background <Term id="goroutine">goroutine</Term> that draws the next page ahead. So the
+renderer has a <Term id="mutex">mutex</Term> of its own. The order is fixed: the app state's
+mutex first, then the renderer's, never the other way round ([Threads and locks](../app/locks.mdx)
+explains why). The background goroutine lays out and draws while holding only the renderer's, so the app stays free to answer your taps meanwhile.
+
+## How Inkshelf does it
+
+- `layout.Paginate(doc, settings, faces, sizer)` lays out one chapter into `[]Page`. A
+  `paginator` keeps the cursor `y` and the last bottom margin (`marginAfter`); `startBlock`
+  collapses margins, `placeText` keeps lines together, `newPage` starts a page.
+- `reading.TextBook` is the open book: `GoTo`, `Next`, `Previous`, `Location`, `Relayout`,
+  `Percent`, `VirtualPage`. Its `renderer` lays out chapters on demand and caches them.
+- `shelf.Location{Chapter, Offset}` is saved in `book.json`; `shelf.CharsPerPage` is 1500.
+- At download, `downloadReflowable` builds the index and counts the virtual pages;
+  `downloadFixedLayout` draws every page.
+
+<details>
+<summary>Going deeper</summary>
+
+- **Page.End.** A page's End is the next page's Start (the chapter's length for the last page).
+  It goes further only when a table row cut across pages shows text from beyond the next page's
+  start in its later cells.
+- **Turning back across chapters.** `Previous` on the first page of a chapter has to lay out the
+  previous chapter to know which page is its last. `Next` only needs the next chapter's first
+  page, which is page 0.
+- **Empty chapters are skipped.** A chapter with no runes (`Chars == 0`) is never shown: `Next`
+  and `Previous` step over it, and a book with no saved place opens at its first chapter with
+  something in it.
+- **Footnotes hidden, offsets kept.** The app lays out chapters without the footnotes they link
+  to (they open in a popup). The other blocks keep their offsets, so a Location means the same
+  text with or without them.
+- **Forced page breaks.** CSS `page-break-before` or `break-before` (`always`, `page`, `left`, `right`…) on a block starts a new page, unless the page is still empty.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/typesetting/layout/paginate.go', symbol: 'Paginate, placeText', what: 'Blocks onto pages: the cursor y, collapsing margins, keeping lines together.'},
+  {path: 'internal/typesetting/layout/floats.go', symbol: 'placeFloats, placeBeside', what: 'Floats at a side, the lines beside them shortened.'},
+  {path: 'internal/typesetting/layout/table_rows.go', symbol: 'placeRows', what: 'Table rows in bands, cut across pages, the header repeated.'},
+  {path: 'internal/typesetting/layout/page.go', symbol: 'Page, PageAt', what: 'A page laid out, and the page that shows an offset.'},
+  {path: 'internal/typesetting/layout/draw.go', symbol: 'Page.Draw', what: 'Paints a page, bottom layer first.'},
+  {path: 'internal/reading/textbook.go', symbol: 'Relayout, Percent, VirtualPage', what: 'Positions in an open book.'},
+  {path: 'internal/reading/renderer.go', symbol: 'pagesLocked', what: 'Lays out a chapter on demand and caches it, under its own lock.'},
+  {path: 'internal/shelf/prepare_epub.go', symbol: 'CharsPerPage, downloadReflowable', what: 'The virtual page, and what a download prepares.'},
+  {path: 'internal/ebook/epub/index.go', symbol: 'BuildIndex', what: 'Every chapter counted once, into index.json.'},
+]} />
+
+The full story: <RefDoc file="pagination.md">Pagination: from blocks to pages</RefDoc>,{' '}
+<RefDoc file="epub-to-page.md">From an EPUB to pixels</RefDoc> and{' '}
+<RefDoc file="progress-sync.md">Progress sync</RefDoc>.
+
+That ends the part about books. Next, the app that ties the screen and the books together,
+starting with what happens when you touch it: [Life of a tap](../app/tap.mdx).
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'A paragraph with a bottom margin of 12 px is followed by one with a top margin of 20 px. How much space between them?',
+    choices: ['32 px', '20 px', '12 px'],
+    answer: 1,
+    why: 'Margins collapse: startBlock adds max(marginAfter, MarginTop), the larger of the two.',
+  },
+  {
+    question: 'Why does Inkshelf save a Location rather than a page number?',
+    choices: ['Page numbers take more room in book.json', 'Pages change with the font size; rune offsets come from the text and never do', 'The server only understands offsets'],
+    answer: 1,
+    why: 'Offsets are fixed when the chapter is parsed. After a new font size, PageAt finds the page that holds the same offset.',
+  },
+  {
+    question: 'A book has 150,000 runes. How many virtual pages does it have?',
+    choices: ['150', '100', 'It depends on the font size'],
+    answer: 1,
+    why: 'Book.Pages is the total over CharsPerPage (1500), rounded up: 100, at any font size.',
+  },
+  {
+    question: 'When is a chapter of a reflowable EPUB laid out into pages?',
+    choices: ['At download, all chapters at every font size', 'When it is first needed while reading, at the current font size', 'Never: the pages are in the EPUB'],
+    answer: 1,
+    why: 'Download only builds the index. The renderer lays out a chapter when the reader needs one of its pages, and keeps it until it is pruned or the font size changes.',
+  },
+]} />

@@ -1,0 +1,161 @@
+.widget {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.mapScroll {
+  overflow-x: auto;
+}
+
+.map {
+  display: block;
+  width: 100%;
+  min-width: 480px;
+  height: auto;
+  font-family: var(--ifm-heading-font-family);
+}
+
+.track {
+  fill: none;
+  stroke: var(--ink-line);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 1 12;
+}
+
+.station {
+  cursor: pointer;
+}
+
+.station circle {
+  fill: var(--ink-paper-2);
+  stroke: var(--ink-line);
+  stroke-width: 2;
+  transition: fill 0.3s, stroke 0.3s;
+}
+
+.stationPassed circle {
+  fill: var(--ink-ok-soft);
+  stroke: var(--ink-ok);
+}
+
+.stationCurrent circle {
+  fill: var(--ink-accent-soft);
+  stroke: var(--ink-accent);
+  stroke-width: 3;
+}
+
+.icon {
+  font-size: 20px;
+  pointer-events: none;
+}
+
+.label {
+  font-size: 13px;
+  fill: var(--ink-muted);
+  pointer-events: none;
+}
+
+.stationCurrent .label {
+  fill: var(--ink-text);
+  font-weight: 700;
+}
+
+.fork {
+  font-size: 14px;
+  fill: var(--ink-blue);
+  pointer-events: none;
+}
+
+.token {
+  pointer-events: none;
+}
+
+.tokenMoving {
+  transition: transform 0.8s cubic-bezier(0.45, 0, 0.25, 1);
+}
+
+.tokenComic {
+  fill: var(--ink-blue);
+}
+
+.tokenEpub {
+  fill: var(--ink-accent);
+}
+
+.tokenText {
+  font-family: var(--ink-mono);
+  font-size: 10px;
+  font-weight: 700;
+  fill: var(--ink-paper);
+}
+
+.chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--ink-mono);
+  font-size: 0.8rem;
+}
+
+.chainStep {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--ink-line);
+  background: var(--ink-paper-2);
+  animation: pop 0.4s ease-out both;
+}
+
+.chainArrow {
+  color: var(--ink-muted);
+}
+
+.files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  font-family: var(--ink-mono);
+  font-size: 0.8rem;
+}
+
+.file {
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--ink-line);
+  background: var(--ink-paper-2);
+}
+
+.fileLast {
+  border-color: var(--ink-ok);
+  background: var(--ink-ok-soft);
+  font-weight: 700;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.link {
+  font-weight: 600;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chainStep {
+    animation: none;
+  }
+  .station circle {
+    transition: none;
+  }
+}

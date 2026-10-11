@@ -1,0 +1,100 @@
+/*
+ * The look of an e-paper page: warm off-white paper, ink grays, one accent the color of a
+ * bookmark ribbon. The widgets read the --ink-* tokens, so both themes stay consistent.
+ */
+
+:root {
+  --ifm-color-primary: #a4452c;
+  --ifm-color-primary-dark: #943e28;
+  --ifm-color-primary-darker: #8b3a25;
+  --ifm-color-primary-darkest: #73301f;
+  --ifm-color-primary-light: #b44c30;
+  --ifm-color-primary-lighter: #bd5032;
+  --ifm-color-primary-lightest: #c95f41;
+  --ifm-background-color: #f7f5f0;
+  --ifm-background-surface-color: #f7f5f0;
+  --ifm-navbar-background-color: #f2efe8;
+  --ifm-footer-background-color: #efebe3;
+  --ifm-font-family-base: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --ifm-heading-font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ifm-code-font-size: 90%;
+  --ifm-line-height-base: 1.7;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
+
+  /* Widget tokens. */
+  --ink-paper: #fbfaf6;
+  --ink-paper-2: #efece4;
+  --ink-line: #d6d1c4;
+  --ink-text: #24221e;
+  --ink-muted: #6b665c;
+  --ink-accent: #a4452c;
+  --ink-accent-soft: rgba(164, 69, 44, 0.14);
+  --ink-ok: #3d7a4a;
+  --ink-ok-soft: rgba(61, 122, 74, 0.15);
+  --ink-warn: #b07a12;
+  --ink-warn-soft: rgba(176, 122, 18, 0.16);
+  --ink-blue: #2f5d8a;
+  --ink-blue-soft: rgba(47, 93, 138, 0.14);
+  --ink-shadow: 0 1px 2px rgba(40, 30, 10, 0.06), 0 4px 16px rgba(40, 30, 10, 0.06);
+  --ink-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --ink-radius: 10px;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #e08a6c;
+  --ifm-color-primary-dark: #dc7656;
+  --ifm-color-primary-darker: #da6c4b;
+  --ifm-color-primary-darkest: #cd5129;
+  --ifm-color-primary-light: #e49e82;
+  --ifm-color-primary-lighter: #e6a88d;
+  --ifm-color-primary-lightest: #edc3b2;
+  --ifm-background-color: #1b1a18;
+  --ifm-background-surface-color: #1b1a18;
+  --ifm-navbar-background-color: #201f1c;
+  --ifm-footer-background-color: #201f1c;
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.08);
+
+  --ink-paper: #24221f;
+  --ink-paper-2: #2d2b27;
+  --ink-line: #45413a;
+  --ink-text: #ebe7de;
+  --ink-muted: #a9a397;
+  --ink-accent: #e08a6c;
+  --ink-accent-soft: rgba(224, 138, 108, 0.18);
+  --ink-ok: #7cbf8a;
+  --ink-ok-soft: rgba(124, 191, 138, 0.16);
+  --ink-warn: #e0b45a;
+  --ink-warn-soft: rgba(224, 180, 90, 0.16);
+  --ink-blue: #8db4dc;
+  --ink-blue-soft: rgba(141, 180, 220, 0.16);
+  --ink-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  letter-spacing: -0.01em;
+}
+
+.markdown > p:first-of-type {
+  font-size: 1.12rem;
+}
+
+/* The lead sentence every chapter opens with. */
+.one-sentence {
+  border-left: 4px solid var(--ink-accent);
+  background: var(--ink-accent-soft);
+  padding: 0.8rem 1rem;
+  border-radius: 0 var(--ink-radius) var(--ink-radius) 0;
+  font-size: 1.12rem;
+  margin-bottom: 1.6rem;
+}
+
+.markdown details {
+  --ifm-alert-background-color: var(--ink-paper-2);
+  --ifm-alert-border-color: var(--ink-line);
+}
+
+.mermaid {
+  text-align: center;
+}

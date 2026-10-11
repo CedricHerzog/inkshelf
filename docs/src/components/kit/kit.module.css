@@ -1,0 +1,399 @@
+/* The shared look of every widget: a sheet of paper with a title, a stage and controls. */
+
+.figure {
+  margin: 2rem 0;
+  border: 1px solid var(--ink-line);
+  border-radius: var(--ink-radius);
+  background: var(--ink-paper);
+  box-shadow: var(--ink-shadow);
+  overflow: hidden;
+}
+
+.figureHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--ink-line);
+  background: var(--ink-paper-2);
+  font-family: var(--ifm-heading-font-family);
+}
+
+.figureTitle {
+  font-weight: 650;
+  font-size: 0.98rem;
+}
+
+.figureBadge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-accent);
+  font-weight: 700;
+}
+
+.figureBody {
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+.tryThis {
+  padding: 0.55rem 1rem;
+  border-top: 1px dashed var(--ink-line);
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+  font-family: var(--ifm-heading-font-family);
+}
+
+.tryThis strong {
+  color: var(--ink-accent);
+}
+
+.caption {
+  padding: 0 1rem 0.8rem;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+
+/* Controls */
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0.4rem 0 0.8rem;
+  font-family: var(--ifm-heading-font-family);
+  font-size: 0.88rem;
+}
+
+.button {
+  appearance: none;
+  border: 1px solid var(--ink-line);
+  background: var(--ink-paper);
+  color: var(--ink-text);
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.08s;
+  white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--ink-accent);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.buttonPrimary {
+  background: var(--ink-accent);
+  border-color: var(--ink-accent);
+  color: var(--ink-paper);
+}
+
+.buttonPrimary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.buttonActive {
+  background: var(--ink-accent-soft);
+  border-color: var(--ink-accent);
+}
+
+.slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.slider input[type='range'] {
+  accent-color: var(--ink-accent);
+  width: 9rem;
+}
+
+.sliderValue {
+  font-family: var(--ink-mono);
+  font-size: 0.82rem;
+  min-width: 3.5rem;
+  color: var(--ink-muted);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  accent-color: var(--ink-accent);
+  width: 1rem;
+  height: 1rem;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--ink-line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.segmented button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--ink-text);
+  font: inherit;
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--ink-line);
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--ink-accent);
+  color: var(--ink-paper);
+}
+
+/* Stepper */
+
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  font-family: var(--ifm-heading-font-family);
+  font-size: 0.88rem;
+  margin: 0.4rem 0 0.8rem;
+}
+
+.stepperTrack {
+  flex: 1 1 8rem;
+  min-width: 6rem;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ink-paper-2);
+  border: 1px solid var(--ink-line);
+  position: relative;
+  cursor: pointer;
+}
+
+.stepperFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ink-accent);
+  border-radius: 3px;
+  transition: width 0.2s;
+}
+
+.stepperCount {
+  font-family: var(--ink-mono);
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  min-width: 4.2rem;
+  text-align: right;
+}
+
+.narration {
+  min-height: 2.8em;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  background: var(--ink-paper-2);
+  font-size: 0.95rem;
+  margin-bottom: 0.8rem;
+}
+
+/* Code references */
+
+.codeRef {
+  font-family: var(--ink-mono);
+  font-size: 0.84em;
+  background: var(--ink-paper-2);
+  border: 1px solid var(--ink-line);
+  border-radius: 5px;
+  padding: 0.05em 0.35em;
+  overflow-wrap: anywhere;
+}
+
+.codeMap {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+  border: 1px solid var(--ink-line);
+  border-radius: var(--ink-radius);
+  overflow: hidden;
+}
+
+.codeMap li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 0.3rem 1rem;
+  padding: 0.55rem 0.9rem;
+  margin: 0;
+  border-top: 1px solid var(--ink-line);
+  font-size: 0.93rem;
+}
+
+.codeMap li > span {
+  min-width: 0;
+}
+
+.codeMap li:first-child {
+  border-top: none;
+}
+
+.codeMap li:nth-child(odd) {
+  background: var(--ink-paper);
+}
+
+@media (max-width: 640px) {
+  .codeMap li {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Glossary terms */
+
+.term {
+  border-bottom: 1.5px dotted var(--ink-accent);
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+}
+
+.term:hover {
+  text-decoration: none;
+  color: var(--ink-accent);
+}
+
+.termTip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 18rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  background: var(--ink-text);
+  color: var(--ink-paper);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  font-family: var(--ifm-heading-font-family);
+  pointer-events: none;
+  z-index: 20;
+  /* Hidden tips take no room: an invisible one would still widen the page on a phone. */
+  display: none;
+}
+
+.term:hover .termTip,
+.term:focus .termTip {
+  display: block;
+}
+
+@media (max-width: 640px) {
+  .termTip {
+    max-width: min(18rem, calc(100vw - 32px));
+  }
+}
+
+/* Quiz */
+
+.quiz {
+  margin: 1.2rem 0 2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.question {
+  border: 1px solid var(--ink-line);
+  border-radius: var(--ink-radius);
+  padding: 0.8rem 1rem;
+  background: var(--ink-paper);
+}
+
+.questionText {
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+}
+
+.choices {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.choice {
+  appearance: none;
+  text-align: left;
+  border: 1px solid var(--ink-line);
+  background: transparent;
+  color: var(--ink-text);
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.choice:hover:not(:disabled) {
+  border-color: var(--ink-accent);
+}
+
+.choiceRight {
+  background: var(--ink-ok-soft);
+  border-color: var(--ink-ok);
+}
+
+.choiceWrong {
+  background: var(--ink-accent-soft);
+  border-color: var(--ink-accent);
+}
+
+.why {
+  margin-top: 0.6rem;
+  font-size: 0.92rem;
+  color: var(--ink-muted);
+}
+
+/* Callouts and steps */
+
+.pill {
+  display: inline-block;
+  font-family: var(--ink-mono);
+  font-size: 0.78rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--ink-paper-2);
+  border: 1px solid var(--ink-line);
+}
+
+.analogy {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+  padding: 0.9rem 1rem;
+  border-radius: var(--ink-radius);
+  background: var(--ink-blue-soft);
+  margin: 1.4rem 0;
+}
+
+.analogyIcon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.analogy > div > p:last-child {
+  margin-bottom: 0;
+}

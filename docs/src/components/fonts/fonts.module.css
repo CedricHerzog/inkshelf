@@ -1,0 +1,91 @@
+/* The widgets of the chapter "Text in gray": a glyph's mask blended into the page, and the
+   fonts that share a line when one lacks characters. */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.panel {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.caption {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  text-align: center;
+  max-width: 220px;
+}
+
+.formula {
+  font-family: var(--ink-mono);
+  font-size: 0.8rem;
+  text-align: center;
+  color: var(--ink-text);
+  margin-top: 0.6rem;
+  min-height: 2.6em;
+}
+
+.muted {
+  color: var(--ink-muted);
+}
+
+.input {
+  width: 100%;
+  font-size: 1.05rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--ink-line);
+  border-radius: var(--ink-radius);
+  background: var(--ink-paper);
+  color: var(--ink-text);
+}
+
+.samples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0;
+}
+
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0.8rem 0 0.4rem;
+  font-size: 1.4rem;
+  line-height: 1.6;
+}
+
+.part {
+  padding: 0 0.2rem;
+  border-bottom: 4px solid;
+  white-space: pre;
+}
+
+.missing {
+  letter-spacing: 0.1em;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.swatch {
+  display: inline-block;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 2px;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+}

@@ -1,0 +1,209 @@
+---
+title: Talking to the firmware
+description: The three channels between Inkshelf and the PocketBook firmware, a whiteboard, a public mailbox and sorted pigeonholes, and the rules for using them.
+---
+
+import PostOffice from '@site/src/components/device/PostOffice';
+
+# Talking to the firmware
+
+<OneSentence>
+The firmware and the apps share three things: a whiteboard that says who is in front, a public
+mailbox of touches and key presses that only the app in front may open, and pigeonholes sorted
+by recipient for news, requests and replies.
+</OneSentence>
+
+On the reader, Inkshelf is not alone. A program called `pocketbook`, the firmware, runs as root
+and owns the device: it starts apps, reads the touch panel and the buttons, decides who is in
+front, turns Wi-Fi on, and puts the reader to sleep. Apps run as an ordinary user. They may write
+the framebuffer, but they cannot read the touch panel or the buttons themselves: every touch
+comes through the firmware.
+
+Without the SDK, Inkshelf has to speak the firmware's language directly. That language is
+three <Term id="ipc">inter-process communication</Term> objects, and a few rules.
+
+<Analogy icon="📮">
+Think of a small post office. On the wall, a **whiteboard** says which app is at the counter.
+By the door, a **public mailbox** collects every touch and key press, and only the app at the
+counter may take letters from it. Behind the counter, **pigeonholes** sorted by name hold the
+letters for each app, the requests to the firmware, and the firmware's replies.
+</Analogy>
+
+## Several apps, one in front
+
+The firmware launches every app as a *task*, and knows it by its process group id (pgid). Several
+tasks can be open at once: press Home and another app comes to the front, while Inkshelf waits
+in the background. Only the <Term id="foreground">foreground</Term> app may read input and draw
+on the panel. Breaking that rule means stealing another app's touches, or scribbling over its
+screen.
+
+## The whiteboard: global state
+
+The first object is <Term id="shared-memory">shared memory</Term>: 0x44d8 bytes, found by the
+key 0xa12302, that every process can map. The firmware writes in it; Inkshelf only reads, at a
+few offsets learned from libinkview:
+
+| Offset | Size | Meaning |
+|---|---|---|
+| `0x02` | byte | non-zero while the firmware suppresses refreshes |
+| `0x28` | int32 | the pgid of the foreground task |
+| `0x30` | int32 | battery charge, in percent |
+| `0x34` | int32 | bit 0 set while charging |
+| `0x3c` | int32 | `0x544d` when task switching is on |
+
+From it, one small function decides whether the app may touch the screen:
+
+```go title="internal/device/pocketbook/firmware_linux_arm.go"
+func (reader *readerFirmware) visible() bool {
+	if reader.global == nil { return true }
+	if reader.global[globalSuppressed] != 0 { return false }
+	return int32At(reader.global, globalMultitask) != multitaskMagic ||
+		int(int32At(reader.global, globalForeground)) == reader.pgid
+}
+```
+
+`flush` asks it before every refresh, and the <Term id="event-loop">event loop</Term> (the next
+chapter) asks it at every tick, every 20 ms.
+
+## The public mailbox: `/hwevent`
+
+Input arrives on a POSIX <Term id="message-queue">message queue</Term> named `/hwevent`. Each
+message is 32 bytes: eight int32s, `{type, touch id, key code or raw x, raw y, pressure, tool,
+seconds, microseconds}`. Inkshelf reads the first four. The firmware sends only presses and
+releases (types 25 and 26) and touches down, move and up (30, 31, 29); the event loop makes
+everything else, as [the next chapter](./event-loop.mdx) shows.
+
+There is one `/hwevent` for all apps. Whoever reads a message takes it. So Inkshelf reads it
+**only while it is in front**; otherwise it would swallow the touches meant for the app you are
+using. And when Inkshelf starts, it first empties the queue of input that was meant for the app
+in front before it (`dropStaleEvents`).
+
+## The pigeonholes: the task queue
+
+The third object is a System V message queue, key 0xa1230f, shared by the firmware and every
+app. A System V queue has a trick that makes it a set of pigeonholes: every message starts with
+a number, its *mtype*, and a reader can ask for "the next message of mtype N" only. The mtype
+says who a message is for:
+
+| mtype | Pigeonhole of |
+|---|---|
+| `0x7a000000` \| pgid | news for one task (the firmware's *task events*) |
+| `0x7fffffff` | requests to the firmware |
+| a request's id | the firmware's reply to that request |
+
+A task message is a header, `{mtype, id, type, argument, length}`, and maybe data. Its type says
+what it is:
+
+- **an async event** (type `0x50d`): news, no answer expected. Its data is
+  `{event, 0, code, value}`.
+- **a sync event** (type `0x513`): the same, but the firmware **waits** for an answer before it
+  goes on. The event loop answers first thing, with `taskReply(id)`, then handles the event.
+- **a request** from the app, such as `taskBanSuspend` (`0x123`, "do not sleep for N seconds"),
+  sent with mtype `0x7fffffff`. Its id holds the app's pid in bits 12 to 27 and a serial number
+  in bits 0 to 11, so the reply comes back in a pigeonhole nobody else uses.
+
+The events Inkshelf cares about:
+
+| Event | Number | What Inkshelf does |
+|---|---|---|
+| exit | 22 | closes the app (`Close`) and returns |
+| foreground, background | 151, 152 | nothing: it watches the whiteboard instead |
+| save state | 155 | `App.System(SaveState)`: saves the reading position |
+| storage changed | 73 | `App.System(StorageChanged)` |
+| USB storage in, out | 163, 164 | saves the position before the computer takes the storage |
+| network up, down | 256, 257 | network up: sends the progress read offline |
+
+Why ignore the foreground and background events, when they say exactly what we want to know?
+Because the whiteboard says more: it also covers the moments when the firmware suppresses
+refreshes. `followForeground` reads `visible()` at every tick and acts when it changes.
+
+## Try the post office
+
+<Figure
+  title="The firmware, two apps and three channels"
+  tryThis="Tap the screen. Press Home, then tap again: who gets the touch now? Then try Plug USB while Inkshelf is in the background."
+  caption="The pgids 812 and 640 are made up. Which events the firmware sends as sync is its own choice: the widget shows save state as one, to show the answer.">
+  <PostOffice />
+</Figure>
+
+## Requests, and why replies must be read
+
+The only request Inkshelf sends today is "do not sleep". The reader suspends itself after a few
+minutes without a touch, which would cut a download in the middle. So the download code calls
+`PreventSleepFor(1 minute)`, and again every 30 seconds while it works.
+
+`PreventSleepFor` can be called from any <Term id="goroutine" />, but only the event loop touches
+the queues:
+the call just drops the duration in a channel. The loop sends the request and remembers its id.
+Then, at each tick, `readReplies` looks for the reply with that id. It is not curious about the
+answer: it reads it because **nobody else would**. An unread reply stays in the firmware's queue
+forever. After 30 seconds without one, the loop forgets the request.
+
+<details>
+<summary>Going deeper</summary>
+
+- **How these numbers were found.** Event numbers match the 6.5 SDK's `inkview.h`; older headers
+  number some differently. The keys, offsets and reply format come from disassembling libinkview
+  (`hw_ipcrequest`, `hw_ipcreply`) and probing on the reader. A sync event is answered with kind 0
+  and argument 1, exactly as libinkview does: what the firmware makes of those two numbers is
+  unknown, only that it waits for them.
+- **The canvas is a fourth object.** Each task also gets its own shared memory for its canvas,
+  located by two small files in `/var/run/task/<pgid>/` (`fbshmkey` and `fbshmsize`). See
+  [Running Go on a PocketBook](./no-sdk.mdx).
+- **Missing pieces are not fatal.** If the global state, the task queue or `/hwevent` cannot be
+  opened, the app logs it and runs: without the whiteboard it considers itself always visible.
+- **Signals.** The task switcher may stop a background app with SIGINT. `Run` catches SIGINT,
+  SIGTERM, SIGHUP and SIGQUIT and calls `Close`, so the app saves its state first.
+- **Wi-Fi.** Turning Wi-Fi on does not go through the queues: like libinkview's `NetConnect`,
+  `KeepWiFiOn` runs the firmware's own tool, `/ebrmain/bin/netagent net on`, then waits up to
+  40 s for an interface with an IPv4 address. The tool also fills `/etc/resolv.conf`, so Go's own
+  DNS resolver works.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/device/pocketbook/firmware_shared_memory.go', what: 'The keys of the three objects and the offsets in the global state.'},
+  {path: 'internal/device/pocketbook/firmware_messages.go', what: 'The byte layouts of input and task messages, event numbers, taskReply, taskRequest, requestID.'},
+  {path: 'internal/device/pocketbook/firmware_linux_arm.go', symbol: 'visible', what: 'Reads the whiteboard: in front, and refreshes not suppressed.'},
+  {path: 'internal/device/pocketbook/event_loop.go', symbol: 'handleTaskMessage', what: 'Answers sync events, passes system events to the app.'},
+  {path: 'internal/device/pocketbook/event_loop.go', symbol: 'readReplies', what: 'Collects the replies to requests, so they do not pile up.'},
+  {path: 'internal/device/pocketbook/system_events.go', symbol: 'systemEvents', what: 'Which firmware events reach App.System.'},
+  {path: 'internal/device/pocketbook/syscall_linux_arm.go', what: 'The raw system calls package syscall lacks: msgrcv, msgsnd, shmat, mq_open…'},
+  {path: 'internal/device/pocketbook/wifi_linux_arm.go', symbol: 'KeepWiFiOn', what: 'Wi-Fi through the firmware’s netagent.'},
+]} />
+
+The full story: <RefDoc file="eink-and-firmware.md">E-ink and the firmware</RefDoc>.
+
+Next: something has to check these mailboxes all the time. That is
+[the event loop](./event-loop.mdx).
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'Inkshelf is in the background and you tap the screen. What does Inkshelf do with the touch?',
+    choices: ['Reads it and ignores it', 'Nothing: it does not read /hwevent while in the background, so the app in front gets it', 'Queues it for later'],
+    answer: 1,
+    why: 'Reading the shared /hwevent would take the message away from the foreground app.',
+  },
+  {
+    question: 'The firmware sends a sync event. What must happen first?',
+    choices: ['The app handles it, then replies when convenient', 'The event loop sends taskReply(id) at once, because the firmware waits for it', 'Nothing: sync events need no answer'],
+    answer: 1,
+    why: 'A sync event (type 0x513) blocks the firmware until it gets its reply.',
+  },
+  {
+    question: 'Why does the event loop read the reply to "do not sleep", even though it does nothing with it?',
+    choices: ['To check the firmware agreed', 'Otherwise the reply stays in the shared queue forever', 'To measure the delay'],
+    answer: 1,
+    why: 'Only the app knows the reply’s mtype, the request id. Unread, it would never leave.',
+  },
+  {
+    question: 'How does Inkshelf know it went to the background?',
+    choices: ['From event 152 only', 'By reading the foreground pgid and the suppressed flag on the whiteboard at every tick', 'The firmware kills it'],
+    answer: 1,
+    why: 'followForeground calls visible(), which also covers suppressed refreshes; events 151 and 152 are ignored.',
+  },
+]} />

@@ -1,0 +1,209 @@
+---
+title: Threads and locks
+description: One goroutine draws, the others only change the state; three locks taken in one fixed order; and a doorbell that never blocks.
+---
+
+import DeadlockGame from '@site/src/components/app/DeadlockGame';
+import WakeupBell from '@site/src/components/app/WakeupBell';
+
+# Threads and locks
+
+<OneSentence>One goroutine draws and starts the others; the others change the state only inside `state.Update`; and the three locks are always taken in the same order, so the app can never freeze waiting for itself.</OneSentence>
+
+The last chapter followed one tap. But while you tap, other <Term id="goroutine">goroutines</Term>
+are at work: one downloads a book, one loads covers, one prepares the next pages, one sends your
+reading progress. Each is simple on its own. Together they could step on each other's data, or
+wait for each other forever. This chapter is the handful of rules that prevent both.
+
+<Analogy icon="🚦">A crossroads with traffic lights. Each car is simple; the danger is only where they meet. The rules (stop on red, one direction at a time) make every crossing safe without the drivers having to talk to each other.</Analogy>
+
+## One main thread draws
+
+The event loop calls the app (`Init`, `Draw`, `Key`, `Pointer`, `System`, `Close`) from one
+goroutine. We call it the main thread. It is the only one that draws, for a hard reason: the
+<Term id="canvas" /> is one image in memory, and the panel is one device, driven by
+<Term id="ioctl">ioctls</Term>. Two goroutines drawing at once would mix their pixels and their
+refreshes.
+
+The other goroutines never call the app and never draw. When they need the event loop, they
+ask through functions that only queue a request: `pocketbook.Repaint` (call `Draw` soon),
+`pocketbook.Exit` and `pocketbook.PreventSleepFor` (keep the reader awake during a download).
+Each request is a channel that holds one; a second identical request, sent before the loop
+reads the first, is dropped, since it would do the same thing.
+
+## The others only change the state, inside Update
+
+A goroutine that has news (a page downloaded, a list loaded) changes the state inside
+<Term id="update">`state.Update`</Term>, and nowhere else. `Update` holds the mutex while the
+change runs, so the main thread never draws a half-changed state. Reading is the same: a
+goroutine that needs a value takes the mutex for a moment, copies the value, and lets go
+before doing anything slow.
+
+```go title="internal/app/openbook/pages.go (trimmed)"
+app.Lock()
+book, save := app.Reader.OpenBook, app.Reader.Unsaved
+app.Reader.Unsaved = false
+app.Unlock()
+if save {
+	app.Store.Save(book) // the slow part, without the mutex
+}
+```
+
+## Only the main thread starts goroutines
+
+Goroutines are started by the state, from the main thread only:
+
+- `state.Go(name, task)` runs a one-off task: loading the session, a download, sending a book's
+  read state. It counts as background work named `name` while it runs.
+- `state.GoLoop(task)` runs a goroutine that lives until the app closes, waiting to be woken:
+  the page preloader (`openbook.Preloader`) and the cover loader (`covers.Loader`).
+
+Why only the main thread? Because `Close`, on the main thread, cancels `app.Ctx` and then waits
+for every goroutine started this way. If some other goroutine could start a new one at that
+moment, the app could close with it still running. With one starter, there is no such moment.
+
+## The …Locked suffix
+
+A function whose name ends in `Locked` runs with the state's mutex already held, and never takes
+it itself (<Term id="locked-suffix" />). The suffix is a promise written in the name, checked by
+every reader of the code:
+
+- Calling a `…Locked` function **without** the mutex is a race: another goroutine may change the
+  same fields at the same time.
+- Taking the mutex **inside** a `…Locked` function is a deadlock: Go's mutexes are not
+  reentrant, so it waits for itself.
+
+Every screen's `DrawLocked`, and everything it calls, runs with the mutex held.
+`downloadqueue.EnqueueLocked`, `openbook.OpenLocked` and `state.ShowLocked` are called from
+inside an `Update`'s change.
+
+## Three locks, one order
+
+The app has three locks that matter:
+
+| Order | Lock | Held while |
+|---|---|---|
+| 1 | the `progress.Syncer`'s lock | it sends reading progress to the server |
+| 2 | the state's mutex | anything reads or changes the state, and while drawing |
+| 3 | a `reading.TextBook`'s renderer lock | an EPUB chapter is laid out or a page drawn |
+
+They are always taken in this order, never the other way round. The Syncer, while pushing,
+takes the state's mutex for short moments (to find the server, to mark a book synced). A
+`Draw` of the reader holds the state's mutex and may draw a page of an EPUB, which takes the
+renderer's lock. The renderer never calls back into the app.
+
+The rule that follows is written in the project's rules for contributors (`CLAUDE.md`): **never call the Syncer with the state's
+mutex held.** Why it matters is easiest to see by breaking it. A <Term id="deadlock" /> needs a
+cycle: goroutine 1 holds lock A and waits for B, while goroutine 2 holds B and waits for A.
+
+<Figure title="The deadlock game" tryThis="Play “The forbidden call”: the scheduler finds the interleaving that freezes. Then play “Inkshelf’s order”, or build your own: as long as both goroutines take the locks in the same order (S before M before R), no interleaving can freeze them.">
+  <DeadlockGame />
+</Figure>
+
+The game tries every interleaving of the two goroutines' steps, the way an unlucky scheduler
+might, and plays the first that deadlocks. With a single global order, the goroutine that takes
+the first shared lock always gets to finish, so no cycle can form. (In the "forbidden call",
+it is even worse than the game shows: `PushNow` itself takes the state's mutex, so a
+goroutine already holding it would wait for itself.)
+
+The page preloader shows the order paying off: it draws the next pages of an EPUB holding only
+the renderer's lock, not the state's mutex, so a tap is never stuck behind a slow layout.
+
+## Wakeup: a doorbell that never blocks
+
+The preloader and the cover loader sleep until there is work. The main thread wakes them with
+a <Term id="wakeup" /> (`state.Wakeup`): drawing the reader wakes the preloader, drawing a list
+wakes the cover loader for the covers it lacked.
+
+A `Wakeup` is a channel that holds one wake-up. `Wake` tries to put one in and, if one is
+already waiting, does nothing:
+
+```go title="internal/app/state/work.go (trimmed)"
+func (wakeup *Wakeup) Wake() {
+	wakeup.work.Begin(wakeup.name)
+	select {
+	case wakeup.channel <- struct{}{}:
+	default:
+		wakeup.work.End(wakeup.name) // the wake-up waiting covers this one
+	}
+}
+```
+
+Two properties follow. The main thread never blocks on `Wake`, however busy the loop is. And a
+busy loop runs once more after its current work, not once per ring: the work it does (preload
+the pages around the one shown) looks at the state as it is *then*, so one more run covers every
+ring.
+
+<Figure title="The Wakeup doorbell" tryThis="Ring ten times fast while the preloader works: it runs once more, not ten times, and “the ringer waited” stays at 0 ms. Turn on “Ring every 250 ms” to see it keep up.">
+  <WakeupBell />
+</Figure>
+
+## How Inkshelf does it
+
+- `application.Init` starts three goroutines: `app.Go(state.LoadingWork, …session.Load…)`,
+  `app.GoLoop(…openbook.Preloader…)` and `app.GoLoop(…covers.Loader…)`.
+- `state.Go` counts the task in `state.Work`, then hands it to `GoLoop`, which runs it in the
+  `sync.WaitGroup` that `Close` waits on (`app.Wait`).
+- The preloader's loop is a `select` on `app.Ctx.Done()` and `app.PreloadWake.Woken()`, then
+  `preload`, then `PreloadWake.Done()`.
+
+<details>
+<summary>Going deeper</summary>
+
+- **Fields outside the mutex.** `State` has groups of fields not guarded by the mutex: set before
+  the goroutines start then read-only (`Dir`, `Ctx`, `Syncer`…), set while loading then
+  read-only (`Store`, `ServerDir`), or main thread only (the `WaitGroup`, the fonts). Their
+  comments say which.
+- **Wake-ups as work.** Each wake-up counts as background work from `Wake` until the goroutine
+  calls `Done`. It is counted *before* it is sent, so the work never looks over while it
+  waits. The emulator reads this (`App.BackgroundWork`) to know when a script's screenshot may
+  be taken; the app never does.
+- **The Syncer's own locks.** It has two: `pushing` (one push at a time: this is lock 1) and
+  `timerMu`, which only guards its timer and is never held while taking another lock.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/app/state/state.go', symbol: 'Update, Go, GoLoop, Wait', what: 'The one way to change the state, and the only way to start goroutines.'},
+  {path: 'internal/app/state/work.go', symbol: 'Wakeup, Work', what: 'The doorbell of the background loops, and the work counter the emulator reads.'},
+  {path: 'internal/app/openbook/pages.go', symbol: 'Preloader', what: 'A loop that sleeps on a Wakeup, preloads pages and saves progress.'},
+  {path: 'internal/progress/syncer.go', symbol: 'Syncer.PushNow', what: 'Takes its own lock, then the state’s mutex for short moments: lock 1, then lock 2.'},
+  {path: 'internal/reading/renderer.go', symbol: 'renderer', what: 'Lock 3: lays out and draws chapters, from the main thread or the preloader.'},
+  {path: 'internal/device/pocketbook/app.go', symbol: 'Repaint, Exit, PreventSleepFor', what: 'The requests any goroutine may send the event loop.'},
+]} />
+
+The full story: <RefDoc file="app-threading.md">App threading</RefDoc>.
+
+Next: the biggest of those background goroutines brings books onto the reader. First, where
+those books come from: [Three servers, one interface](./servers.mdx).
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'A function is named saveProgressLocked. What may it do?',
+    choices: ['Take the state’s mutex, save, release it', 'Assume the mutex is held, and never take it', 'Run on any goroutine without the mutex'],
+    answer: 1,
+    why: 'The suffix promises the caller holds the mutex. Taking it again would deadlock; calling it without the mutex would race.',
+  },
+  {
+    question: 'A tap’s handler, inside Update, wants the progress sent right now. What should it do?',
+    choices: ['Call Syncer.PushNow inside the change', 'Call the Syncer after Update returns, without the mutex', 'Take the Syncer’s lock first, inside the change'],
+    answer: 1,
+    why: 'The Syncer’s lock comes before the state’s mutex. The app calls Syncer.Schedule after its Update, as closeBook does.',
+  },
+  {
+    question: 'The main thread calls PreloadWake.Wake() 20 times while the preloader is busy. What happens?',
+    choices: ['The main thread blocks until the preloader is free', 'The preloader runs 20 more times', 'The preloader runs once more; the main thread never waits'],
+    answer: 2,
+    why: 'The channel holds one wake-up; the other Wakes find it full and return at once.',
+  },
+  {
+    question: 'Why may only the main thread start goroutines?',
+    choices: ['Go forbids starting goroutines from goroutines', 'So that no goroutine starts while Close waits for them all', 'To save memory'],
+    answer: 1,
+    why: 'Close cancels the context and waits for every goroutine started with Go or GoLoop. A single starter means none can slip in meanwhile.',
+  },
+]} />

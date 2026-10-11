@@ -1,0 +1,216 @@
+---
+title: Syncing reading progress
+description: How the reader tells the server how far you read, once and not at every page, offline or not, and who wins when the two disagree.
+---
+
+import DebounceSync from '@site/src/components/app/DebounceSync';
+import MergePlayground from '@site/src/components/app/MergePlayground';
+
+# Syncing reading progress
+
+<OneSentence>Every page turn saves the page and marks the book dirty; 3 s after the last turn the Syncer sends every dirty book to the server; and when a book opens, the server's progress wins only if it is fresh and the reader has nothing unsent.</OneSentence>
+
+You read a comic on the reader, then a few pages on your phone, then on the reader again. Each
+device should open the book where you left it last, wherever that was. Two constraints make
+this harder than it sounds. The reader is often offline, so it must remember what it has not
+told the server yet. And it is slow on the network, so it must not send a request for every
+page you turn.
+
+<Analogy icon="📮">Postcards from a trip. You don't post one at every street corner: you wait until the day calms down, then post one with where you are now. If the post office is closed, you keep the card and post it tomorrow. And when you get home, you trust the family's news over your own only if you have nothing new to tell.</Analogy>
+
+## What the reader remembers: book.json
+
+A downloaded book's progress lives in its `book.json` (`shelf.Book`). The Go field names and
+the JSON names differ for two of them, and the JSON names can never change, since readers'
+files keep them:
+
+| Go field | JSON | Meaning |
+|---|---|---|
+| `Page` | `"page"` | the last page read, from 1 |
+| `Completed` | `"completed"` | read to the end |
+| `Unsynced` | `"dirty"` | the server has not been told about this progress yet |
+| `PendingRemoval` | `"remove"` | deleted on the reader, but kept until its progress is sent |
+| `ReadAt` | `"readAt"` | when it was last read on the reader |
+| `Location` | `"location"` | for an EPUB: `{"chapter", "offset"}`, see below |
+
+```json title="books/b42/book.json (some fields)"
+{"id": "b42", "title": "Tome 3", "pages": 48, "page": 17, "completed": false, "dirty": true}
+```
+
+## Sending: once, after things calm down
+
+Every page turn (`openbook.TurnPage`) does three things: inside an `Update` it moves the page,
+sets `Unsynced` and marks the progress unsaved; the preloader goroutine, woken by the next draw,
+saves `book.json`; and the main thread, after the `Update`, calls
+`Syncer.Schedule(SyncDelay)`, three seconds.
+
+`Schedule` is a <Term id="debounce" />. Each call restarts the same timer:
+
+```go title="internal/progress/syncer.go"
+func (syncer *Syncer) Schedule(delay time.Duration) {
+	syncer.timerMu.Lock()
+	defer syncer.timerMu.Unlock()
+	if syncer.timer == nil {
+		syncer.timer = time.AfterFunc(delay, syncer.PushNow)
+	} else {
+		syncer.timer.Reset(delay)
+	}
+}
+```
+
+So paging through ten pages sends the progress once, 3 s after the last turn.
+
+<Figure title="Debounced push" tryThis="Click Turn page a few times quickly: the bar restarts each time, and one request goes out. Turn a page while a request is out: the server gets the old page, and the book stays dirty. Switch the network off, turn, wait, then switch it on.">
+  <DebounceSync />
+</Figure>
+
+### What PushNow does
+
+When the timer fires, `PushNow` runs on the timer's goroutine:
+
+1. It takes its own lock (one push at a time), then the state's mutex for a moment, to read the
+   server in use and the store. No server yet: nothing to do.
+2. It reads **every** book of the store from disk (`store.AllBooks()`), not only the open one:
+   progress made offline in other books goes out too.
+3. For each book that is `Unsynced`, it sends `SetProgress(book.ID, book.Page, book.Completed)`,
+   with a 10 s timeout. **At the first error it stops**: the reader is probably offline, and
+   the next push retries everything.
+4. After each success it takes the state's mutex and calls `markSyncedLocked`, which reads
+   `book.json` again and clears `Unsynced` **only if the page is unchanged**. If you turned a
+   page while the request was out, the server is still behind; the book stays dirty, and the
+   push your turn scheduled sends the new page.
+5. A book `PendingRemoval` is deleted for good once its progress is sent.
+
+A server that keeps no progress (Mealie, Calibre-Web) answers `errors.ErrUnsupported`, and
+`sendProgress` counts that as a success: otherwise those books would stay dirty forever.
+
+### Other moments that push
+
+The 3 s debounce covers reading. A few moments call for a push sooner:
+
+| When | How |
+|---|---|
+| A book is closed, the end panel opens the next book, or the delete question is answered | `Syncer.Schedule(0)` |
+| The firmware asks the app to save its state, or the reader is plugged in over USB | `SaveProgressLocked`, then `Schedule(0)` |
+| The network comes back (`NetConnected`) | `Schedule(0)` |
+| The series list has loaded (what was read offline) | `PushNow()` |
+| The app closes, if online | `Stop()` the timer, save, then a last `PushNow()` |
+
+All of them call the Syncer **without** the state's mutex held: its lock comes first in the
+[lock order](./locks.mdx#three-locks-one-order).
+
+## Receiving: who wins?
+
+When a book opens online, the book list holds the server's progress, read with the books. The
+reader has its own, in `book.json`. `progress.Merge(local, remote, fromServer)` decides:
+
+```go title="internal/progress/progress.go"
+func Merge(local shelf.Book, remote servers.ReadingProgress, fromServer bool) (shelf.Book, bool) {
+	if !fromServer || local.Unsynced ||
+		(local.Page == remote.Page && local.Completed == remote.Completed) {
+		return local, false
+	}
+	local.Page = remote.Page
+	local.Completed = remote.Completed
+	return local, true
+}
+```
+
+`fromServer` is `app.Server.Online && !app.Server.LocalProgress`: the progress was just read
+from a server that keeps progress. The server wins when that is true and the reader has nothing
+unsent: another device may have read further, or gone back. The reader wins when it has progress
+the server has not seen, or when the app is offline. The second result says whether
+`book.json` must be saved.
+
+<Figure title="Merge playground" tryThis="Make the book dirty: the reader wins whatever the server says. Clean it: now the server wins, even with a lower page. Then turn Online off.">
+  <MergePlayground />
+</Figure>
+
+Note that the server wins even when it is *behind*: if you went back to an earlier chapter on
+your phone, the reader follows. The lists follow the same rule: a downloaded book that is dirty
+shows the reader's page.
+
+## EPUBs: runes and virtual pages
+
+An EPUB whose text flows has no fixed pages: how many there are depends on the font size. So its
+real position is a `shelf.Location`: the chapter (counted from 0, among the linear spine items
+that [make the chapters](../books/epub.mdx)) and the
+<Term id="rune-offset" /> of the first character on the page. Rune offsets do not move when you
+change the font size, so the reader finds the same sentence after A+ or A−.
+
+For everything else (the lists, the server, the progress bar), the book also has
+<Term id="virtual-page">virtual pages</Term> of `shelf.CharsPerPage`, 1500 runes. `Pages` is the
+book's runes divided by 1500, rounded up; `Page` is the location's offset from the start of the
+book divided by 1500, plus one. The sync, the lists and the auto-download of the next book
+(at 4/5 of the way through) then work as for a comic.
+
+## How Inkshelf does it
+
+- `session.NewSyncer` makes the app's Syncer: the state is its `appLock`, its target is
+  `app.Server.Client` and `app.Store` (nil before a server is chosen), and its callback clears
+  the open book's in-memory `Unsynced` when the book pushed is the one open, at the same page.
+- `openbook.OpenLocked` calls `Merge` with the list's progress, and saves the book if it changed.
+- `catalog.RemoveDownloadLocked` deletes a book at once, unless it is dirty: then it sets
+  `PendingRemoval`, and the next successful push deletes it.
+
+<details>
+<summary>Going deeper</summary>
+
+- **Offline start.** Without the server, the lists come from the store
+  (`catalog.AddDownloadedSeriesLocked`) and progress from `book.json`. Pages read offline stay
+  dirty until the push after the next successful series load.
+- **Servers without progress.** When `InProgress` returns `ErrUnsupported`, the app sets
+  `Server.LocalProgress`: `Merge` gets `fromServer` false, the reader's progress wins
+  everywhere, and the read counts come from the store.
+- **Marking read or unread** from a list's hold menu goes straight to the server with
+  `progress.SendReadState`, on a goroutine of its own, not through the Syncer.
+- **Why reread book.json in markSyncedLocked?** The Syncer pushed a copy read before the
+  request. Holding the state's mutex while it compares means the app cannot save the open book
+  in between.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/shelf/book.go', symbol: 'Book, Location', what: 'book.json: page, completed, dirty, remove, location.'},
+  {path: 'internal/progress/syncer.go', symbol: 'Schedule, PushNow, markSyncedLocked', what: 'The debounced push, and marking books synced.'},
+  {path: 'internal/progress/progress.go', symbol: 'Merge', what: 'Whose progress wins when a book opens.'},
+  {path: 'internal/app/openbook/openbook.go', symbol: 'TurnPage, SyncDelay, OpenLocked', what: 'A page turn schedules the push; opening a book merges.'},
+  {path: 'internal/app/session/syncer.go', symbol: 'NewSyncer', what: 'Wires the Syncer to the app’s state and store.'},
+  {path: 'internal/shelf/prepare_epub.go', symbol: 'CharsPerPage', what: '1500 runes to a virtual page.'},
+]} />
+
+The full story: <RefDoc file="progress-sync.md">Progress sync</RefDoc>.
+
+That is the whole path, from the server to your eyes and back. The appendix helps you find your
+way in the code: [Where do I look for…](../appendix/where-to-look.mdx).
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'You turn 10 pages in 5 seconds, then stop. How many progress requests go out?',
+    choices: ['10', '1, 3 s after the last turn', '0 until the book is closed'],
+    answer: 1,
+    why: 'Each turn calls Schedule(3 s), which resets the same timer. It fires once.',
+  },
+  {
+    question: 'The reader is offline when PushNow runs. What happens to the dirty book?',
+    choices: ['It is marked synced anyway', 'The request fails, PushNow stops, and the book stays dirty until a later push', 'Its folder is deleted'],
+    answer: 1,
+    why: 'PushNow stops at the first error. The network coming back calls Schedule(0).',
+  },
+  {
+    question: 'The reader has page 14, dirty. The server says page 31. The book opens online. Which page?',
+    choices: ['31: the server is ahead', '14: the reader has progress the server has not seen', 'The higher of the two'],
+    answer: 1,
+    why: 'Merge never overwrites unsent progress. The next push will tell the server about page 14.',
+  },
+  {
+    question: 'Why does an EPUB save a rune offset rather than a page number?',
+    choices: ['Runes are smaller', 'Its pages change with the font size, but the offset of a character does not', 'The server asks for it'],
+    answer: 1,
+    why: 'The location finds the same text after A+ or A−; virtual pages of 1500 runes stand in for pages elsewhere.',
+  },
+]} />

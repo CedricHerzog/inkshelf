@@ -1,0 +1,202 @@
+---
+title: Three servers, one interface
+description: How Komga, Mealie and Calibre-Web become the same series and books through one Go interface, how config.json picks them, how titles sort, and the fake servers the emulator runs.
+---
+
+import ServerTranslator from '@site/src/components/servers/ServerTranslator';
+import SortTitles from '@site/src/components/servers/SortTitles';
+
+# Three servers, one interface
+
+<OneSentence>Each kind of server is one package that turns its own API into the same Go interface, `servers.Server`; the app only ever sees that interface, and only the two programs know which package is behind it.</OneSentence>
+
+Inkshelf reads from three very different <Term id="server">servers</Term>. Komga serves comics
+as JSON and page images. Mealie serves recipes, which have no pages at all. Calibre-Web serves
+ebooks through Atom feeds. Yet the app shows all three with the same screens: a list of series,
+the books of a series, a book to read.
+
+This chapter shows how. The constraint behind it: the app should not grow a branch for each
+server. A fourth kind of server (and a Kobo port, one day) must not touch the screens.
+
+<Analogy icon="🔌">Travel adapters. Every country has its own socket, but your charger has one
+plug. Each adapter does the translation on its side; the charger never learns where it is.</Analogy>
+
+## One interface and a neutral model
+
+What the app needs from any server fits in one Go interface:
+
+```go title="internal/servers/server.go (trimmed)"
+type Server interface {
+	Series(ctx) ([]Series, error)                       // sorted by title
+	Libraries(ctx) ([]Library, error)
+	Books(ctx, seriesID) ([]Book, error)                // in series order
+	InProgress(ctx, count) ([]Book, error)              // last read first
+	OpenBook(ctx, bookID, pageCount) (Pages, error)     // a book of page images
+	OpenFile(ctx, bookID) (io.ReadCloser, int64, error) // a CBZ or an EPUB, whole
+	SetProgress(ctx, bookID, page, completed) error
+	// … FirstPage, SeriesThumbnail, BookThumbnail, ClearProgress
+}
+```
+
+Its types are **neutral**: a `Series` has a title and counts of books read; a `Book` has a
+number in its series, a page count and a `Format`. The format says how the book travels:
+
+- `PageImages`: page by page, through `OpenBook`, each page a JPEG, PNG or WebP;
+- `ComicArchive`: a CBZ, a zip of page images, fetched whole by `OpenFile`;
+- `Reflowable`: an <Term id="epub" />, fetched whole and laid out while reading.
+
+A server that cannot do something does not pretend. It returns an error wrapping
+`errors.ErrUnsupported`, and the app does without: no library filter, no "continue reading" row,
+progress kept on the reader alone. Never an empty list: the app would take it for "nothing
+there" and, for progress, for "unread".
+
+## Three translations
+
+Each kind of server is one package (`servers/komga`, `servers/mealie`, `servers/calibreweb`)
+with the same parts: a `Client` that speaks the server's API call by call, and a `Server`
+(`adapter.go`) that turns it into `servers.Server`. Each `doc.go` explains its server.
+
+<Figure title="What each server says, and what the app sees" tryThis="Switch between the three. Compare the right-hand table: only Komga keeps progress, only Calibre-Web sends whole files, and Mealie answers Unsupported to almost everything but still reads like a comic.">
+  <ServerTranslator />
+</Figure>
+
+- **Komga** is the closest to what the app wants. It authenticates with an `X-API-Key` header,
+  answers in JSON, and sends each page as an image. It is the only kind that remembers how far
+  you read: the app reads the progress with the books and sends it back with a `PATCH`
+  ([Syncing reading progress](./sync.mdx)). One subtlety, `pageConversions`: Komga can convert
+  any page to JPEG or PNG on the fly, but its PNG of a JPEG is much bigger, so the app asks for
+  JPEG, PNG and WebP pages as they are, and the rest as PNG.
+- **Mealie** is the strangest. A category becomes a series, a recipe a book. But a recipe has
+  no pages, so the Mealie package makes them, **on the reader**: `recipepages.Layout` places the
+  name, the photo, the ingredients and the steps on 1404 × 1872 pages, and `Render` draws each
+  as a PNG. To the rest of the app, a recipe is a book of page images, like a comic. The page
+  count is only known after layout, so `Books` lays out every recipe it lists and keeps the
+  result (`laidOut`), so that `OpenBook` later agrees on the count.
+- **Calibre-Web** is read through its <Term id="opds" /> catalog only: Atom feeds, with HTTP
+  Basic auth. (Its JSON API needs a login session.) The catalog is read whole; a book's number
+  in its series is found in its entry's text ("SERIES: Eragon [2.5]"). An EPUB is `Reflowable`,
+  a CBZ `ComicArchive`, and a book with both is read as the EPUB. Files can be large, so they
+  come through a copy of the HTTP client with no timeout (`fileClient`), watched by the
+  download's <Term id="watchdog" /> instead.
+
+## config.json and the registry
+
+The user lists their servers in `config.json`, on the reader:
+
+```json title="applications/inkshelf/config.json"
+[
+  {"name": "Manga", "type": "komga", "server": "http://nas:25600", "apiKey": "…"},
+  {"name": "Cuisine", "type": "mealie", "server": "http://nas:9925", "apiKey": "…"},
+  {"name": "Livres", "type": "calibreweb", "server": "http://nas:8083", "username": "…", "password": "…"}
+]
+```
+
+`servers.LoadConfig` reads it, and is strict where a mistake would hurt later. The `name` is
+also the folder of that server's books on the reader, so it must be a valid FAT folder name, and
+two names may not differ only by case (FAT would see one folder).
+
+Who turns `"type": "mealie"` into the Mealie package? Only `servers/registry`. Its `Opener`
+switches on the type and calls the package's `NewServer`; `KindOf` gives the kind's name, logo
+and words ("category" and "recipe" for Mealie, so the screens say the right thing). An empty
+type means Komga, the first kind there was, and `calibre-web` is accepted for `calibreweb`.
+
+The <Term id="registry" /> is imported only by `cmd/inkshelf` and `cmd/emulator`, which hand
+`registry.Opener` to `app.New`. That is the trick that keeps `app` and `shelf` from importing any
+one server ([The layer cake](/big-picture/layers) shows the `go list` command that checks it).
+
+## Sorting titles
+
+Every server's series and books are sorted the same way, by `servers.CompareTitles`, because a
+plain string sort gets shelves wrong:
+
+- "Tome 10" sorts before "Tome 2", since "1" comes before "2";
+- "Le Trône de fer" files under L, with everything else that starts with an article;
+- "Élégance" sorts after "Z", since "É" is a byte above every ASCII letter.
+
+`CompareTitles` compares the <Term id="sort-key">sort keys</Term> instead. `SortKey` spells
+apostrophes and dashes one way, drops a leading French or English article (le, la, les, l',
+un, une, des, the, a, an) and folds the accents away. Then `naturalorder.Compare` compares the
+keys with runs of digits as numbers. The details are French: "L'" is an article only before a
+vowel or an h, and in "A la croisée des mondes" the A is a "à" without its accent, kept.
+
+<Figure title="Sorting a shelf" tryThis="Switch to the plain sort and watch Tome 10 jump ahead of Tome 2. Add “Tome 9”, “Les Misérables”, “L’Homme” and “La 2e vie”.">
+  <SortTitles />
+</Figure>
+
+## Fake servers
+
+You do not need a Komga server to work on Inkshelf. Each kind has a fake, in its own package:
+`fakekomga`, `fakemealie` and `fakecalibreweb`. Each is an `http.Handler` that answers like the
+real server, with fixed, generated content (comics with numbered pages, recipes, EPUBs that
+test right-to-left text, MathML, links). The <Term id="emulator" /> starts them with `-fake` and
+`-fake-type`, on local ports, and writes a matching `config.json`; the real client code then
+runs against them. Because they never change, the emulator's screenshots compare byte for byte.
+
+```sh
+make emu-fake                                                            # fake Komga
+make shots SCRIPT=emulator/scripts/mealie.txt EMUFLAGS="-fake-type mealie"
+```
+
+Tests that do not need HTTP use `servertest.Fake`, a `Server` in memory whose content is in its
+fields and which records what it was asked (`PageRequests`, `SentProgress`).
+
+<details>
+<summary>Going deeper</summary>
+
+- **One HTTP client.** `httpclient.New` makes the client every request goes through: a
+  one-minute timeout and a few kept-alive connections per host. A response that is not 2xx
+  becomes a `*httpclient.StatusError` with its code, so callers tell a 401 (wrong key) from a
+  network error with `errors.As`.
+- **Read status.** `servers.SeriesStatus` computes unread, reading or read from the counts, with
+  the same rules as Komga's filter, so the series list filters every kind alike.
+- **Adding a kind of server** is a checklist in the reference: a package with its `Client`,
+  `Server`, `Kind` and logo, a fake, a `case` in both switches of the registry, an emulator script
+  and its screenshots.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/servers/server.go', symbol: 'Server, Pages, Book, Format', what: 'What the app needs from any server, and its neutral model.'},
+  {path: 'internal/servers/config.go', symbol: 'Config, LoadConfig', what: 'config.json, read strictly.'},
+  {path: 'internal/servers/registry/registry.go', symbol: 'Opener, KindOf', what: 'The switch on the type; imported only by cmd/.'},
+  {path: 'internal/servers/komga/adapter.go', symbol: 'Server, pageConversions', what: 'Komga: pages as images, progress kept.'},
+  {path: 'internal/servers/mealie/recipepages/layout.go', symbol: 'Layout', what: 'Recipes laid out into pages on the reader.'},
+  {path: 'internal/servers/calibreweb/opds.go', symbol: 'seriesPattern, formatPattern', what: 'Calibre-Web’s OPDS feeds, read whole.'},
+  {path: 'internal/servers/sorting.go', symbol: 'SortKey, CompareTitles', what: 'Titles sorted by key, numbers as numbers.'},
+  {path: 'cmd/emulator/main.go', symbol: 'fakeHandlers, startFakeServers', what: 'The fake servers the emulator runs.'},
+]} />
+
+The full story: <RefDoc file="servers.md">Servers</RefDoc>.
+
+Next: a book picked from a server has to come to the reader: [Downloads and the shelf](./downloads.mdx).
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'Mealie keeps no reading progress. What should its SetProgress return?',
+    choices: ['nil, as if it worked', 'An error wrapping errors.ErrUnsupported', 'A panic'],
+    answer: 1,
+    why: 'The app then knows the reader’s own progress is the only one, and counts the book as synced.',
+  },
+  {
+    question: 'Where are a recipe’s pages drawn?',
+    choices: ['On the Mealie server', 'On the reader, by the mealie package, as PNG pages', 'They are not: recipes are shown as text'],
+    answer: 1,
+    why: 'recipepages lays a recipe out and Render draws each page; the download then treats them like a comic’s pages.',
+  },
+  {
+    question: 'Which package may import servers/calibreweb?',
+    choices: ['internal/app', 'internal/shelf', 'internal/servers/registry, imported only by cmd/'],
+    answer: 2,
+    why: 'app and shelf talk to servers.Server only; the registry is the one switch on the type.',
+  },
+  {
+    question: 'How does CompareTitles order “Tome 10” and “Le Tome 2”?',
+    choices: ['Tome 10 first: “1” is before “2”', '“Le Tome 2” first: its key is “Tome 2”, and 2 is less than 10', '“Le Tome 2” last: it files under L'],
+    answer: 1,
+    why: 'The article is dropped, then naturalorder compares the numbers as numbers.',
+  },
+]} />

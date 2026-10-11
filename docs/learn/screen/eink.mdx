@@ -1,0 +1,245 @@
+---
+title: How e-ink works
+description: Capsules of pigment, waveforms, ghosting, and why Inkshelf flashes the screen every few pages and refreshes only what changed.
+---
+
+import Microcapsule from '@site/src/components/eink/Microcapsule';
+import PanelSimulator from '@site/src/components/eink/PanelSimulator';
+import RefreshOverlap from '@site/src/components/eink/RefreshOverlap';
+
+# How e-ink works
+
+<OneSentence>
+An <Term id="eink" /> pixel is a capsule of pigment that keeps its color without power but takes
+about half a second to change, so Inkshelf redraws only what changed, gently, and flashes the
+whole panel clean every few pages.
+</OneSentence>
+
+Your laptop's screen redraws itself 60 times a second whether anything changed or not. The
+InkPad 3's screen does the opposite: it does nothing at all until it is told to change, and then
+it takes a visible moment to do it. Every choice Inkshelf makes about drawing comes from that one
+fact. This chapter shows what is inside the panel, and the three rules that follow from it.
+
+<Analogy icon="🧲">
+Think of a magnetic drawing board for children: a pen pulls dark filings up to the surface, and
+the drawing stays there with no battery. Sliding the bar under the board wipes it clean, but
+everything blinks. An e-ink panel is that board, with 2.6 million tiny cells and a computer
+holding the pen.
+</Analogy>
+
+## Tiny capsules of pigment
+
+Each pixel of the panel holds a clear liquid with two kinds of tiny particles: white ones with
+one electric charge, black ones with the other. Under each pixel sits an electrode; above the
+whole panel, a transparent one. Put a voltage between them, and one color is pulled up to the
+glass while the other sinks. What you see is whichever color sits on top.
+
+<Figure
+  title="Inside five e-ink pixels"
+  tryThis="Click a pixel and watch its particles swim. Switch to “Half pulse” and click a white pixel: the particles stop halfway, and the pixel looks gray. Then turn the power off and try again.">
+  <Microcapsule />
+</Figure>
+
+Two properties follow, and they shape everything else:
+
+- **It is bistable.** Once the particles have moved, they stay, with no power at all. That is why
+  an e-reader lasts weeks on a charge, and why the panel keeps showing the last page when the
+  app is not drawing.
+- **It is slow.** Particles have to swim through a liquid. Changing a pixel takes hundreds of
+  milliseconds, not the 16 ms of a computer screen. They swim even slower in the cold: Inkshelf
+  asks the driver to adjust to the panel's temperature (`tempUseAmbient` in
+  <CodeRef path="internal/device/pocketbook/eink_refresh.go" />).
+
+Grays are particles stopped part of the way. To land a pixel exactly on one of 16 grays, the
+panel does not send one long push but a carefully timed sequence of pushes and pulls.
+
+## Waveforms: recipes of voltages
+
+That sequence is a <Term id="waveform" />: a recipe of voltages, frame after frame, that takes
+each pixel from its old gray to its new one. The panel's controller has several recipes, and each
+trades speed for quality. The firmware numbers them, and Inkshelf names them in its `Waveform`
+type:
+
+| Waveform | Number | Grays | What it is for | Time on an InkPad 3 |
+|---|---|---|---|---|
+| <Term id="gc16">GC16</Term> | 2 | 16 | The cleanest: drives every pixel. As a *full* refresh it flashes black, then white | 600 ms full, 490 ms partial |
+| <Term id="gl16">GL16</Term> | 5 | 16 | Drives only the pixels that change; made for text on white, flickers less | 490 ms |
+| <Term id="du">DU</Term> | 1 | 2 | Black and white only, for quick feedback | 265 ms |
+| A2 | 4 | 2 | Black and white, fastest, leaves the most ghosting | not measured |
+| GC4, DU4 | 3, 8 | 4 | Four grays, rarely useful for books | not measured |
+
+The times are the ones the <Term id="emulator" /> uses to imitate the panel
+(`fullRefreshTime`, `partialRefreshTime` and `fastRefreshTime` in
+<CodeRef path="internal/device/pocketbook/emulated_firmware.go" />), measured on a reader. Half a
+second is the number to remember: that is how long every page turn spends waiting for the
+panel, whatever the app does.
+
+A refresh also comes in two **modes**. A *partial* update (`updateModePartial`) only touches
+the pixels whose value changed. A *full* update (`updateModeFull`) drives every pixel of the
+area, which is what makes the screen blink.
+
+## Ghosting, and the flash every few pages
+
+A partial refresh is not perfect. A pixel that went from black to white is almost white, but a
+trace of the black stays. Turn a few pages and these traces pile up into a faint mess of old
+pages behind the new one: <Term id="ghosting" />. A <Term id="full-refresh" /> drives every
+pixel through black and white before landing on the image, which wipes the traces, but the whole
+screen blinks.
+
+<Figure
+  title="A panel that remembers"
+  tryThis="Turn off auto-flash and turn pages with the partial button: watch the old panels haunt the new ones. Then press “Flash this page”. Turn the fast (DU) button on a comic to see what 2 grays do to pictures."
+  caption="The refresh times are the measured ones. The ghosts are exaggerated so they show on a computer screen; on the reader they are fainter.">
+  <PanelSimulator />
+</Figure>
+
+So Inkshelf mixes the two. A normal page turn is a partial refresh with GL16 (the reader's
+`pageWaveform`): no blink, half a second. Every few turns, the turn is a full GC16 refresh
+instead, and the ghosts are gone:
+
+- every **5th** turn in a comic (`fullEvery` in <CodeRef path="internal/app/openbook/openbook.go" />),
+- every **6th** turn in a text book (`textFullEvery` in <CodeRef path="internal/app/openbook/text.go" />):
+  black text on white ghosts less than pictures.
+
+The app also flashes when it comes back to the <Term id="foreground" /> (another app may have
+drawn anything meanwhile) and when a screen changes completely, for example when a book opens.
+
+```go title="internal/app/openbook/openbook.go"
+// fullRefreshDue reports whether the next page turn refreshes the panel whole.
+func fullRefreshDue(app *state.State) bool {
+	every := fullEvery
+	if app.Reader.Text != nil {
+		every = textFullEvery
+	}
+	return app.Reader.Turns%every == every-1
+}
+```
+
+`Turns` counts the turns since the book was opened, starting at 0, so turns 5, 10, 15… of a
+comic flash.
+
+## Refresh only what changed
+
+A refresh is not only a waveform: it is also a **rectangle**. The app tells the panel which
+area to update, and only that area waits half a second. When you open the reader's toolbar,
+Inkshelf refreshes only the toolbar's strip at the top (`refreshAreaLocked` in
+<CodeRef path="internal/app/screens/reader/reader.go" />). When a page turns, it refreshes the
+page's area and the area of the page before, in case the two pictures have different sizes.
+
+Asking for a refresh does not wait for it to end: the request returns at once, and the panel
+works on its own. That raises a question. What if a second refresh comes while the first is
+still running? If they touch the same pixels, the new pixels would be changed under a refresh
+that is still driving them. If they don't, there is no reason to wait.
+
+That is exactly the rule: Inkshelf waits only when the new rectangle **overlaps** the one still
+being refreshed.
+
+<Figure
+  title="Wait only when it overlaps"
+  tryThis="Press Play on “Page, then toolbar”: the toolbar sits on the page, so it waits. Switch to “Two corners” and play again: both run at once. Then drag one rectangle onto the other."
+  caption="Both refreshes are partial ones: 490 ms for GL16, 265 ms for DU.">
+  <RefreshOverlap />
+</Figure>
+
+## How Inkshelf does it
+
+Two functions do the drawing side of this: `pocketbook.Refresh(rect, waveform)` for a partial
+refresh, and `pocketbook.FlashRefresh()` for a full GC16 refresh of the whole screen. On the
+reader, both end in `flush`, which waits if needed, copies the area from the app's
+<Term id="canvas" /> into the <Term id="framebuffer" />, and sends the request to the panel's
+driver with an <Term id="ioctl" />:
+
+```go title="internal/device/pocketbook/framebuffer_linux_arm.go"
+// waitForOverlappingRefresh waits for the last refresh to end if it overlaps
+// panelRect. Refreshes elsewhere go on meanwhile.
+func (reader *readerFirmware) waitForOverlappingRefresh(panelRect image.Rectangle) {
+	if reader.lastMarker == 0 || !panelRect.Overlaps(reader.lastRect) {
+		return
+	}
+	marker := reader.lastMarker
+	// The ioctl fails when the refresh is already over: nothing to wait for.
+	_ = ioctl(reader.framebufferFD, mxcfbWaitForUpdate, unsafe.Pointer(&marker))
+}
+```
+
+Each refresh gets a number, its *marker*. Waiting means asking the driver "tell me when refresh
+number N is over".
+
+<details>
+<summary>Going deeper</summary>
+
+- **The driver speaks i.MX6.** The InkPad 3 has an Allwinner chip, but PocketBook's panel
+  driver (`epdc.ko`) offers the ioctls of NXP's i.MX6 e-ink driver on `/dev/fb0`:
+  `MXCFB_SEND_UPDATE` (`0x4040462e`) starts a refresh and returns at once,
+  `MXCFB_WAIT_FOR_UPDATE_COMPLETE` (`0x4004462f`) waits for a marker. The request is a 64-byte
+  `mxcfb_update_data`: top, left, width, height, waveform, mode, marker, temperature
+  (`mxcfbUpdate` in `eink_refresh.go`).
+- **Rotated rectangles.** The panel is mounted turned a quarter, so the rectangle sent to the
+  driver is the app's rectangle rotated into framebuffer coordinates (`framebufferRect`). The
+  overlap test is done on those, which gives the same answer.
+- **Only the last refresh is remembered.** `flush` keeps one `lastRect` and one `lastMarker`.
+  With three refreshes A, B, C where B does not overlap A but C does, C compares itself only
+  with B and does not wait for A. In practice the app's refreshes come one after the other on
+  one thread, and the case does not arise often.
+- **What a page turn costs besides the panel.** The copy into the framebuffer, which also
+  rotates the pixels, takes about 22 ms a page turn (`copyRotated`). `flush` logs its wait, copy and send times to `applications/inkshelf.log`: that is how
+  page turns are timed on the reader.
+- **Visible or not.** Before every refresh, `flush` checks that the app is in the foreground and
+  that the firmware does not suppress refreshes; otherwise it does nothing.
+- **DU and A2 are unused.** Inkshelf only uses GL16 (page turns) and GC16 (flashes, other
+  screens, error pages). The fast waveforms are in `Waveform` because the firmware has them.
+- **The emulator is pessimistic.** With `-eink`, the emulated panel sleeps for the refresh time
+  after *every* refresh, overlapping or not, so it shows the worst case
+  (`refreshTime` in `emulated_firmware.go`).
+- **Timings drift.** The 490 / 600 / 265 ms above come from the emulator's constants and the
+  package documentation. An older comment next to `pageWaveform` in `reader.go` says 435 ms for
+  GL16 and 576 ms for GC16, from an earlier measurement. Measure on your own reader with the log
+  if the exact number matters.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/device/pocketbook/eink_refresh.go', symbol: 'Waveform, Refresh, FlashRefresh', what: 'The waveforms, and the two calls the app refreshes the panel with.'},
+  {path: 'internal/device/pocketbook/eink_refresh.go', symbol: 'mxcfbUpdate', what: 'Encodes the request for the panel: rectangle, waveform, mode, marker, temperature.'},
+  {path: 'internal/device/pocketbook/framebuffer_linux_arm.go', symbol: 'flush', what: 'On the reader: wait if needed, copy and rotate, send the ioctl, log the times.'},
+  {path: 'internal/device/pocketbook/framebuffer_linux_arm.go', symbol: 'waitForOverlappingRefresh', what: 'Waits for the last refresh only if it overlaps the new one.'},
+  {path: 'internal/device/pocketbook/emulated_firmware.go', symbol: 'refreshTime', what: 'The measured refresh times, used by the emulator.'},
+  {path: 'internal/app/openbook/openbook.go', symbol: 'fullRefreshDue', what: 'Every 5th turn of a comic, every 6th of a text (textFullEvery in text.go), flashes.'},
+  {path: 'internal/app/screens/reader/reader.go', symbol: 'pageWaveform, refreshAreaLocked', what: 'GL16 for page turns, and the smallest area to refresh.'},
+]} />
+
+The full story: <RefDoc file="eink-and-firmware.md">E-ink and the firmware</RefDoc>.
+
+Next: the panel shows only 16 grays, so a comic page must be turned into them. That is
+[From a scan to 16 grays](./grays.mdx).
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'The reader is switched off in the middle of a book. What does the screen show?',
+    choices: ['Nothing: the screen goes blank without power', 'The last page, as it was', 'A gray screen until the next refresh'],
+    answer: 1,
+    why: 'E-ink is bistable: the particles stay where they were put, with no power at all.',
+  },
+  {
+    question: 'Why not use the full, flashing GC16 refresh for every page turn?',
+    choices: ['It only shows 2 grays', 'It blinks the whole screen black and white each time, and is slower', 'The driver allows it only once a minute'],
+    answer: 1,
+    why: 'A full refresh is the cleanest (about 600 ms against 490 ms) but blinks. Inkshelf blinks only every 5th turn of a comic and every 6th of a text, to clear the ghosts.',
+  },
+  {
+    question: 'The page is refreshing. You open the toolbar, a strip across the top of the page. What happens?',
+    choices: ['The toolbar refresh starts at once, in parallel', 'The toolbar refresh waits for the page refresh to end, because they overlap', 'The page refresh is cancelled'],
+    answer: 1,
+    why: 'waitForOverlappingRefresh waits only when the new rectangle overlaps the last one, so as not to change pixels the panel is still driving.',
+  },
+  {
+    question: 'Which waveform does Inkshelf use for an ordinary page turn?',
+    choices: ['DU', 'GL16, partial', 'GC16, full'],
+    answer: 1,
+    why: 'pageWaveform is GL16: 16 grays, only the changed pixels, no blink.',
+  },
+]} />

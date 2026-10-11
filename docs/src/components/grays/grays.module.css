@@ -1,0 +1,144 @@
+/* Styles shared by the "From a scan to 16 grays" widgets. */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.canvasFigure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.pixelated {
+  display: block;
+  height: auto;
+  image-rendering: pixelated;
+  border: 1px solid var(--ink-line);
+  background: #fff;
+}
+
+.canvasCaption {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  text-align: center;
+  max-width: 180px;
+}
+
+.arrow {
+  align-self: center;
+  color: var(--ink-muted);
+  font-size: 1.2rem;
+}
+
+.stageButton {
+  border: 1px solid var(--ink-line);
+  background: var(--ink-paper-2);
+  color: var(--ink-text);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-family: var(--ink-mono);
+}
+
+.stageButtonActive {
+  border-color: var(--ink-accent);
+  background: var(--ink-accent-soft);
+  color: var(--ink-accent);
+  font-weight: 700;
+}
+
+.stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: center;
+  margin-bottom: 0.8rem;
+}
+
+.note {
+  font-size: 0.88rem;
+  color: var(--ink-muted);
+  text-align: center;
+  margin: 0.6rem auto 0;
+  max-width: 34rem;
+}
+
+.mono {
+  font-family: var(--ink-mono);
+}
+
+.formula {
+  font-family: var(--ink-mono);
+  font-size: 0.85rem;
+  text-align: center;
+  margin: 0.6rem 0 0;
+  min-height: 2.6em;
+}
+
+.svg {
+  display: block;
+  height: auto;
+  max-width: 100%;
+  touch-action: none;
+  user-select: none;
+}
+
+.byteStream {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-family: var(--ink-mono);
+  font-size: 0.82rem;
+  justify-content: center;
+}
+
+.byte {
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--ink-line);
+  background: var(--ink-paper);
+  cursor: default;
+}
+
+.byteMagic {
+  background: var(--ink-blue-soft);
+  border-color: var(--ink-blue);
+}
+
+.byteSize {
+  background: var(--ink-warn-soft);
+  border-color: var(--ink-warn);
+}
+
+.byteActive {
+  outline: 2px solid var(--ink-accent);
+  outline-offset: 1px;
+}
+
+.table {
+  font-size: 0.85rem;
+  margin: 0.8rem auto 0;
+}
+
+.bits {
+  font-family: var(--ink-mono);
+  letter-spacing: 0.08em;
+}
+
+.high {
+  color: var(--ink-blue);
+  font-weight: 700;
+}
+
+.low {
+  color: var(--ink-accent);
+  font-weight: 700;
+}

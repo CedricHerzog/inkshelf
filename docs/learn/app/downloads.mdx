@@ -1,0 +1,153 @@
+---
+title: Downloads and the shelf
+description: A download pipeline of fetchers and preparers, and files written so that a reader dying mid-download loses nothing.
+---
+
+import DownloadPipeline from '@site/src/components/app/DownloadPipeline';
+import PullThePlug from '@site/src/components/app/PullThePlug';
+
+# Downloads and the shelf
+
+<OneSentence>A download fetches pages a few at a time, prepares them for the panel on every core, writes each file under a temporary name first, and writes `book.json` last, so an interrupted download is simply resumed.</OneSentence>
+
+Books live on servers: Komga for comics and manga, Mealie for recipes, Calibre-Web for EPUBs and
+CBZs. A book is read on the reader, often far from Wi-Fi, so it is downloaded first, onto the
+<Term id="shelf" />. Two constraints shape how. The reader is slow: preparing a page for the
+panel takes real CPU time, so it is done once, at download time, not at every page turn. And
+the reader is unreliable: Wi-Fi drops, the battery dies, the reader falls asleep. A download must
+survive all of that without ever leaving a broken book behind.
+
+<Analogy icon="📦">A removal company. Movers (fetchers) carry boxes from the old house; packers (preparers) unpack and arrange each room. The inventory sheet is signed last: until it is, the move is not done, and the next crew knows to pick up where the last one stopped.</Analogy>
+
+## From a server to the reader
+
+The app asks every kind of server for books through one Go interface, `servers.Server`
+([Three servers, one interface](./servers.mdx)). What matters here is the book's `Format`: a
+book of `PageImages` (Komga's, and Mealie's recipes) is fetched page by page through
+`OpenBook`; a CBZ or an EPUB is fetched whole through `OpenFile`.
+
+## The download pipeline
+
+Tapping a book that is not on the reader calls `downloadqueue.EnqueueLocked`. Books download one
+at a time, in the order asked: each is ready as soon as it can be, instead of all of them late.
+If the queue was idle, the main thread starts the downloader with `state.Go`, and the
+downloader calls `shelf.Store.Download` for each book in turn.
+
+For a book of page images (Komga's), `Download` runs two groups of workers joined by a small
+queue:
+
+- **Fetchers** (`fetchWorkers = 3`) take the page numbers in order and ask the server for each
+  page. Only a few at once: more only slows the server down.
+- A **queue** of fetched pages (`fetchedQueue = 2`): enough to keep the fetchers busy, few
+  enough not to hold many pages in memory.
+- **Preparers**, one per core (`prepareWorkers`, at least 2, at most 8, as each holds a decoded
+  page of 20 to 40 MB), turn each page into a <Term id="pg4" /> file: decode, fit to the
+  screen, apply the <Term id="tone-curve" />, <Term id="dithering">dither</Term> to
+  <Term id="grayscale" />, pack two pixels a byte.
+
+<Figure title="The download pipeline" tryThis="Press Download. Then try one fetcher: the preparers starve. Six fetchers: the toy server slows down and the queue fills. One preparer: the fetchers wait for room.">
+  <DownloadPipeline />
+</Figure>
+
+The progress the app shows is not "pages done" but "pages 1 to n all on disk": a page that
+finishes early waits until every page before it is there (`finishPage`). That is the number
+of pages you could read right now.
+
+A CBZ goes through the same workers, but its file is fetched whole first and its pages taken out
+of it; the archive is deleted once the pages are prepared. A <Term id="reflowable" /> EPUB is
+fetched whole and kept as `book.epub`: it is read through once to build its `index.json`, its
+cover becomes `cover.pg4`, and its pages are laid out later, while reading.
+
+## Never half a file
+
+A reader can die at any instant. Two rules make that harmless.
+
+**Every file is written under a temporary name, then renamed.** `writeFileAtomic` writes
+`0007.pg4.tmp`, then renames it `0007.pg4`. A rename is an
+<Term id="atomic-rename" />: the file under its real name is either absent or whole. A
+`.tmp` cut short by a crash has a name no code reads. A CBZ or an EPUB is streamed to
+`book.cbz.part` or `book.epub.part` the same way, and renamed once every byte is in.
+
+**book.json is written last.** It holds the book's titles, page count, format and progress.
+`Store.Book` reads it to decide whether a book is downloaded. So a folder without it is,
+by definition, an interrupted download. The next `Download` of that book picks it up: the
+fetchers check `pageOnDisk` and skip every page already there.
+
+<Figure title="Pull the plug" tryThis="Tap to download again: the blue pages are skipped, the .tmp is written again. Then start a new download and pull the plug yourself. Switch to the EPUB and make the Wi-Fi drop.">
+  <PullThePlug />
+</Figure>
+
+The EPUB tab shows the difference between the two failures. Pulling the plug leaves
+`book.epub.part`; the next download creates it again, empty, and starts over (a partial EPUB is
+never resumed, only a whole `book.epub` is kept). Wi-Fi dropping is different: the request
+would wait forever, so a <Term id="watchdog">watchdog</Term> gives up after 30 s without a byte
+(`stallTimeout`), and
+the download fails with "the download stalled", removing the `.part`.
+
+## How Inkshelf does it
+
+- `downloadqueue.downloader` calls `Store.Download` with a progress callback. The callback is an
+  `Update` whose change, `noteProgressLocked`, asks for a redraw only on the screens that show
+  it, for the first page, then at most every 2 s (`progressRepaint`): each redraw takes the CPU
+  from the download.
+- `Download` passes progress through a `reporter`: a goroutine of its own and a channel that
+  keeps only the latest value, so a slow callback never holds up the workers.
+- While downloading, the reader is kept awake: `pocketbook.PreventSleepFor(awakeFor)`, one
+  minute, renewed every 30 s.
+- After a book, the downloader saves its cover for offline use and, inside one `Update`, records
+  the result and takes the next book from the queue.
+
+<details>
+<summary>Going deeper</summary>
+
+- **The first error stops all.** `finishPage` records the first error and cancels the context,
+  which stops the other workers; the preparers drain the queue so that no fetcher stays blocked.
+- **Old books.** `pageOnDisk` also accepts `0001.png`: books downloaded by older versions keep
+  working.
+- **Fixed-layout EPUBs**, whose pages are drawn like pictures, are drawn page by page into
+  `.pg4` files at download time and kept as a book of pages.
+- **The HTTP client.** `httpclient.New` makes the one client every request goes through, with a
+  one-minute timeout; Calibre-Web downloads files through a copy without that timeout, which is
+  why files need the watchdog.
+- **Cancelling.** Tapping the book being downloaded cancels its context; the list then says
+  "Cancelled". Whatever was written stays, ready to resume.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/app/downloadqueue/downloadqueue.go', symbol: 'EnqueueLocked, downloader', what: 'The queue, one book at a time, and the goroutine that downloads it.'},
+  {path: 'internal/shelf/download.go', symbol: 'Store.Download, fetchLoop, prepareLoop', what: 'Fetchers and preparers joined by a queue of two.'},
+  {path: 'internal/shelf/download_file.go', symbol: 'fetchFile, stallTimeout', what: 'A whole file to .part, renamed once complete; the 30 s watchdog.'},
+  {path: 'internal/shelf/write_atomic.go', symbol: 'writeFileAtomic', what: 'Write to .tmp, then rename.'},
+  {path: 'internal/shelf/store.go', symbol: 'Store.Book, Store.Save', what: 'book.json: read to know a book is there, written last.'},
+]} />
+
+The full story: <RefDoc file="on-disk-formats.md">Files on the reader</RefDoc>.
+
+Next: once a book is on the reader and you read it, your progress has to go back to the server:
+[Syncing reading progress](./sync.mdx).
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'The reader dies while writing page 7. What does the folder hold afterwards?',
+    choices: ['A half 0007.pg4 that will show garbage', 'Maybe 0007.pg4.tmp, cut short, and no book.json', 'Nothing: the folder is deleted'],
+    answer: 1,
+    why: 'Pages are written to .tmp and renamed whole. Without book.json the book is not downloaded, and the next download writes page 7 again.',
+  },
+  {
+    question: 'Why are pages prepared at download time rather than when they are read?',
+    choices: ['The server cannot send small pages', 'Decoding, fitting and dithering are slow on the reader, and a page turn must be fast', 'To save Wi-Fi'],
+    answer: 1,
+    why: 'A .pg4 is ready to copy to the panel: a page turn only reads it.',
+  },
+  {
+    question: 'An EPUB download stops receiving bytes. What happens?',
+    choices: ['It waits until Wi-Fi comes back', 'After 30 s without a byte the watchdog gives up and the .part is removed', 'It keeps the .part and resumes from the same byte'],
+    answer: 1,
+    why: 'stallTimeout cancels the request. A later download fetches the file again from the start.',
+  },
+]} />

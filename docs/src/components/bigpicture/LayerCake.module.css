@@ -1,0 +1,236 @@
+.widget {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cake {
+  width: 100%;
+  height: auto;
+  display: block;
+  font-family: var(--ink-mono);
+}
+
+.row {
+  cursor: pointer;
+}
+
+.row rect {
+  fill: var(--ink-paper-2);
+  stroke: var(--ink-line);
+  stroke-width: 1.5;
+  transition: fill 0.25s, stroke 0.25s, opacity 0.25s;
+}
+
+.rowName {
+  font-size: 13px;
+  font-weight: 650;
+  fill: var(--ink-text);
+  pointer-events: none;
+}
+
+.rowCount {
+  font-size: 10px;
+  fill: var(--ink-muted);
+  pointer-events: none;
+}
+
+.axis {
+  font-size: 10px;
+  fill: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.row:hover rect {
+  stroke: var(--ink-muted);
+}
+
+.rowSelected rect {
+  fill: var(--ink-accent-soft);
+  stroke: var(--ink-accent);
+  stroke-width: 2.5;
+}
+
+.rowAllowed rect {
+  fill: var(--ink-ok-soft);
+  stroke: var(--ink-ok);
+}
+
+.rowAbove {
+  opacity: 0.55;
+}
+
+.rowFrom rect {
+  fill: var(--ink-blue-soft);
+  stroke: var(--ink-blue);
+  stroke-width: 2.5;
+}
+
+.rowTo rect {
+  stroke: var(--ink-text);
+  stroke-width: 2.5;
+  stroke-dasharray: 5 3;
+}
+
+.arrow {
+  stroke-dasharray: 600;
+  stroke-dashoffset: 0;
+}
+
+.arrowOk {
+  stroke: var(--ink-ok);
+}
+
+.arrowBad {
+  stroke: var(--ink-accent);
+}
+
+.arrowAnimated.arrowOk {
+  animation: draw 0.7s ease-out both;
+}
+
+.arrowAnimated.arrowBad {
+  animation: draw 0.7s ease-out both, flash 0.35s ease-in-out 0.7s 3;
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 600;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes flash {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+}
+
+.panelTitle {
+  font-family: var(--ink-mono);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--ink-accent);
+}
+
+.knows {
+  margin: 0;
+}
+
+.small {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--ink-muted);
+}
+
+.small strong {
+  color: var(--ink-text);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.chip {
+  font-size: 0.75rem;
+}
+
+.pickers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.select {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+.select select {
+  font-family: var(--ink-mono);
+  font-size: 0.82rem;
+  padding: 0.3rem;
+  border: 1px solid var(--ink-line);
+  border-radius: 6px;
+  background: var(--ink-paper);
+  color: var(--ink-text);
+  max-width: 100%;
+}
+
+.verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid;
+}
+
+.verdictOk {
+  background: var(--ink-ok-soft);
+  border-color: var(--ink-ok);
+}
+
+.verdictOk strong {
+  color: var(--ink-ok);
+}
+
+.verdictBad {
+  background: var(--ink-accent-soft);
+  border-color: var(--ink-accent);
+}
+
+.verdictBad strong {
+  color: var(--ink-accent);
+}
+
+.real {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.presets button {
+  font-family: var(--ink-mono);
+  font-size: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row rect {
+    transition: none;
+  }
+}

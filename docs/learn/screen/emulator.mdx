@@ -1,0 +1,195 @@
+---
+title: The emulator
+description: How Inkshelf runs on your computer with its real event loop and screens, by swapping only the firmware, and how scripts and screenshots check every UI change.
+---
+
+import ReaderVsEmulator from '@site/src/components/device/ReaderVsEmulator';
+import ScriptPlayer from '@site/src/components/device/ScriptPlayer';
+
+# The emulator
+
+<OneSentence>
+The emulator replaces only the firmware: it hands the real event loop the same bytes the reader
+would, keeps the panel as an image, and lets you drive the app from a web page or from a script
+that saves screenshots.
+</OneSentence>
+
+Testing on the reader is slow: build, plug in, copy, eject, open the app, tap, squint. And the
+reader cannot run a test suite. Yet most of Inkshelf (its screens, its layout, its servers) does
+not care whether the pixels end up on e-ink. The <Term id="emulator">emulator</Term> runs all of
+it on your computer, as it runs on the reader.
+
+<Analogy icon="✈️">
+A flight simulator keeps the real cockpit, the real instruments and the real pilot, and fakes
+only the outside world. The emulator keeps the real app and the real event loop, and fakes only
+the firmware and the glass.
+</Analogy>
+
+## One seam: the firmware interface
+
+Everything the event loop and the screen need from the reader goes through one small Go
+interface, `firmware`, with eight methods:
+
+```go title="internal/device/pocketbook/firmware.go"
+type firmware interface {
+	flush(canvas *image.Gray, rect image.Rectangle, waveform Waveform, full bool)
+	visible() bool
+	describe() string
+	nextHardwareEvent() ([]byte, bool)
+	nextTaskMessage() ([]byte, bool)
+	nextReply(id int32) ([]byte, bool)
+	send(message []byte) bool
+	battery() (percent int, charging, ok bool)
+}
+```
+
+On the reader, `readerFirmware` implements it with system calls; it lives in files ending in
+`_linux_arm.go`, which Go builds only for the reader. Elsewhere, `pocketbook.Run` just fails, and
+`pocketbook.RunEmulated` runs the very same loop on an `Emulator` instead.
+
+The key choice: messages cross the interface **as raw bytes**, in the firmware's own layouts. A
+click in the emulator is encoded by `encodeHardwareEvent` into the same 32 bytes the firmware
+would post, with the raw coordinates the touch panel would report (`rawTouch`, the inverse of
+`touchPoint`). So the event loop's decoding, rotation, dead zone and long-press timing all run
+for real, and are tested for real.
+
+<Figure title="What changes, what stays" tryThis="Switch between the reader and the emulator. Only the bottom boxes change; the bytes of the tap do not.">
+  <ReaderVsEmulator />
+</Figure>
+
+## A panel that behaves like e-ink
+
+The emulator's panel is an image kept apart from the canvas. It changes **only on a refresh**,
+like the real one: an area the app drew but forgot to refresh stays stale on screen, exactly the
+bug you want to catch before deploying.
+
+On each refresh, `flush` rounds every pixel to the grays the waveform can show: 16 for GC16 and
+GL16, 4 for GC4 and DU4, 2 (black and white) for DU and A2. A screen refreshed with DU looks as
+harsh in the emulator as on the reader.
+
+With `-eink`, refreshes also take as long as on an InkPad 3: 600 ms for a full refresh, 490 ms
+for a partial GL16 or GC16, 265 ms for DU. The emulator waits for every refresh, while the
+reader only waits when one overlaps the last: it shows the worst case.
+
+## Interactive: a reader in your browser
+
+`make emu-fake` runs the app against built-in fake servers and serves a page at
+`http://localhost:8740`. The page talks to a small HTTP server in `cmd/emulator`:
+
+| Request | What it does |
+|---|---|
+| `GET /` | the page itself |
+| `GET /panel.png` | what the panel shows now, as a PNG |
+| `GET /refreshes` | a stream (server-sent events) of every refresh: rectangle, waveform, full or not |
+| `POST /pointer` | a touch: `down`, `move` or `up` at x, y |
+| `POST /key` | a button press or release: `prev`, `next`, `menu`, `ok`, `back`… |
+| `POST /control` | `home`, `resume`, `battery`, `net-up`, `net-down`, `exit` |
+
+A click is a tap, holding is a long press, dragging is a swipe. `[` and `]` are the page
+buttons, `m` is Menu, Enter is OK, Backspace is Back. The page can outline each refresh with its
+waveform, which makes it easy to see what a tap actually redraws.
+
+## Headless: scripts and screenshots
+
+With `-script FILE`, there is no page. A script drives the app, one command per line, and
+`shot NAME` saves the panel as a PNG:
+
+| Command | What it does |
+|---|---|
+| `tap X Y`, `long X Y`, `swipe X1 Y1 X2 Y2` | touches, in screen pixels |
+| `key NAME`, `hold NAME DURATION` | buttons |
+| `home`, `resume` | to the background and back |
+| `net up`, `net down`, `battery PERCENT [charging]` | firmware news |
+| `wait DURATION`, `idle [TIMEOUT]` | sleep; wait until the app is idle |
+| `shot NAME` | wait until idle, then save `OUT/NAME.png` |
+| `exit` | ask the app to exit, as the firmware does |
+
+A script never guesses how long something takes. Before each touch or key, it waits until the
+app is **settled**: the input before it handled, and the background work it started (a
+download, a list loading, a cover) over. A `shot` waits until the app is **idle**: settled, and
+the panel unchanged for 500 ms.
+
+<Figure title="A script, line by line" tryThis="Step through the script and watch the shots pile up in build/shots/. Notice that no line says how long to wait for the download of covers.">
+  <ScriptPlayer />
+</Figure>
+
+## Shots as tests
+
+`make shots-all` runs every script in `emulator/scripts/`, each with the fake servers it was
+written for, and `-frozen-status`: a fixed clock (14 March 2025, 9:41), fixed free space, and
+fixed addresses for the fake servers. Two runs then give **byte-identical** PNGs.
+
+That turns screenshots into a test. `make baseline` saves a set of shots; after a change,
+`make shots-compare` (`diff -r`) lists every PNG that differs. Each one must be a difference you
+meant: you open it, look, and then accept it with `make baseline`. `make verify` runs all of
+this after the build, `go vet` and `go test`.
+
+## Try it yourself
+
+With Go installed, from the repository's root:
+
+```sh
+make emu-fake                                         # then open http://localhost:8740
+make emu-fake EMUFLAGS="-eink"                        # with real refresh times
+make emu-fake EMUFLAGS="-fake-type calibreweb"        # a fake Calibre-Web, with EPUBs
+make shots SCRIPT=emulator/scripts/mealie.txt EMUFLAGS="-fake-type mealie"   # PNGs in build/shots
+```
+
+<details>
+<summary>Going deeper</summary>
+
+- **What it cannot show.** Real ghosting, the reader's speed, Wi-Fi, sleep, USB, and what the
+  firmware does when the app goes to the background. For those: `make deploy`, use the app, and
+  read `applications/inkshelf.log` over USB.
+- **Settled, precisely.** The emulator's `Pending` reports input or task messages not handled
+  yet, or a repaint not started. The app adds its background work (`BackgroundWork`: what it
+  started with `state.Go`). The script polls both every 10 ms.
+- **Background in the emulator.** `home` makes the emulator drop input and send event 152; the
+  panel keeps its picture, since no other app draws. `resume` sends event 151, and the loop
+  calls `Draw`, as on the reader.
+- **Its own folder.** The emulated reader keeps its files in `emulator/` (`-dir`), with
+  `config.json` written as on the reader; with `-fake`, under `emulator/fake/`. `-fresh` starts
+  without downloaded books or saved filters.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/device/pocketbook/firmware.go', symbol: 'firmware', what: 'The seam: eight methods, raw bytes in and out.'},
+  {path: 'internal/device/pocketbook/emulated_firmware.go', symbol: 'Emulator', what: 'The firmware in memory: queues, panel image, quantized refreshes, -eink timings.'},
+  {path: 'internal/device/pocketbook/app.go', symbol: 'RunEmulated', what: 'The same run loop, on an Emulator.'},
+  {path: 'cmd/emulator/main.go', symbol: 'run', what: 'Flags, fake servers, the web page or a script.'},
+  {path: 'cmd/emulator/server.go', symbol: 'newServer', what: 'GET /, /panel.png, /refreshes; POST /pointer, /key, /control.'},
+  {path: 'cmd/emulator/script.go', symbol: 'runScript', what: 'Script commands, waiting until settled or idle, shots.'},
+  {path: 'emulator/scripts/smoke.txt', what: 'The smoke test of the main screens.'},
+  {path: 'Makefile', symbol: 'shots-all', what: 'Every script with its fake servers; baseline and shots-compare.'},
+]} />
+
+The full story: <RefDoc file="emulator.md">The emulator</RefDoc>.
+
+That ends the part about the screen. Next, the books themselves, starting with the file format
+of most of them: [What is an EPUB?](../books/epub.mdx)
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'Why does the emulator encode touches as 32-byte firmware messages instead of calling app.Pointer directly?',
+    choices: ['For speed', 'So the real event loop (decoding, rotation, dead zone, long presses) runs and is tested', 'The browser requires it'],
+    answer: 1,
+    why: 'Only the firmware is swapped; everything above the firmware interface is the reader’s code.',
+  },
+  {
+    question: 'The app draws a button but forgets to refresh it. What does the emulator show?',
+    choices: ['The button', 'The old picture: its panel only changes on a refresh, like e-ink', 'A warning'],
+    answer: 1,
+    why: 'The panel image is separate from the canvas and only flush updates it.',
+  },
+  {
+    question: 'Why does make shots-all pass -frozen-status?',
+    choices: ['To go faster', 'So the clock, free space and server addresses are fixed and two runs give identical PNGs', 'To disable refreshes'],
+    answer: 1,
+    why: 'Identical PNGs let shots-compare list only real changes.',
+  },
+]} />

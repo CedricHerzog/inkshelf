@@ -1,0 +1,290 @@
+---
+title: Breaking lines
+description: How Inkshelf turns a block of styled runs into lines on the reader, with words, greedy line breaking, Liang's hyphenation, justification and right-to-left text.
+---
+
+import LinesGreedy from '@site/src/components/books/LinesGreedy';
+import LinesLiang from '@site/src/components/books/LinesLiang';
+import LinesBidi from '@site/src/components/books/LinesBidi';
+
+# Breaking lines
+
+<OneSentence>A paragraph is cut into words, the words fill each line until the next one does not fit, and a word that does not fit may be hyphenated where Liang's patterns allow it.</OneSentence>
+
+Two chapters ago, a chapter of the book became a list of <Term id="block">blocks</Term>,
+each one a list of styled <Term id="run">runs</Term>. A block knows its text and its styles. It
+does not know its lines. Where a line ends depends on the width of the screen and on the font
+size the reader picked: 32 to 64 pixels, 44 by default. Change the size and every line of the
+book moves.
+
+So the lines are made on the reader, while you read, and made again each time you press A+ or
+A− (the reader's toolbar buttons that make the text larger or smaller). The reader has a modest ARM processor (a Cortex-A7), so this has to be quick. This chapter
+shows how Inkshelf makes lines, one decision at a time.
+
+<Analogy icon="📚">Filling a bookshelf with books of different widths. You put books on the top
+shelf until the next one does not fit, then you start the next shelf. If a book is too wide for
+any shelf you have to cut it, which is what a hyphen does to a word.</Analogy>
+
+## From runs to words
+
+A line may only end at some places: after a space, after a dash, at a soft hyphen. So the first
+job is to find those places. `splitFragments` walks the text of the block, rune by rune, and
+cuts it into **fragments**: stretches of text with no break point inside, in one style. Each
+fragment is measured once, in its font at its size ([Text in gray](./fonts.mdx) shows how), and
+remembers what comes after it:
+
+```go title="internal/typesetting/layout/fragments.go"
+const (
+	breakNone   breakKind = iota // the word goes on, in another style
+	breakSpace                   // a space: a line may break here, and it stretches
+	breakSoft                    // a soft hyphen: a break that draws "-" only at a line's end
+	breakDirect                  // after a dash or a zero-width space: a break with no gap
+)
+```
+
+Then `groupWords` glues together the fragments with no break between them into **words**, the
+smallest thing a line may hold. A word is usually one fragment. "un*believ*able" is three
+fragments, in two styles, but it is one word: a line never ends inside it. And "e-reader" is two
+words, "e-" and "reader", with no space between them: a line may end after the dash.
+
+Spaces are not drawn and are not part of any word. They become the **gaps** between words. A
+no-break space is a letter like any other, so the words on either side of it stay together.
+
+<details>
+<summary>And Chinese, Hebrew, Arabic?</summary>
+
+Latin text only needs the spaces and dashes. Other scripts need more, and pay for it only when
+they are there (`prepareText` checks the scripts the block contains first):
+
+- Chinese and Japanese have no spaces. The Unicode line breaking algorithm (UAX #14, through the
+  `uniseg` package) finds where a line may break between ideographs (`breakOpportunities`).
+- Hebrew and Arabic run right to left. Each rune gets a bidirectional level (below), and a
+  fragment never mixes two levels.
+- Arabic letters join, and the vowels of the scripts of India move: those fragments are measured
+  and drawn as the font shapes them (with `go-text`, a Go port of HarfBuzz, the text shaping library
+  that browsers use).
+
+</details>
+
+## Greedy line breaking
+
+Now the words go onto lines. Inkshelf is <Term id="line-breaking">greedy</Term>: each line
+takes all the words that fit, and the next word starts the next line. That is it. No line is
+ever looked at again once it is finished.
+
+There is a famous better way. TeX, the typesetting program of scientific papers, uses the
+Knuth–Plass algorithm: it weighs every way of breaking the whole paragraph at once and picks
+the one with the most even spacing. Inkshelf does not, on purpose. The whole chapter is laid out
+again at every font size change, on a slow processor, and greedy breaking is one pass over the
+words. It is also simple: a finished line never changes, which matters when the width of the
+lines changes along the way (beside a picture, for example). Browsers and most e-readers make
+the same choice. Justification and hyphenation hide most of its uneven spacing.
+
+<Figure
+  title="A paragraph broken word by word"
+  tryThis="Press Play and watch the flowchart. Then drag the column very narrow, until a word is wider than a whole line and gets cut. Turn justification off to see the ragged right edge that it hides.">
+  <LinesGreedy />
+</Figure>
+
+Each word goes through the same four questions, in the order of `breakLines`:
+
+1. **Does it fit** on the line, after the gap? Then it goes on the line.
+2. If not, **is hyphenation on, and is this word still whole** (not tried yet)? Then the word is
+   split at its last hyphenation point that leaves a start which fits *with its hyphen*. The two
+   parts go back to the front of the queue, so the start goes on the line and the rest waits. If
+   no point works, the word is marked as tried.
+3. If not, **does the line already have words?** Then the line is finished, and the word waits
+   for the next one.
+4. Otherwise the word is alone on its line and wider than the whole line (a long URL, a German
+   compound on a narrow column). It is **cut** between two characters, at the longest start that
+   fits, one character at least, so that layout always moves on.
+
+```go title="internal/typesetting/layout/line_breaking.go · breakLines (trimmed)"
+switch {
+case filling.width+gap+candidate.width <= available: // it fits
+	filling.line = append(filling.line, candidate)
+case candidate.whole && breaker.hyphenator != nil: // try hyphenation, once
+	candidate.whole = false
+	queue.pushFront(breaker.hyphenate(candidate, available-filling.width-gap, spacer))
+case len(filling.line) > 0: // the line is full
+	filling.finishLine(spacer)
+default: // alone and still too wide: cut it
+	queue.pushFront(cutWord(candidate, available, spacer.measure))
+}
+```
+
+## Justification and indent
+
+A finished line is usually a little shorter than the column. With
+<Term id="justification">justification</Term>, `fitLine` measures the line's natural width (its
+words, its gaps, and the hyphen at its end if it has one), and spreads what is left over the
+gaps that stretch, the spaces. When the pixels do not divide evenly, the first gaps get one
+more. The gap after a dash does not stretch: "e-" and "reader" stay glued.
+
+The **last line** of a paragraph is not justified. It is aligned at the start, as in printed
+books, unless the book's CSS says otherwise (`text-align-last`). Inkshelf justifies the
+paragraphs whose book does not say how to align them (`Settings.Justify`, which the app turns
+on); a heading, or a paragraph the book centres, keeps its own alignment.
+
+The **indent** of a paragraph's first line (CSS `text-indent`) just makes the first line
+shorter: the breaker gets two widths, one for the first line and one for the others. The indent
+is in ems, so it grows with the font size, and it never takes more than half the line.
+
+## Hyphenation
+
+<Term id="hyphenation">Hyphenation</Term> needs two things. The book must ask for it: CSS
+`hyphens: auto` on the paragraph sets `Block.Hyphenate`. And the book's language must have
+patterns: Inkshelf carries those of seven languages (eight pattern files, as English has an American and a British one), from the hyph-utf8 project that TeX uses.
+
+| Language tag | Pattern file | leftMin | rightMin |
+| --- | --- | --- | --- |
+| `en`, `en-us` | hyph-en-us | 2 | 3 |
+| `en-gb` | hyph-en-gb | 2 | 3 |
+| `fr` | hyph-fr | 2 | 3 |
+| `de`, `de-1996` | hyph-de-1996 | 2 | 2 |
+| `es` | hyph-es | 2 | 2 |
+| `it` | hyph-it | 2 | 2 |
+| `nl` | hyph-nl | 2 | 2 |
+| `pt` | hyph-pt | 2 | 3 |
+
+`hyphen.For` looks up the document's language tag, dropping its last parts until one matches:
+"en-AU" finds "en", "pt-BR" finds "pt", and "ja" finds nothing, so Japanese is never hyphenated.
+`leftMin` and `rightMin` are the fewest letters a hyphen may leave before and after it ("a-"
+alone at the end of a line reads badly).
+
+Hyphenation is lazy. Only a word that does not fit is looked up, so most words never are, and a
+language's patterns are read from the program only the first time one is needed.
+
+### Liang's patterns
+
+How do you know that "hyphenation" breaks as hy-phen-ation without a dictionary of every word?
+Frank Liang found the answer for TeX in 1983. A language has a few thousand **patterns**, short
+pieces of words with digits in some of the gaps between their letters: `hy3ph`, `he2n`,
+`1tio`. A dot stands for the start or the end of the word.
+
+To hyphenate a word, put dots around it (`.hyphenation.`) and slide every pattern along it.
+Wherever a pattern's letters match, its digits drop into the gaps they cover. Each gap keeps the
+**highest** digit it is given. At the end, an **odd** digit means a hyphen may go there; an
+even one means it may not. Even digits exist to overrule: a later, more precise pattern can veto
+what a general one allowed.
+
+<Figure
+  title="Liang's algorithm on one word"
+  tryThis="Play hyphenation and watch the gap between e and n: he2n puts a 2 there, so the 1 of 1na changes nothing and hyphe-nation is forbidden. Then try French ordinateur and German Silbentrennung, or type your own word.">
+  <LinesLiang />
+</Figure>
+
+The tests of the `hyphen` package check words like hy-phen-ation, com-puter, al-go-rithm,
+or-di-na-teur and Sil-ben-tren-nung against TeX's own output. A few words that the patterns get
+wrong are listed whole as exceptions: English has fourteen, such as "ta-ble" and "present"
+(never "pre-sent"). Around the word, `Points` skips punctuation (quotes, a comma). An apostrophe
+splits it, and each part is hyphenated alone: l'or-di-na-teur. A word with anything else inside,
+a digit or a hyphen, is left alone.
+
+The patterns are kept in a trie, a tree of letters, so that finding every pattern that starts at
+one letter of the word is a single walk down the tree. German has 36,709 patterns, English 4,938.
+
+## Right to left, in brief
+
+Hebrew and Arabic are written from right to left, and they often hold a number or an English
+name that runs from left to right. That is <Term id="bidi">bidirectional</Term> text. Text is
+always stored in **logical order**, the order you type and read it. Drawing needs **visual
+order**, from left to right on the screen.
+
+The Unicode bidirectional algorithm gives every character a **level**. Even levels run left to
+right, odd ones right to left. In a Hebrew paragraph (level 1), an English name inside is at
+level 2. Inkshelf gets the levels from the `go-text` bidi package (`bidiLevels`), and when a line
+is placed, `reorder` applies rule L2 of the algorithm to its fragments and gaps: from the highest
+level down to the lowest odd one, reverse every run of items at that level or higher.
+
+<Figure
+  title="Reordering a line, level by level"
+  tryThis="Step through the Hebrew example: the English name is reversed twice, so it ends up the right way round. Then try the number inside Hebrew inside English.">
+  <LinesBidi />
+</Figure>
+
+Only the order of the fragments changes. A Hebrew fragment is still drawn by the font from its
+right edge (shaping does that), and the offsets of the runes keep their logical order, so a
+reading position means the same thing in any direction.
+
+## How Inkshelf does it
+
+`layOutLines` (in `line_placement.go`) makes the lines of one block at one font size:
+
+1. `prepareText` gives each run a format (its font at its size), finds what its scripts need,
+   and calls `splitFragments` and `groupWords`.
+2. A `lineBreaker` gets the two widths (the first line minus its indent, then the others) and the
+   hyphenator, if the block hyphenates. `breakLines` returns the lines as lists of words.
+3. `lineAlignments` decides how the lines and the last line align, and `fitLine` computes where
+   each line starts and how many pixels justification spreads.
+4. `placeWords` gives each fragment its x, puts all the words of a line on one baseline, and, for
+   bidirectional text, places them in visual order.
+
+<details>
+<summary>Going deeper</summary>
+
+- **A word is offered to hyphenation once.** The parts of a split word, and a word whose split
+  failed, are no longer *whole*. So the second half of a hyphenated word is never hyphenated
+  again, and a word that could not be split at the end of one line is not tried again at the
+  start of the next: if it is wider than a whole line, it is cut.
+- **Soft hyphens from the book win.** A word the book wrote with soft hyphens (U+00AD) is not
+  hyphenated by patterns: the book already said where it may break. A line that ends at a soft
+  hyphen draws a hyphen that breaking did not count, so `finishLine` checks it: if the hyphen
+  does not fit, the line's last word moves down to the next line.
+- **Splitting measures again.** When a word is split, `splitWord` measures both halves anew:
+  kerning or shaping across the cut can change their widths.
+- **Lines are not all the same height.** `measureLine` makes a line as high as the block's plain
+  line (135% of the font size in the app), or higher for a larger font, an inline image, a
+  formula or emphasis marks. All the words of a line share one baseline.
+- **The hottest loop.** `splitFragments` runs once per character of every chapter laid out. It
+  stays one function with closures for that reason, and Latin text skips all the work for other
+  scripts.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/typesetting/layout/text_preparation.go', symbol: 'prepareText', what: 'Formats each run, finds what its scripts need, cuts the text into words.'},
+  {path: 'internal/typesetting/layout/fragments.go', symbol: 'splitFragments, groupWords', what: 'Text between break points, measured; fragments glued into words.'},
+  {path: 'internal/typesetting/layout/line_breaking.go', symbol: 'breakLines', what: 'Greedy breaking: fit, hyphenate, finish the line, or cut.'},
+  {path: 'internal/typesetting/layout/line_placement.go', symbol: 'fitLine, placeWords', what: 'Alignment, justification, baseline, visual order.'},
+  {path: 'internal/typesetting/hyphen/hyphen.go', symbol: 'For, Points', what: 'The languages with patterns; the hyphenation points of a word.'},
+  {path: 'internal/typesetting/hyphen/patterns.go', symbol: 'trie.match', what: 'The patterns, read on first use into a trie.'},
+  {path: 'internal/typesetting/layout/bidi.go', symbol: 'bidiLevels, reorder', what: 'Bidirectional levels, and rule L2 on a line.'},
+]} />
+
+The full story: <RefDoc file="pagination.md">Pagination: from blocks to pages</RefDoc>, sections
+1 to 4.
+
+Next: the lines must be cut into pages, and your place kept while they move:
+[Pages and positions](./pages.mdx).
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'The next word does not fit, the paragraph has hyphens: auto, and the language is English. What happens first?',
+    choices: ['The line is finished and the word starts the next one', 'The word is split at its last hyphenation point whose start fits with its hyphen', 'The word is cut between two characters', 'The whole paragraph is broken again with even spacing'],
+    answer: 1,
+    why: 'breakLines tries hyphenation before finishing the line, once per word. Cutting is only for a word alone on its line and wider than it. Breaking the paragraph again is Knuth–Plass, which Inkshelf does not do.',
+  },
+  {
+    question: 'Two patterns give the same gap a 1 and a 2. May the word break there?',
+    choices: ['Yes: 1 + 2 = 3 is odd', 'No: the gap keeps the highest digit, 2, which is even', 'Yes: one odd digit is enough'],
+    answer: 1,
+    why: 'Each gap keeps the maximum digit any pattern gives it, and only an odd maximum allows a hyphen. That is how he2n, in hyphenation, keeps 1na from allowing hyphe-nation.',
+  },
+  {
+    question: 'Why is the last line of a justified paragraph not stretched?',
+    choices: ['It has no gaps', 'It is aligned at the start, as in print, unless text-align-last says otherwise', 'The hyphen would not fit'],
+    answer: 1,
+    why: 'lineAlignments gives the last line of a justified block the start alignment. Stretching a short last line would spread a few words across the whole width.',
+  },
+  {
+    question: 'Why does Inkshelf break lines greedily rather than with Knuth–Plass?',
+    choices: ['Knuth–Plass cannot hyphenate', 'It lays out whole chapters again at every font size change, on a slow processor: one pass is fast and simple', 'Greedy breaking gives more even spacing'],
+    answer: 1,
+    why: 'Knuth–Plass gives better spacing but weighs every break of the paragraph. Greedy breaking is one pass, and a finished line never changes.',
+  },
+]} />

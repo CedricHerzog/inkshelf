@@ -1,0 +1,217 @@
+---
+title: Life of a tap
+description: What happens between a finger touching the panel and the new screen appearing, through screens, targets, the state's mutex and one repaint.
+---
+
+import TapPath from '@site/src/components/app/TapPath';
+import RepaintCoalescing from '@site/src/components/app/RepaintCoalescing';
+
+# Life of a tap
+
+<OneSentence>A tap finds the button under the finger with the state locked, runs what the button does with the state unlocked, and that work changes the state through `state.Update`, which asks the event loop for one redraw.</OneSentence>
+
+The part about the screen showed the <Term id="event-loop" />: one goroutine that polls the
+firmware every 20 ms and calls the app. The part about books showed how a page is laid out. This
+part is about the app itself: what it does with those calls. We start with the most common one, a tap, and follow it all the way to the panel.
+
+Two constraints shape the whole path. Only one goroutine may draw, since the panel and the
+<Term id="framebuffer" /> cannot be shared. And the app is never only doing one thing: books
+download, covers load and pages are prepared in the background, all while you tap. So the app
+needs one place where everything it knows lives, and a rule for who may change it, and when.
+
+<Analogy icon="🍽️">A restaurant. The waiter (the event loop) is the only one allowed in the dining room: they take orders and bring plates. The cooks (goroutines) never walk into the room. They put plates on the pass and ring a bell. Ring it five times while the waiter is busy, and the waiter still makes one trip, carrying everything that is ready.</Analogy>
+
+## Screens: one package each
+
+A <Term id="screen" /> is one page of the app's interface: the series list, a series' book
+list, the reader, the cover view, the contents of a book. Each one is a Go package under
+`internal/app/screens/`, and implements a two-method interface:
+
+```go title="internal/app/screens.go"
+type Screen interface {
+	// Draws the screen into the canvas, whole, and registers its targets.
+	// Runs with the state's mutex held.
+	DrawLocked()
+	// Performs a command of the reader's buttons (Previous, Next, Back, Menu).
+	// Runs without the mutex.
+	Command(order widgets.Command)
+}
+```
+
+Screens never import each other. The book list does not know the series list exists: to go
+back, it calls `state.ShowLocked(state.SeriesScreen)`, which only changes which screen is shown
+and drops the targets of the one left. What another screen must learn, such as the progress of
+a book just closed, goes through the services (`catalog`, `openbook`…), which every screen may
+use. (The `screens/list` package is not a screen: it draws the header, rows and footer that
+the series list and the book list share, and the contents screen borrows its header and footer.)
+
+A screen may also implement a few optional interfaces, which the app checks with a type
+assertion: `touchable` (the reader and the cover view decide what each touch does
+themselves), `swipeable` (a swipe turns a list's pages), `overlaid` (a list's hold menu closes
+on any tap) and `selfRefreshing` (the reader refreshes only the part of the panel that
+changed).
+
+## The State and its one mutex
+
+Everything the app knows while it runs is in one struct, the <Term id="state" />
+(`state.State`): the screen shown, its targets, the lists, the open book, the download queue,
+the covers, and `Repaint`, what the next draw must do. Its first group of fields is guarded by
+one <Term id="mutex" />. A screen draws with that mutex held, so it always sees a consistent
+state: never a list half updated by a download.
+
+The rule for changing it is one function, <Term id="update" />:
+
+```go title="internal/app/state/state.go (trimmed)"
+func (app *State) Update(fullRefresh bool, change func() bool) {
+	app.mu.Lock()
+	repaint := false
+	if change() { // something visible changed
+		app.Repaint.FullRefresh = app.Repaint.FullRefresh || fullRefresh
+		repaint = !app.Repaint.Queued && !app.Repaint.Closing
+		app.Repaint.Queued = true
+	}
+	app.mu.Unlock()
+	if repaint {
+		pocketbook.Repaint()
+	}
+}
+```
+
+Notice what `Update` does not do: draw. It only asks for a draw, by dropping a token in a
+channel the event loop watches.
+
+## Targets: registered while drawing
+
+How does the app know what is under your finger? Every screen, while it draws a button, also
+registers a <Term id="target" />: a rectangle, and what to do when it is tapped.
+
+```go title="internal/app/widgets/targets.go (trimmed)"
+type Target struct {
+	Rect    image.Rectangle
+	Tap     func()  // runs when a tap starts and ends in Rect
+	Hold    func()  // runs when a touch in Rect is held
+	Command Command // when set, a tap acts as that command instead
+}
+```
+
+Since the targets are made by the very code that draws the buttons, they always match what the
+panel shows. There is no separate table of coordinates to keep in sync. `Draw` clears them
+before every redraw, and the screen registers them again as it draws.
+
+## The path of a tap
+
+Now the whole path. Tap a button on the reader below, and watch the three lanes and the
+padlock. Two things to notice: the mutex is never held while a button's work runs, and nothing
+reaches the panel until the event loop calls `Draw`.
+
+<Figure title="A tap, from the finger to the panel" tryThis="Tap “›” and follow the padlock: it closes to find the target, opens to run it, closes inside Update, and again for Draw. Then tap Tome 2 to see a goroutine appear.">
+  <TapPath />
+</Figure>
+
+In words:
+
+1. **`Pointer(PointerDown)`** records where the touch started (`touchStart`). Nothing else.
+2. **`Pointer(PointerUp)`** takes the mutex and calls `touchTargetLocked(start, end)`: if the
+   screen is `touchable`, it decides; else, if the touch moved more than a fifth of the screen
+   width sideways (and twice as far sideways as up or down) on a `swipeable` screen, it is a
+   swipe and becomes `Next` or `Previous`; else `Targets.Hit` returns the first target the touch
+   started *and* ended in. Then the mutex is released.
+3. **`run(tapped)`**, without the mutex: a target with a `Command` goes through `command`, just
+   as a press of the reader's own button would; otherwise its `Tap` closure runs.
+4. The closure or command calls the services, which change the state with **`state.Update`**.
+5. If the change returns true, `Update` sets `Repaint.Queued` and calls
+   **`pocketbook.Repaint()`** once.
+6. The event loop sees the request and calls **`Draw`**: lock, clear the targets, then either
+   `DrawAndRefreshLocked` for a self-refreshing screen (the reader), or `ClearScreen`, the
+   screen's `DrawLocked` and a refresh: a full, flashing one if `fullRefresh` was asked for or
+   the draw did not come from `Update`, a partial `GC16` one otherwise. Unlock.
+
+Why release the mutex before running the target? Because what it runs takes the mutex itself,
+through `Update`. Go's mutexes are not reentrant: a goroutine that locks a mutex it already
+holds waits for itself, forever. That is the reason closures run "after the app's lock is
+released, as they take it themselves", as `targets.go` says.
+
+## Many updates, one draw
+
+A download reports its progress many times a second. The cover loader finishes a cover, then
+another. If each change meant a redraw, the panel would spend its life refreshing, and an e-ink
+refresh is slow. So `Update` coalesces: only the `Update` that finds `Repaint.Queued` false calls
+`Repaint`, and the channel behind `Repaint` holds one request anyway. One `Draw` then shows
+every change made before it.
+
+<Figure title="Repaint coalescing" tryThis="Fire the 7 updates: one Repaint, one Draw. Then turn off “Event loop busy”: updates that arrive during the Draw wait at the padlock, and queue exactly one more.">
+  <RepaintCoalescing />
+</Figure>
+
+## How Inkshelf does it
+
+- `application` (`internal/app/app.go`) is the `pocketbook.App`: `Init`, `Draw`, `Key`,
+  `Pointer`, `System`, `Close`, all called on the event loop's goroutine.
+- `Key` maps the reader's buttons to `widgets.Command`s (`Next`, `Previous`, `Back`, `Menu`);
+  a tap on a target with a `Command` takes the same road.
+- `Draw` computes `fullRefresh := app.Repaint.FullRefresh || !app.Repaint.Queued`: a `Draw`
+  that `Update` did not ask for comes from the start or from the app coming back to the
+  foreground, when the panel may show anything, so it refreshes the whole panel.
+
+<details>
+<summary>Going deeper</summary>
+
+- **Overlays.** On a list, any tap first closes the hold menu or the A–Z jump, unless the target
+  is the one that opens them (`KeepsOverlays`). That is an `Update` whose change returns false
+  when nothing was open, so it costs no redraw. A command over an open overlay only closes it:
+  Back closes a menu rather than leaving the list.
+- **Long presses.** `PointerLong` hit-tests the same way, from the start point, and runs the
+  target's `Hold`. The `PointerUp` that follows does nothing.
+- **Progress redraws.** A download's progress callback is an `Update` whose change,
+  `noteProgressLocked`, returns true only on the screens that show it, for the first page, and
+  then at most every 2 s (`progressRepaint`): each redraw takes the CPU from the download.
+- **Closing.** `Close` sets `Repaint.Closing`, after which `Update` never asks for a repaint.
+- **The emulator** counts background work (`state.Work`) so that a script's screenshot waits
+  for the work the last tap started. The app itself never reads it.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/app/input.go', symbol: 'Pointer, touchTargetLocked, run, command', what: 'From a touch to the target or command it means.'},
+  {path: 'internal/app/app.go', symbol: 'Draw', what: 'Locks, clears the targets, draws the screen shown and refreshes the panel.'},
+  {path: 'internal/app/screens.go', symbol: 'Screen', what: 'The interface of a screen, and the optional ones (touchable, swipeable, overlaid, selfRefreshing).'},
+  {path: 'internal/app/state/state.go', symbol: 'Update, ShowLocked, Repaint', what: 'The one way to change the state, and the switch between screens.'},
+  {path: 'internal/app/widgets/targets.go', symbol: 'Target, Targets.Hit', what: 'Rectangles registered while drawing, and the hit test.'},
+  {path: 'internal/device/pocketbook/app.go', symbol: 'Repaint', what: 'Drops a request in a channel that holds one; the event loop calls Draw.'},
+]} />
+
+The full story: <RefDoc file="app-threading.md">App threading</RefDoc>.
+
+Next: a tap is one goroutine's story, but several run at once. [Threads and locks](./locks.mdx)
+gives the rules that keep them apart.
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'A goroutine finishes downloading a cover. How does it get it on the panel?',
+    choices: ['It draws the cover into the canvas and refreshes', 'It changes the state inside state.Update, which asks the event loop for a Draw', 'It calls the screen’s DrawLocked'],
+    answer: 1,
+    why: 'Only the event loop draws. Other goroutines change the state inside Update, and Update asks for a repaint.',
+  },
+  {
+    question: 'Why does Pointer release the mutex before running the tapped target?',
+    choices: ['To let the panel refresh', 'Because the target’s work takes the mutex itself, through Update, and Go mutexes are not reentrant', 'Because targets run on another goroutine'],
+    answer: 1,
+    why: 'Taking a mutex you already hold blocks forever. The closure runs on the main thread, unlocked, and locks inside Update.',
+  },
+  {
+    question: 'Seven Updates return true before the event loop gets to them. How many Draws?',
+    choices: ['Seven', 'One', 'None, until the next tap'],
+    answer: 1,
+    why: 'Only the first finds Repaint.Queued false and calls Repaint. The one Draw shows all seven changes.',
+  },
+  {
+    question: 'How does the book list switch to the series list?',
+    choices: ['It imports the serieslist package and calls it', 'It calls state.ShowLocked(SeriesScreen) inside an Update', 'It asks the event loop to swap packages'],
+    answer: 1,
+    why: 'Screens never import each other. ShowLocked changes which screen the next Draw draws.',
+  },
+]} />

@@ -1,0 +1,312 @@
+/* Shared styles of the device chapters' widgets (Part 2: no SDK, firmware, event loop,
+   emulator). Colors come from the --ink-* tokens, so both themes work. */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.mono {
+  font-family: var(--ink-mono);
+  font-size: 0.82rem;
+}
+
+.muted {
+  color: var(--ink-muted);
+}
+
+.small {
+  font-size: 0.82rem;
+}
+
+.label {
+  font-family: var(--ifm-heading-font-family);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  font-weight: 650;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  user-select: none;
+}
+
+/* ---------- Build pipeline ---------- */
+
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+.stage {
+  border: 1px solid var(--ink-line);
+  border-radius: 8px;
+  background: var(--ink-paper-2);
+  padding: 0.55rem 0.8rem;
+  position: relative;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+.stageLit {
+  border-color: var(--ink-accent);
+  background: var(--ink-accent-soft);
+}
+
+.stagePain {
+  border-left: 4px solid var(--ink-warn);
+}
+
+.stageGood {
+  border-left: 4px solid var(--ink-ok);
+}
+
+.stageTitle {
+  font-weight: 650;
+  font-family: var(--ifm-heading-font-family);
+  font-size: 0.92rem;
+}
+
+.stageDetail {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+.arrow {
+  text-align: center;
+  color: var(--ink-muted);
+  line-height: 1.3;
+  font-size: 1rem;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.fact {
+  border: 1px dashed var(--ink-line);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.82rem;
+}
+
+.fact strong {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+}
+
+/* ---------- Byte words ---------- */
+
+.word {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0.2rem 0.4rem 0.2rem 0;
+}
+
+.wordBytes {
+  display: inline-flex;
+  border: 1px solid var(--ink-line);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.byte {
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ink-mono);
+  font-weight: 650;
+  border-right: 1px solid var(--ink-line);
+  background: var(--ink-paper);
+  transition: background 0.3s;
+}
+
+.byte:last-child {
+  border-right: none;
+}
+
+.byteLit {
+  background: var(--ink-accent-soft);
+}
+
+.wordName {
+  font-family: var(--ink-mono);
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.wordHex {
+  font-family: var(--ink-mono);
+  font-size: 0.75rem;
+}
+
+.code {
+  font-family: var(--ink-mono);
+  font-size: 0.8rem;
+  background: var(--ink-paper-2);
+  border: 1px solid var(--ink-line);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+/* ---------- Logs and timelines ---------- */
+
+.log {
+  font-family: var(--ink-mono);
+  font-size: 0.78rem;
+  background: var(--ink-paper-2);
+  border: 1px solid var(--ink-line);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  min-height: 6.5rem;
+  max-height: 11rem;
+  overflow-y: auto;
+}
+
+.logLine {
+  padding: 1px 0;
+}
+
+.logNew {
+  color: var(--ink-accent);
+}
+
+.pad {
+  position: relative;
+  border: 2px solid var(--ink-text);
+  border-radius: 8px;
+  background: var(--ink-paper);
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+  overflow: hidden;
+}
+
+.chip {
+  display: inline-block;
+  font-family: var(--ink-mono);
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--ink-line);
+  background: var(--ink-paper-2);
+  margin: 1px 2px;
+}
+
+.chipAccent {
+  border-color: var(--ink-accent);
+  background: var(--ink-accent-soft);
+}
+
+.chipOk {
+  border-color: var(--ink-ok);
+  background: var(--ink-ok-soft);
+}
+
+.chipWarn {
+  border-color: var(--ink-warn);
+  background: var(--ink-warn-soft);
+}
+
+.chipBlue {
+  border-color: var(--ink-blue);
+  background: var(--ink-blue-soft);
+}
+
+.bigKey {
+  font-family: var(--ifm-heading-font-family);
+  font-size: 1rem;
+  font-weight: 650;
+  padding: 0.9rem 1.4rem;
+  border-radius: 10px;
+  border: 2px solid var(--ink-text);
+  background: var(--ink-paper-2);
+  color: var(--ink-text);
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+}
+
+.bigKeyDown {
+  background: var(--ink-accent-soft);
+  border-color: var(--ink-accent);
+  transform: translateY(1px);
+}
+
+/* ---------- Script player ---------- */
+
+.script {
+  font-family: var(--ink-mono);
+  font-size: 0.8rem;
+  border: 1px solid var(--ink-line);
+  border-radius: 6px;
+  background: var(--ink-paper-2);
+  padding: 0.3rem 0;
+  min-width: 15rem;
+  flex: 1;
+}
+
+.scriptLine {
+  padding: 1px 0.6rem;
+  white-space: pre;
+  border-left: 3px solid transparent;
+}
+
+.scriptLineDone {
+  color: var(--ink-muted);
+}
+
+.scriptLineNow {
+  border-left-color: var(--ink-accent);
+  background: var(--ink-accent-soft);
+}
+
+.scriptComment {
+  color: var(--ink-muted);
+}
+
+.film {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.filmFrame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--ink-mono);
+  font-size: 0.7rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage,
+  .byte {
+    transition: none;
+  }
+}

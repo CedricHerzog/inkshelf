@@ -1,0 +1,108 @@
+.widget {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The InkPad 3: a dark bezel, wider at the bottom where its four buttons are. */
+.reader {
+  width: 240px;
+  max-width: 100%;
+  padding: 14px 14px 30px;
+  border-radius: 18px;
+  background: #3a3834;
+  box-shadow: inset 0 0 0 2px #24221f, var(--ink-shadow);
+  position: relative;
+}
+
+.screen {
+  position: relative;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #fff;
+  aspect-ratio: 3 / 4;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.flash {
+  position: absolute;
+  inset: 0;
+  background: #111;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.09s;
+}
+
+.flashOn {
+  opacity: 1;
+}
+
+.buttons {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 9px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.buttons span {
+  width: 26px;
+  height: 8px;
+  border-radius: 3px;
+  background: #57534c;
+}
+
+.side {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.counter {
+  font-family: var(--ink-mono);
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.title {
+  font-family: var(--ifm-heading-font-family);
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+
+.caption {
+  margin: 0;
+  min-height: 3.4em;
+}
+
+.dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--ink-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.dotOn {
+  background: var(--ink-accent);
+  border-color: var(--ink-accent);
+}

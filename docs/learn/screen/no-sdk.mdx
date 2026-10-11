@@ -1,0 +1,220 @@
+---
+title: Running Go on a PocketBook
+description: Why Inkshelf skips PocketBook's SDK, how one go build makes the app, how it starts, and how a drawing reaches the sideways-mounted panel.
+---
+
+import BuildPipeline from '@site/src/components/device/BuildPipeline';
+import StartupStepper from '@site/src/components/device/StartupStepper';
+import ThreeLayers from '@site/src/components/device/ThreeLayers';
+import RotationGrid from '@site/src/components/device/RotationGrid';
+import BlockTranspose from '@site/src/components/device/BlockTranspose';
+
+# Running Go on a PocketBook
+
+<OneSentence>
+Inkshelf is one static ARM program, built by a plain <code>go build</code>, that opens the
+screen itself, draws on a canvas, and copies it, turned a quarter, into the framebuffer that the
+panel shows.
+</OneSentence>
+
+PocketBook sells its readers with an SDK: a C library, libinkview, that draws the screen, reads
+the buttons and talks to the reader's system. Apps for the reader are normally written against
+it. Inkshelf is not. This chapter explains why, and what it does instead, from the build on your
+computer to the first pixel on the glass.
+
+<Analogy icon="🧳">
+Using the SDK is like travelling with a heavy adapter kit: it works, but you must carry it
+everywhere and it only fits one plug. Inkshelf learned the local plugs instead, and travels
+with nothing but itself.
+</Analogy>
+
+## Why no SDK
+
+The SDK is written in C. Go can call C, through <Term id="cgo">cgo</Term>, but the price is high:
+
+- cgo needs a C compiler that makes code for the reader's ARM processor: the SDK's
+  cross-compiler, with the reader's C headers and libraries, installed on every computer that
+  builds the app;
+- the program is then tied to a C library, libinkview, that must be on the reader in the right
+  version.
+
+Without C, all of that disappears. Go's own compiler makes ARM code from any computer, Mac,
+Linux or Windows. The <CodeRef path="Makefile" symbol="build" /> target is a single line:
+
+```sh title="Makefile"
+TARGET := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
+$(TARGET) go build -trimpath -ldflags="-s -w" -o build/inkshelf.app ./cmd/inkshelf
+```
+
+`GOOS=linux GOARCH=arm` names the target, `GOARM=7` the reader's Cortex-A7, and
+`CGO_ENABLED=0` promises there is no C anywhere. The result, `build/inkshelf.app`, is an ordinary
+Linux executable (an ELF file) for ARM, statically linked: everything it needs is inside.
+
+<Figure title="Two ways to build for the reader" tryThis="Play both ways. Count what must be installed on the build computer, and what must be on the reader.">
+  <BuildPipeline />
+</Figure>
+
+The catch: libinkview's work has to be done by hand. That is the package
+<CodeRef path="internal/device/pocketbook" />. What libinkview does was learned by disassembling
+it and by running small probe programs on the reader. The next chapters show what it found.
+
+## Getting the app onto the reader
+
+The reader shows up as a USB disk when you plug it in and choose "PC link". `make deploy` runs
+<CodeRef path="deploy.sh" />, which finds the reader's volume under `/Volumes` (a folder holding
+both `applications` and `system`), copies `build/inkshelf.app` into `applications/`, checks the
+copy byte for byte, copies the launcher icons, then ejects.
+
+One detail shows how small things bite. macOS likes to write hidden `._name` files next to what
+it copies, to store extra metadata. The reader's launcher lists every file in `applications/`
+as an app, so each `._inkshelf.app` would appear as a broken app. `deploy.sh` sets
+`COPYFILE_DISABLE=1`, copies with `cp -X`, and deletes any `._` files left over.
+
+The launcher's menu is a JSON file on the reader, `system/config/desktop/view.json`: an entry
+there, edited once by hand, points at `/mnt/ext1/applications/inkshelf.app` and its icons.
+
+## From a tap on the icon to the first screen
+
+When you tap the icon, the firmware starts the program as a new <Term id="task">task</Term>. `main` then sets up the
+log, builds the app, and hands it to `pocketbook.Run`, which opens everything the reader shares
+with apps.
+
+<Figure title="Start-up, one call at a time" tryThis="Step through. Watch which resources light up, and note which ones the app can live without.">
+  <StartupStepper />
+</Figure>
+
+Three of those objects (the global state, the task queue, `/hwevent`) are how the app and the
+firmware talk: they are the subject of [the next chapter](./firmware.mdx). The other two,
+the framebuffer and the canvas, are how pixels reach the panel.
+
+## Three layers: canvas, framebuffer, panel
+
+A <Term id="framebuffer">framebuffer</Term> is memory whose bytes are the screen's pixels. On
+the InkPad 3 it is `/dev/fb0`, one byte per pixel, 0 for black and 255 for white. On an LCD,
+writing there would change the screen at once. On <Term id="eink">e-ink</Term> it does not: the
+panel only changes when it is told to refresh an area, with an <Term id="ioctl">ioctl</Term> to
+its driver.
+
+The app does not even write into the framebuffer. It draws on a
+<Term id="canvas">canvas</Term>: a 1404 × 1872 gray image, upright, in shared memory the firmware
+gave the task (its task switcher shows it as a thumbnail). `Fill`, `DrawImage` and the text
+drawing only change the canvas. Then the app calls `Refresh(rect, waveform)`, and only then:
+
+1. `flush` checks `visible()`: an app in the background must not touch the panel;
+2. it waits, if the previous refresh is still running over the same area;
+3. `copyRotated` copies the rectangle from the canvas into the framebuffer, turning it;
+4. the ioctl `MXCFB_SEND_UPDATE` asks the panel to show that rectangle with a
+   <Term id="waveform">waveform</Term>. It returns at once; the panel takes about half a second.
+
+<Figure title="Nothing shows until Refresh" tryThis="Click the canvas to draw. Nothing else changes. Then press Refresh and follow the columns.">
+  <ThreeLayers />
+</Figure>
+
+Keeping the canvas separate means the app can draw a whole page in many small steps and show it
+in one refresh, and that a page can be ready on the canvas before the panel is free.
+
+## The panel is mounted sideways
+
+The panel's natural orientation is landscape: its framebuffer is 1872 pixels wide and 1404 high.
+You hold the reader in portrait, 1404 × 1872. So every refresh turns the picture a quarter:
+screen pixel (x, y) is framebuffer **column y, row 1403 − x**.
+
+<Figure title="Where each pixel lands" tryThis="Hover a letter on either side. Then find where the canvas's top row went.">
+  <RotationGrid />
+</Figure>
+
+A row of the canvas becomes a column of the framebuffer. Copying means reading along one and
+writing down the other, which is where the time goes.
+
+## Copying fast: 4 × 4 blocks
+
+The copy runs on every page turn, and framebuffer memory is slow: on an InkPad 3, about 19 ns a
+byte when written a byte at a time. A full page is 1404 × 1872 bytes, about 2.6 million.
+Worse, Go on 32-bit ARM never merges byte stores into word stores by itself.
+
+So `copyRotated` moves pixels four at a time. It cuts the rectangle into 32 × 32 tiles (so the
+rows it reads and the rows it writes stay in the cache), and each tile into 4 × 4 blocks. A block
+is read as four 32-bit words, one per row, transposed into four words, one per column, with
+shifts and masks, and written as four words. The result: about **22 ms** a page turn, against
+**48 ms** byte by byte.
+
+<Figure title="Transposing a 4 × 4 block in two moves" tryThis="Step through and follow the letter f from row1 to column1. Notice the bytes are written low byte first.">
+  <BlockTranspose />
+</Figure>
+
+```go title="internal/device/pocketbook/framebuffer_copy.go"
+even01, odd01 := interleaveBytes(row0, row1)
+even23, odd23 := interleaveBytes(row2, row3)
+column0, column2 := interleaveHalves(even01, even23)
+column1, column3 := interleaveHalves(odd01, odd23)
+```
+
+<details>
+<summary>Going deeper</summary>
+
+- **Edges.** Only whole, word-aligned blocks go through the fast path: `wordBlocks` finds them
+  (a canvas column whose address is a multiple of 4, a framebuffer column y that is a multiple
+  of 4). The strips around them, above, below, left and right, are copied byte by byte by
+  `copyRotatedBytes`. If the memory is not laid out for words at all, everything goes byte by
+  byte.
+- **A hot path.** `copyRotated` is one of the functions marked `HOT PATH` in the code. Its shape
+  was tuned against the ARM assembly: `interleaveBytes`, `interleaveHalves` and the tile iterator
+  must be inlined. A change to it needs `BenchmarkCopyRotated` before and after, and the same
+  inlining list from `go build -gcflags=-m` for `GOOS=linux GOARCH=arm`.
+- **The rectangle the panel gets.** `framebufferRect` turns the screen rectangle the same way:
+  `Rect(r.Min.Y, 1404 − r.Max.X, r.Max.Y, 1404 − r.Min.X)`. That is what `MXCFB_SEND_UPDATE`
+  receives, as top, left, width and height.
+- **Overlapping refreshes.** `flush` remembers the marker number and area of the last refresh.
+  It waits for it (`MXCFB_WAIT_FOR_UPDATE_COMPLETE`) only if the new area overlaps it, so
+  refreshes of different areas run side by side. Each refresh logs its wait, copy and send
+  times to `applications/inkshelf.log`: that is how page turns are timed on the reader.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'Makefile', symbol: 'build', what: 'The one-line cross-compile: CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7.'},
+  {path: 'deploy.sh', what: 'Copies the app and icons to a reader over USB, without macOS ._ files, then ejects.'},
+  {path: 'cmd/inkshelf/main.go', symbol: 'main', what: 'Logging, app.New, then pocketbook.Run.'},
+  {path: 'cmd/inkshelf/logging.go', symbol: 'setupLogging', what: 'Sends the log, stdout and stderr to applications/inkshelf.log.'},
+  {path: 'internal/device/pocketbook/firmware_linux_arm.go', symbol: 'openFirmware', what: 'Opens the framebuffer, the firmware’s shared state and queues, and the task canvas.'},
+  {path: 'internal/device/pocketbook/framebuffer_linux_arm.go', symbol: 'flush', what: 'visible, wait if overlapping, copyRotated, MXCFB_SEND_UPDATE.'},
+  {path: 'internal/device/pocketbook/canvas.go', symbol: 'Fill', what: 'Drawing functions: they change only the canvas.'},
+  {path: 'internal/device/pocketbook/framebuffer_copy.go', symbol: 'copyRotated', what: 'The rotated copy in 4×4 blocks of words (HOT PATH).'},
+  {path: 'internal/device/pocketbook/eink_refresh.go', symbol: 'Refresh', what: 'Refresh, FlashRefresh, the waveforms and the MXCFB ioctl numbers.'},
+]} />
+
+The full story: <RefDoc file="eink-and-firmware.md">E-ink and the firmware</RefDoc>.
+
+Next: the app is not alone on the reader. [Talking to the firmware](./firmware.mdx) shows how it
+shares the device with the firmware and the other apps.
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'Why can Inkshelf be built on a Mac with just Go installed?',
+    choices: ['Go ships the PocketBook SDK', 'It has no C code, so CGO_ENABLED=0 and Go’s own compiler targets ARM', 'The reader runs macOS programs'],
+    answer: 1,
+    why: 'Without cgo there is no C compiler or C library to provide: GOOS=linux GOARCH=arm is enough.',
+  },
+  {
+    question: 'The app has just called Fill on part of the screen. What does the panel show?',
+    choices: ['The new gray, at once', 'The old picture, until Refresh copies the canvas and sends the ioctl', 'A blank screen'],
+    answer: 1,
+    why: 'Drawing changes only the canvas. Refresh copies it to the framebuffer and asks the panel to update.',
+  },
+  {
+    question: 'Screen pixel (10, 500) lands where in the framebuffer?',
+    choices: ['Column 10, row 500', 'Column 500, row 1393', 'Column 1393, row 500'],
+    answer: 1,
+    why: 'Column y = 500, row 1403 − x = 1393.',
+  },
+  {
+    question: 'Why does copyRotated work on 4×4 blocks of 32-bit words?',
+    choices: ['The panel only accepts 4×4 blocks', 'Framebuffer memory is slow, and four word stores beat sixteen byte stores', 'To save memory'],
+    answer: 1,
+    why: 'Go on 32-bit ARM never merges byte stores. Transposing in registers and storing words takes about 22 ms a page instead of 48.',
+  },
+]} />

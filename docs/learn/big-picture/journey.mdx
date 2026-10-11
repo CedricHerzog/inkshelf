@@ -1,0 +1,130 @@
+---
+title: A book's journey
+description: Follow one book from the server to the e-ink panel, and its reading progress back, station by station.
+---
+
+import BookJourney from '@site/src/components/bigpicture/BookJourney';
+
+# A book's journey
+
+<OneSentence>
+A book is downloaded once and prepared for the panel, kept in a folder on the reader, drawn page
+by page into memory, pushed to the e-ink screen, and its progress goes back to the server.
+</OneSentence>
+
+Before looking at any one part of Inkshelf, follow a single book all the way. Each stop on the way
+is a chapter of this site; this page is the map that ties them together.
+
+<Analogy icon="🚂">
+Think of a train line. The book is the passenger; each station is a part of the code that does one
+job and hands the book on. Two kinds of passenger take slightly different tracks: comics (pictures
+of pages) and EPUBs (text that must be laid out).
+</Analogy>
+
+## The whole trip
+
+<Figure title="One book, from the server to your eyes" tryThis="Press Play and watch the book travel. Then switch to An EPUB and step through again: stations 3, 4 and 7 (marked ⑂) change. Click any station to jump to it.">
+  <BookJourney />
+</Figure>
+
+## Two kinds of book, two roads
+
+The big difference between a comic and an EPUB is **when the hard work happens**.
+
+- A **comic** is a stack of pictures. Turning a big color picture into the panel's 16
+  <Term id="grayscale">grays</Term> is slow on the reader's processor, so Inkshelf does it once,
+  at download time, and saves each page as a small <Term id="pg4">.pg4</Term> file. Turning a page
+  later only means reading that file back.
+- An **EPUB** is <Term id="reflowable" />: its text has no pages until you choose a font size.
+  So Inkshelf keeps the EPUB as it is, notes where each chapter starts (`index.json`), and lays
+  out pages only when you read them.
+
+Recipes from Mealie take the comic road: the app lays a recipe out into page pictures, which are
+then prepared like a comic's. A <Term id="fixed-layout" /> EPUB does too: its pages are drawn
+whole at download time.
+
+## Why so much happens at download time
+
+Three constraints shape the trip, and you will meet them again in every part:
+
+1. **The reader is slow.** A page turn must feel instant, so anything that can be done in advance
+   is: page images are prepared while downloading, and the pages around the one you read are
+   prepared in the background.
+2. **The panel is slow too.** An e-ink refresh takes a visible moment, and fast refreshes leave
+   <Term id="ghosting" />. So Inkshelf refreshes only the area that changed, and every few pages
+   flashes the whole screen clean.
+3. **Wi-Fi comes and goes.** A download can stop halfway, so files are written whole or not at all
+   (<Term id="atomic-rename" />), and `book.json` comes last. Progress waits on the reader until the
+   server can take it.
+
+<details>
+<summary>Going deeper: what the shelf folder looks like</summary>
+
+Each book has a folder named after its id, under `inkshelf/servers/<server name>/books/` on the
+reader:
+
+| A book of pages (comic, recipe, fixed-layout EPUB) | A reflowable EPUB |
+|---|---|
+| `0001.pg4`, `0002.pg4`, … one per page | `book.epub`, the file as the server sent it |
+| | `index.json`, its chapters and table of contents |
+| | `cover.pg4`, its cover, prepared for the panel |
+| `book.json`, written last | `book.json`, written last |
+
+A CBZ is first downloaded whole, its pages are prepared into `.pg4` files, then the archive is
+deleted: only the pages take space.
+
+The EPUB's page count in `book.json` is a <Term id="virtual-page" /> count: 1500 characters a page
+(`CharsPerPage`), since the real pages depend on the font size.
+
+</details>
+
+## Where it lives in the code
+
+<CodeMap entries={[
+  {path: 'internal/shelf/download.go', symbol: 'Store.Download', what: 'Fetches a book and prepares it, book.json last.'},
+  {path: 'internal/graphics/pageimage/prepare.go', symbol: 'Prepare', what: 'Decode, fit, tone, dither: a page image becomes a .pg4 file.'},
+  {path: 'internal/shelf/prepare_epub.go', symbol: 'downloadReflowable', what: 'Fetches an EPUB, builds index.json and cover.pg4.'},
+  {path: 'internal/app/openbook/openbook.go', symbol: 'OpenLocked, TurnPage', what: 'Opens a downloaded book; turns a page and schedules the sync.'},
+  {path: 'internal/reading/renderer.go', symbol: 'pagesLocked', what: 'Lays out a chapter of an EPUB into pages (layout.Paginate).'},
+  {path: 'internal/app/screens/reader/reader.go', symbol: 'DrawAndRefreshLocked', what: 'Draws the page into the canvas and refreshes the panel.'},
+  {path: 'internal/device/pocketbook/framebuffer_linux_arm.go', symbol: 'flush', what: 'Copies the canvas to the framebuffer and sends the refresh ioctl.'},
+  {path: 'internal/progress/syncer.go', symbol: 'Syncer', what: 'Sends the reading progress to the server, a few seconds after the last turn.'},
+]} />
+
+The full story is spread over <RefDoc file="architecture.md">Architecture</RefDoc>,{' '}
+<RefDoc file="image-pipeline.md">The image pipeline</RefDoc> and{' '}
+<RefDoc file="on-disk-formats.md">Files on the reader</RefDoc>.
+
+Next: the stations of this trip are parts of the code. [The layer cake](./layers.mdx) shows how
+they are stacked.
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'Why are comic pages dithered to 16 grays at download time, not when you turn the page?',
+    choices: [
+      'Because the server cannot send color images',
+      'Because it is slow on the reader, and a page turn must be fast',
+      'Because .pg4 files are required by the firmware',
+    ],
+    answer: 1,
+    why: 'Preparing a page (decode, fit, tone, dither) takes time on the reader’s processor. Done once while downloading, it leaves the page turn only a file to read and unpack.',
+  },
+  {
+    question: 'An EPUB download stops halfway when Wi-Fi drops. How does the app know the book is not complete?',
+    choices: [
+      'Its folder has no book.json, which is always written last',
+      'It asks the server for a checksum',
+      'The EPUB file is empty',
+    ],
+    answer: 0,
+    why: 'book.json is written last. A folder without it is an interrupted download, and the next try picks it up.',
+  },
+  {
+    question: 'You turn ten pages in quick succession. How many times is the progress sent to the server?',
+    choices: ['Ten times', 'Once, about 3 seconds after the last turn', 'Only when you close the book'],
+    answer: 1,
+    why: 'Each turn restarts a 3-second timer (SyncDelay). Only when you stop turning does the Syncer send the progress: that is a debounce.',
+  },
+]} />

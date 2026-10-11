@@ -1,0 +1,174 @@
+---
+title: Making a change
+description: The make commands, what make verify checks, screenshots and their baseline, the rules for hot paths and on-disk formats, and how to edit this site.
+---
+
+import VerifyPipeline from '@site/src/components/appendix/VerifyPipeline';
+
+# Making a change
+
+<OneSentence>
+Every change ends with `make verify`: it builds for the reader, lints, tests, and compares every
+emulator screenshot with the baseline you took before starting.
+</OneSentence>
+
+Inkshelf runs on a device you cannot easily debug, and its users keep files written by older
+versions. So the project leans on checks that run on your computer: tests, golden files, and
+screenshots of the real app in the emulator.
+
+## The commands
+
+All of them run from the repository's root.
+
+| Command | What it does |
+|---|---|
+| `make build` | Cross-compiles the app for the reader: `build/inkshelf.app`, static, ARMv7, no cgo. |
+| `make test` | `go test ./...` on your computer. |
+| `make lint` | golangci-lint, with the linters of `.golangci.yml`, on your computer and for the reader (`brew install golangci-lint`). |
+| `make emu-fake` | The app in the emulator with fake servers, at `http://localhost:8740`. |
+| `make emu` | The same, against the real servers of `emulator/config.json`. |
+| `make shots SCRIPT=… EMUFLAGS=…` | Runs one emulator script headless; screenshots in `build/shots`. |
+| `make shots-all` | Runs every script of `emulator/scripts`, each with its fake servers; screenshots in `build/shots/<script>/`. |
+| `make baseline` | `shots-all`, saved as `build/baseline/shots`: the reference to compare with. |
+| `make bench` | Every benchmark, 6 times, in `build/bench/new.txt`. `BENCH=…` and `PKG=…` narrow it; `make bench-baseline` saves a run, `make bench-compare` compares with benchstat. |
+| `make profile SCRIPT=…` | Runs one script headless with its CPU profile and execution trace in `build/profile/<script>/`. |
+| `make verify` | Everything a change must pass (below). |
+| `make deploy` | Copies the app and its icons to a reader plugged in over USB, then ejects it. |
+| `make icons` | Rebuilds the launcher icons and the servers' logos from the SVGs (needs ImageMagick and rsvg-convert). |
+
+One test: `go test ./internal/graphics/pageimage -run TestPrepare`.
+
+## What `make verify` checks
+
+<Figure title="make verify, stage by stage" tryThis="Press Play. Then turn on the toggle and play again: watch shots-compare catch a single moved pixel.">
+  <VerifyPipeline />
+</Figure>
+
+The linters are `go vet` and the checks Go projects most often add to it: unchecked errors
+(errcheck), staticcheck, gosec, gocritic, revive and a few more. When one is wrong about a line,
+the line says so: `//nolint:gosec // G401: the IDPF font obfuscation is defined with SHA-1`.
+
+They run twice because some files build only for the reader: those ending in `_linux_arm.go`,
+such as the framebuffer and Wi-Fi code of `device/pocketbook`. On your computer they are skipped,
+and the emulator stands in.
+
+## Screenshots and the baseline
+
+The emulator runs the real event loop and screens. A script drives it: one command per line, such
+as `tap 700 433`, `key next`, `idle 60s` or `shot 04-page-1`. Before each input, the script waits
+until the app has finished its work, so screenshots never depend on timing. For example, from
+`emulator/scripts/mealie.txt`:
+
+```text
+tap 700 1279                # Plats: Bœuf bourguignon, a recipe of several pages
+shot 02-plats
+tap 700 433                 # download it: its pages are drawn from the recipe
+idle 60s
+shot 03-downloaded
+```
+
+The routine for a change that shows on screen:
+
+1. `make baseline` before you start, if `build/baseline/shots` is missing.
+2. Make the change. A UI change gets a script step and a `shot` that shows it.
+3. `make verify`. `shots-compare` lists the screenshots that differ. Open each: every difference
+   must be one you meant.
+4. `make baseline` to accept them.
+
+## Rules that protect the reader
+
+**Hot paths.** A few functions run on every page turn or every downloaded page, and were tuned
+against the ARM assembly: `copyRotated` (`device/pocketbook/framebuffer_copy.go`), `fit`
+(`graphics/pageimage/fit.go`, which must match `fitRef`), `ditherAndPack`, `rgbaToGray`,
+`Unpack`, and the glyph drawing of `graphics/fonts/draw.go`. Each is marked `HOT PATH`. To change
+one: run its benchmark before and after and compare with `benchstat`; it must be no slower. And
+check that the compiler still inlines the same helpers for the reader:
+
+```sh
+GOOS=linux GOARCH=arm GOARM=7 go build -gcflags=-m ./internal/graphics/pageimage 2>&1 | grep inline
+```
+
+**On-disk formats never change.** Readers keep files written by older versions: `config.json`,
+`filters.json`, `book.json`, `index.json`, `.pg4` pages named `0001.pg4`… Their JSON tags stay
+(the field `Unsynced` is still saved as `"dirty"`), the order of the `servers.Format` constants
+stays (they are saved as numbers), and so do file names. Adding an optional field is fine. Golden
+tests (`TestConfigGolden`, `TestFiltersGolden`, `TestBookGolden`, `TestIndexGolden`,
+`TestPG4Golden`) read files as released versions wrote them: if one fails, change the code, not
+the golden file. When a change alters how many characters a chapter counts, bump
+`epub.IndexVersion` so that old indexes are rebuilt.
+
+**Layers.** `app` and `shelf` import no specific server: the `go list -deps` check of
+[the layer cake](/big-picture/layers) prints nothing.
+
+**Threads.** Other goroutines change the state only inside `state.Update`, never draw, and only the
+main thread starts goroutines. Keep the `Locked` suffix on functions that run with the state's
+mutex held. The [locks chapter](/app/locks) explains why.
+
+**Style.** Descriptive names (no single letters but `t` and `b` in tests), comments that say why,
+no copied third-party code, pure Go dependencies only.
+
+## Commits
+
+One change per commit, with a short message in the imperative ("Unexport pocketbook's palette,
+which only ClearScreen uses"), and `make verify` before each.
+
+Then, for what only the reader can show (real ghosting, speed, Wi-Fi, sleep): `make deploy`, use
+the app, and read `applications/inkshelf.log` over USB.
+
+**Something is slow?** The log says which operation: each page turn, chapter layout, refresh
+and download logs its time. Then a profile says where the time went: `make profile` in the
+emulator, or on the reader an empty file `applications/inkshelf/profile`, which makes the app
+write its profiles to `applications/inkshelf-profile/`. Benchmarks, compared with benchstat,
+tell you whether a fix helped. <RefDoc file="profiling.md">Finding what is slow</RefDoc> shows
+how to read each.
+
+## Editing this site
+
+The site lives in `docs` (Docusaurus): the chapters in `docs/learn`, the reference in
+`docs/reference`. From the repository's root:
+
+| Command | What it does |
+|---|---|
+| `make docs` | Installs and serves the site with live reload, at `http://localhost:3000`. |
+| `make docs-build` | Type-checks and builds it; the build fails on a broken link. |
+| `make docs-shots` | Refreshes the emulator screenshots the site shows, at half size, from `build/shots` (run `make shots-all` first). |
+
+Before writing a chapter, read `docs/WRITING.md`: the voice, the shape every chapter shares,
+and the rules for widgets (one idea each, a _Try this_ line, SVG drawn with the theme's colors,
+reduced motion respected). Every name and number a chapter cites must be checked in the Go code.
+
+The reference pages are plain Markdown that also reads well on GitHub; when a change makes one
+wrong, update it in the same commit. For example: <RefDoc file="architecture.md">Architecture</RefDoc>,{' '}
+<RefDoc file="emulator.md">The emulator</RefDoc>, <RefDoc file="on-disk-formats.md">Files on the reader</RefDoc>,{' '}
+<RefDoc file="image-pipeline.md">The image pipeline</RefDoc>.
+
+## Check yourself
+
+<Quiz questions={[
+  {
+    question: 'make verify reports that three screenshots differ. What do you do?',
+    choices: [
+      'Run make baseline right away so it passes',
+      'Open each one with its baseline; if every difference is intended, then run make baseline',
+      'Delete build/shots and run it again',
+    ],
+    answer: 1,
+    why: 'A differing shot is either the change you meant or a regression. Only looking tells you which; make baseline then accepts the new shots.',
+  },
+  {
+    question: 'TestBookGolden fails after you renamed a JSON tag in book.json. What is the fix?',
+    choices: ['Update the golden file', 'Put the old JSON tag back', 'Bump epub.IndexVersion'],
+    answer: 1,
+    why: 'Readers have book.json files written with the old tag. The Go field may be renamed, but its json tag never changes.',
+  },
+  {
+    question: 'Why does make verify run the linters twice?',
+    choices: [
+      'Once for the host and once for the reader, whose _linux_arm.go files the host skips',
+      'Because golangci-lint is flaky',
+      'Once for the app, once for the site',
+    ],
+    answer: 0,
+    why: 'Files ending in _linux_arm.go build only for the reader, so only GOOS=linux GOARCH=arm golangci-lint sees them.',
+  },
+]} />

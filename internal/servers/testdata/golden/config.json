@@ -1,0 +1,1 @@
+[{"name":"Komga","type":"komga","server":"http://nas:25600","apiKey":"0123456789abcdef"},{"name":"Cuisine","type":"mealie","server":"https://mealie.example.org","apiKey":"mealie-token"},{"name":"Livres","type":"calibreweb","server":"http://calibre.local:8083","username":"reader","password":"secret"}]

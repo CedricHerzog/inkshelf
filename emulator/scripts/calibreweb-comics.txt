@@ -1,0 +1,27 @@
+# The Calibre-Web source and its CBZ comics, against the fake Calibre-Web:
+#   make shots SCRIPT=emulator/scripts/calibreweb-comics.txt EMUFLAGS="-fake-type calibreweb"
+# Calibre-Web has no libraries, so the series list has only the status filter (y 230) and its
+# rows, 282 px high from y 292, are centred at y 433, 715, 997: Les Étoiles (EPUB), Ruines
+# (CBZ), No series. Book rows are the same on the books screen.
+
+shot 01-series
+tap 700 715                 # Ruines: two CBZs, their page counts unknown before the download
+shot 02-ruines
+tap 700 433                 # download Tome 1: the file, then its pages
+idle 60s
+shot 03-downloaded          # its page count is known now
+tap 700 433                 # read it
+shot 04-page-1
+tap 1200 900                # right third: next page (left to right)
+shot 05-page-2
+tap 700 900                 # toolbar
+shot 06-toolbar
+tap 150 84                  # ‹ Back to the list: the book is Continue
+shot 07-continue
+tap 150 84                  # ‹ Back to the series: Continue Ruines, Tome 1 comes first
+shot 08-series-continue
+tap 700 715                 # Les Étoiles: EPUBs
+shot 09-etoiles
+tap 700 433                 # download Tome 1: not readable until the EPUB reader comes
+idle 30s
+shot 10-epub-download
