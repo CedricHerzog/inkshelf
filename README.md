@@ -8,6 +8,13 @@ This is a fun project: I wrote it to discover how EPUBs are handled (XHTML, CSS,
 pagination, fonts…) and how a PocketBook works under the hood (framebuffer, e-ink refresh,
 firmware). I also plan to port it to Kobo and Kindle readers, just to understand how they work.
 
+I also wanted to see whether a PocketBook app could do without the official SDK: no cgo, no
+libinkview, just Go drawing into the framebuffer and talking to the firmware itself. It can.
+
+It was written with [Claude Code](https://claude.com/claude-code), but I still tried to keep the
+code intelligible and easy to read: the goal is to learn, not to offer a production app. If you
+want a solid, mature reader, use [KOReader](https://github.com/koreader/koreader).
+
 <p align="center">
   <img src="docs/screenshots/library.png" width="180" alt="A Calibre-Web library: the book to continue, then its series">
   <img src="docs/screenshots/series.png" width="180" alt="The books of a series">
@@ -16,8 +23,8 @@ firmware). I also plan to port it to Kobo and Kindle readers, just to understand
   <img src="docs/screenshots/chapter.png" width="180" alt="The first page of its first chapter">
 </p>
 
-<sub>Screenshots from the emulator, with fake servers. Covers from <a href="https://openlibrary.org">Open Library</a>;
-the book being read is Project Gutenberg's <i>Alice's Adventures in Wonderland</i>.</sub>
+<sub>Screenshots from the emulator, with fake servers; the book being read is Project Gutenberg's
+<i>Alice's Adventures in Wonderland</i>.</sub>
 
 ## Using it
 
