@@ -157,7 +157,8 @@ forever. After 30 seconds without one, the loop forgets the request.
 - **Wi-Fi.** Turning Wi-Fi on does not go through the queues: like libinkview's `NetConnect`,
   `KeepWiFiOn` runs the firmware's own tool, `/ebrmain/bin/netagent net on`, then waits up to
   40 s for an interface with an IPv4 address. The tool also fills `/etc/resolv.conf`, so Go's own
-  DNS resolver works.
+  DNS resolver works. Meanwhile the app already shows the downloaded books: nothing on the
+  reader needs the network.
 
 </details>
 

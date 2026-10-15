@@ -215,7 +215,9 @@ whose progress isn't synced yet goes once it is. The reader doesn't go to sleep 
 downloads.
 
 Without the server (no Wi-Fi, server down), the app lists only the chosen server's downloaded
-books and you can still read them.
+books and you can still read them. When the reader is not connected at start, those books show
+at once, with "Connecting to Wi-Fi…" in the header, while the Wi-Fi turns on; once it connects,
+the server's list replaces them, if you are still on the series list.
 
 ## Progress sync
 

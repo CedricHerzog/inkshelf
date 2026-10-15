@@ -55,6 +55,9 @@ type options struct {
 	fakeTypes string
 	// fresh starts with no downloaded books and no saved filters.
 	fresh bool
+	// noWiFi starts with the emulated Wi-Fi off: the servers cannot be reached until the
+	// network comes up.
+	noWiFi bool
 	// size is the screen size, as WIDTHxHEIGHT.
 	size string
 	// eink makes refreshes take as long as on an InkPad 3.
@@ -80,6 +83,7 @@ func main() {
 	flag.IntVar(&opts.servers, "servers", 1, "with -fake, the number of fake servers to choose from")
 	flag.StringVar(&opts.fakeTypes, "fake-type", "komga", "with -fake, the kind of fake server: komga, mealie or calibreweb, or several separated by commas, used in turn")
 	flag.BoolVar(&opts.fresh, "fresh", false, "start with no downloaded books and no saved filters")
+	flag.BoolVar(&opts.noWiFi, "no-wifi", false, "start with the Wi-Fi off, until the network comes up (net up)")
 	flag.StringVar(&opts.size, "size", "1404x1872", "screen size in pixels (portrait)")
 	flag.BoolVar(&opts.eink, "eink", false, "make refreshes take as long as on an InkPad 3")
 	flag.StringVar(&opts.address, "addr", "localhost:8740", "address of the web page")
@@ -121,7 +125,8 @@ func run(opts options) error {
 	fonts.AddDir(filepath.Join(opts.dir, "fonts"))
 
 	emulator := pocketbook.NewEmulator(size, opts.eink)
-	application := app.New(appDir, registry.Opener(redirectingClient(addresses)), registry.KindOf, appOptions(opts))
+	wifiOff.Store(opts.noWiFi)
+	application := app.New(appDir, registry.Opener(redirectingClient(addresses)), registry.KindOf, withEmulatedWiFi(appOptions(opts)))
 	if steps == nil {
 		if err := serveWebPage(opts.address, emulator); err != nil {
 			return err
@@ -268,17 +273,18 @@ func startFakeServers(serverTypes []string, count int, frozen bool) (configs []s
 }
 
 // redirectingClient returns the app's HTTP client, which connects to the real address of
-// addresses when asked for one of their fixed ones.
+// addresses when asked for one of their fixed ones, and to nothing while the emulated Wi-Fi is
+// off.
 func redirectingClient(addresses map[string]string) *http.Client {
 	client := httpclient.New()
 	transport := client.Transport.(*http.Transport)
 	var dialer net.Dialer
-	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+	transport.DialContext = dialUnlessOff(func(ctx context.Context, network, address string) (net.Conn, error) {
 		if target, ok := addresses[address]; ok {
 			address = target
 		}
 		return dialer.DialContext(ctx, network, address)
-	}
+	})
 	return client
 }
 

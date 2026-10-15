@@ -75,7 +75,7 @@ The services are functions over `*state.State` that do the app's work, shared by
 
 | Package | Job |
 |---|---|
-| [app/session](../../internal/app/session) | read config.json, turn Wi-Fi on, choose the server, open its folder, load the series or fall back to the downloaded books; makes the `progress.Syncer` |
+| [app/session](../../internal/app/session) | read config.json, choose the server, open its folder, load the series or fall back to the downloaded books, showing them first while the Wi-Fi turns on; makes the `progress.Syncer` |
 | [app/catalog](../../internal/app/catalog) | the series and book lists, their counts and filters |
 | [app/downloadqueue](../../internal/app/downloadqueue) | the download queue and its downloader goroutine |
 | [app/covers](../../internal/app/covers) | loading the small covers, and the whole-screen one |

@@ -82,7 +82,7 @@ func (app *application) Init() error {
 	app.Covers.Failed = map[state.CoverKey]bool{}
 	app.ServerChoice = make(chan int, 1)
 	app.Syncer = session.NewSyncer(app.State)
-	app.Loading.Status = "Connecting to Wi-Fi…"
+	app.Loading.Status = "Loading series…"
 	app.Draw()
 
 	app.Ctx, app.cancel = context.WithCancel(context.Background())

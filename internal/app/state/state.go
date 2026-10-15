@@ -68,7 +68,7 @@ type State struct {
 	Dir          string           // holds config.json and the servers' folders
 	Open         servers.Opener   // connects to the server chosen
 	KindOf       servers.KindOf   // the name, logo and words of each kind of server
-	Options      Options          // the clock and free space shown, real unless frozen
+	Options      Options          // the clock, free space and Wi-Fi, real unless replaced
 	Ctx          context.Context  // cancelled when the app closes, to stop the goroutines
 	PreloadWake  *Wakeup          // wakes the goroutine that preloads pages
 	CoverWake    *Wakeup          // wakes the goroutine that loads covers
@@ -100,12 +100,17 @@ type Repaint struct {
 }
 
 // Options replace what the app reads from the system to show it, so that the emulator's shots
-// come out the same on every run. Their zero value is the real clock and free space.
+// come out the same on every run, and the reader's Wi-Fi, so that the emulator can start
+// without it. Their zero value is the real clock, free space and Wi-Fi.
 type Options struct {
 	// Now is the time shown in the lists' header.
 	Now func() time.Time
 	// FreeSpace is the space left on the disk that holds dir, and whether it is known.
 	FreeSpace func(dir string) (int64, bool)
+	// WiFiConnected reports whether the reader is connected to a network already.
+	WiFiConnected func() bool
+	// ConnectWiFi connects to a known network, as pocketbook.KeepWiFiOn does.
+	ConnectWiFi func(ctx context.Context) (stop func(), err error)
 }
 
 // New returns the state of an app that keeps its files in dir and connects to the servers of
@@ -116,6 +121,12 @@ func New(dir string, open servers.Opener, kindOf servers.KindOf, options Options
 	}
 	if options.FreeSpace == nil {
 		options.FreeSpace = shelf.FreeSpace
+	}
+	if options.WiFiConnected == nil {
+		options.WiFiConnected = pocketbook.WiFiConnected
+	}
+	if options.ConnectWiFi == nil {
+		options.ConnectWiFi = pocketbook.KeepWiFiOn
 	}
 	return &State{Dir: dir, Open: open, KindOf: kindOf, Options: options}
 }

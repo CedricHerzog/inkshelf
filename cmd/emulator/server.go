@@ -167,9 +167,9 @@ func (backend *server) control(writer http.ResponseWriter, request *http.Request
 	case "battery":
 		backend.emulator.SetBattery(min(max(command.Percent, 0), 100), command.Charging)
 	case "net-up":
-		backend.emulator.SendSystem(pocketbook.NetConnected)
+		setNetwork(backend.emulator, true)
 	case "net-down":
-		backend.emulator.SendSystem(pocketbook.NetDisconnected)
+		setNetwork(backend.emulator, false)
 	case "exit":
 		backend.emulator.RequestExit()
 	default:

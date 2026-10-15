@@ -167,8 +167,29 @@ func LocalResumeLocked(app *state.State) *state.BookItem {
 	return resume
 }
 
-// Refresh reads the series list again from the server, if the series list shows.
+// Refresh reads the series list again from the server, if the series list shows, on a
+// goroutine of its own.
 func Refresh(app *state.State) {
+	client := beginRefresh(app)
+	if client == nil {
+		return
+	}
+	app.Go("refreshing the series", func() {
+		endRefresh(app, FetchSeries(app, client))
+	})
+}
+
+// RefreshNow reads the series list again from the server, if the series list shows, as Refresh
+// does, but on the goroutine that calls it, for one that is not the main thread.
+func RefreshNow(app *state.State) {
+	if client := beginRefresh(app); client != nil {
+		endRefresh(app, FetchSeries(app, client))
+	}
+}
+
+// beginRefresh marks the series list as refreshing and returns the server to read it from, or
+// nil if the list doesn't show or is being refreshed already.
+func beginRefresh(app *state.State) servers.Server {
 	var client servers.Server
 	app.Update(false, func() bool {
 		if app.Screen != state.SeriesScreen || app.Series.Refreshing || app.Server.Client == nil {
@@ -179,22 +200,21 @@ func Refresh(app *state.State) {
 		client = app.Server.Client
 		return true
 	})
-	if client == nil {
+	return client
+}
+
+// endRefresh shows how the refresh that beginRefresh started went: err is why it failed.
+func endRefresh(app *state.State, err error) {
+	if app.Ctx.Err() != nil {
 		return
 	}
-	app.Go("refreshing the series", func() {
-		err := FetchSeries(app, client)
-		if app.Ctx.Err() != nil {
-			return
+	app.Update(false, func() bool {
+		app.Series.Refreshing = false
+		app.List.Notice = ""
+		if err != nil {
+			app.List.Notice = "Cannot refresh: " + err.Error()
 		}
-		app.Update(false, func() bool {
-			app.Series.Refreshing = false
-			app.List.Notice = ""
-			if err != nil {
-				app.List.Notice = "Cannot refresh: " + err.Error()
-			}
-			return true
-		})
+		return true
 	})
 }
 

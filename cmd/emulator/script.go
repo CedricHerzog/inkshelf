@@ -29,7 +29,7 @@ import (
 //	hold NAME DURATION      press a button, release it after DURATION
 //	home, resume            send the app to the background, bring it back
 //	battery PERCENT [charging]
-//	net up|down             the firmware's network events
+//	net up|down             turn the emulated network on or off, with the firmware's events
 //	wait DURATION           sleep
 //	idle [TIMEOUT]          wait until the app is idle: its input handled, its work over and
 //	                        the panel unchanged for quietTime (default timeout 2m)
@@ -314,11 +314,7 @@ func runStep(emulator *pocketbook.Emulator, work backgroundWork, current step, o
 	case "battery":
 		emulator.SetBattery(current.number, current.flag)
 	case "net":
-		if current.flag {
-			emulator.SendSystem(pocketbook.NetConnected)
-		} else {
-			emulator.SendSystem(pocketbook.NetDisconnected)
-		}
+		setNetwork(emulator, current.flag)
 	case "wait":
 		time.Sleep(current.duration)
 	case "idle":
