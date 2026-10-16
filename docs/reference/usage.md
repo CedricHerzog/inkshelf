@@ -14,6 +14,8 @@ directly. It targets the InkPad 3 (PB740) on firmware 6.x.
 - Read right to left (manga) or left to right (comics, BD), as Komga's reading direction says;
   the reader's toolbar switches it for a series.
 - Sync the reading progress with Komga, both ways.
+- Follow the reader's dark mode: white on black, but for pictures (covers, comics, manga,
+  recipes), which keep their colors unless the toolbar darkens them for a series.
 - Also reads the recipes of a [Mealie](https://mealie.io) server: one series per category, each
   recipe laid out into pages (photo, times, ingredients, steps, notes) when it is downloaded.
 
@@ -71,7 +73,7 @@ the battery. "Outline refreshes" shows each panel refresh and its waveform.
 `EMUFLAGS=-eink` makes refreshes as slow as on an InkPad 3, and `EMUFLAGS="-size 1072x1448"`
 tries another screen, `EMUFLAGS="-servers 2"` (with `emu-fake` or `shots`) gives a choice of
 fake servers. Use `make shots SCRIPT=…` to run another script; the commands are listed
-at the top of `cmd/emulator/script.go`, and [emulator.md](emulator.md) explains them.
+in the package doc of `internal/device/pocketbook/script`, and [emulator.md](emulator.md) explains them.
 
 Downloaded books go to `emulator/servers/<name>/books/` (under `emulator/fake/` with the fake
 servers). The emulator draws with the reader's fonts, kept in `emulator/fonts/`.
@@ -190,7 +192,13 @@ next start.
 | Servers | a server to use it (only with several servers in config.json) | Back exits |
 | Series | **Continue** (the first row) to go back to the book read last; the header to reload the list from the server; a series to open it, its cover to see it on the whole screen (tap or Back to close); a library or a read status above the list to filter; ‹ Prev / Next › or swipe to page; the page number to jump to a letter | Next/Prev page; Back or Menu exits |
 | Books | a book to download it, or to read it once downloaded; its cover to see it on the whole screen; **Delete** removes the download; All, Downloaded or Unread above the list to filter. Downloads queue up: tap a queued book to take it out of the queue, the one downloading to cancel it. Hold a book for its menu: download it and the next unread ones (3 in all), mark it read or unread, delete its download | Next/Prev page; Back or Menu goes back |
-| Reader | right to left: left third for the next page, right third for the previous one, swipe right for the next page; left to right: the opposite. Middle: toolbar with ‹ Back, the reading direction (tap to switch it for the series) and the page number | Next/Prev page; Menu or OK toggles the toolbar; Back closes the book |
+| Reader | right to left: left third for the next page, right third for the previous one, swipe right for the next page; left to right: the opposite. Middle: toolbar with ‹ Back, the reading direction (tap to switch it for the series) and the page number, and in dark mode a bottom bar with Dark page / Light page | Next/Prev page; Menu or OK toggles the toolbar; Back closes the book |
+
+In dark mode (the firmware's setting, read when the app starts or comes back from Home), the
+whole app shows white on black. Book text does too; pictures keep their colors: the covers, and
+the pages of comics, manga, fixed-layout EPUBs and recipes. The reader's toolbar then has a
+bar at the bottom of the screen with a **Dark page** or **Light page** button that switches the
+pages of a series the other way, kept per series; the toolbar shows as the page does. Images inside an EPUB's text are inverted with it.
 
 Online, the next book of the series starts downloading once you are 80% into a book. Turning
 past a book's last page shows that next book: **Read next** once it is
@@ -215,7 +223,9 @@ whose progress isn't synced yet goes once it is. The reader doesn't go to sleep 
 downloads.
 
 Without the server (no Wi-Fi, server down), the app lists only the chosen server's downloaded
-books and you can still read them.
+books and you can still read them. When the reader is not connected at start, those books show
+at once, with "Connecting to Wi-Fi…" in the header, while the Wi-Fi turns on; once it connects,
+the server's list replaces them, if you are still on the series list.
 
 ## Progress sync
 
@@ -232,7 +242,7 @@ books and you can still read them.
 | --- | --- |
 | `applications/inkshelf.app` | the app |
 | `applications/inkshelf/config.json` | servers: name, address and API key (or username and password) |
-| `applications/inkshelf/servers/<name>/filters.json` | the series and book lists' filters, the server's libraries and the reading directions chosen on the reader |
+| `applications/inkshelf/servers/<name>/filters.json` | the series and book lists' filters, the server's libraries, and the reading directions and dark or light pages chosen on the reader |
 | `applications/inkshelf/servers/<name>/covers/` | the covers of the series and books listed, ready for the panel (`series/<id>.pg4`, `books/<id>.pg4`) |
 | `applications/inkshelf/servers/<name>/books/<book id>/` | downloaded pages (`0001.pg4`, ...: 4-bit grayscale) and `book.json` (progress); while a CBZ or a fixed-layout EPUB downloads, `book.cbz` or `book.epub`; for an EPUB, `book.epub`, `index.json` (its chapters' lengths and table of contents) and `cover.pg4` |
 | `applications/inkshelf.log` | log, truncated at startup above 1 MB |

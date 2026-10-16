@@ -22,6 +22,7 @@ import (
 	"github.com/CedricHerzog/inkshelf/internal/app/downloadqueue"
 	"github.com/CedricHerzog/inkshelf/internal/app/state"
 	"github.com/CedricHerzog/inkshelf/internal/app/widgets"
+	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
 	"github.com/CedricHerzog/inkshelf/internal/progress"
 	"github.com/CedricHerzog/inkshelf/internal/servers"
 	"github.com/CedricHerzog/inkshelf/internal/timing"
@@ -216,6 +217,20 @@ func RightToLeftLocked(app *state.State) bool {
 		return app.Reader.Text.Book.Index.RightToLeft()
 	}
 	return app.Reader.OpenBook.Direction != servers.LeftToRight
+}
+
+// DarkPageLocked reports whether the open book's pages show white on black, which only dark
+// mode does: as chosen on the reader for its series, else for a Reflowable book, whose pages
+// are text. A page of pictures (a comic, a manga, a recipe) keeps its colors. The choice is per
+// series, as the reading direction is: books without one share the server's catch-all series.
+func DarkPageLocked(app *state.State) bool {
+	if !pocketbook.DarkMode() {
+		return false
+	}
+	if dark, chosen := app.Preferences.DarkPages[app.Reader.OpenBook.SeriesID]; chosen {
+		return dark
+	}
+	return app.Reader.Text != nil
 }
 
 // NextBookLocked returns the book after the open one in its series, if the list has it.

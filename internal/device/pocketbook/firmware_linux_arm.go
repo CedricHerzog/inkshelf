@@ -7,9 +7,11 @@ import (
 	"image"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"unsafe"
 )
@@ -25,10 +27,8 @@ type readerFirmware struct {
 	framebufferStride int
 	// marker numbers the refreshes: it is the marker of the last refresh sent.
 	marker uint32
-	// lastRect is the framebuffer area of the last refresh, which may still be running.
-	lastRect image.Rectangle
-	// lastMarker is the marker of the last refresh, or 0 if none was sent.
-	lastMarker uint32
+	// running are the last refreshes sent, which may still be running, oldest first.
+	running []runningRefresh
 	// global is the firmware's shared state, or nil if it is missing: the app is then always
 	// visible.
 	global []byte
@@ -42,6 +42,12 @@ type readerFirmware struct {
 	taskBuffer []byte
 	// eventBuffer is where /hwevent messages are received.
 	eventBuffer [hardwareEventSize]byte
+	// wake receives a value when inputSignal comes (see watchInput), and watching is true from
+	// when mq_notify was asked until then.
+	wake     chan struct{}
+	watching atomic.Bool
+	// darkStatus is what darkMode last logged, to log it only when it changes.
+	darkStatus string
 }
 
 // openFirmware opens the framebuffer, the firmware's queues and shared state, and the canvas.
@@ -66,6 +72,10 @@ func openFirmware() (firmware, *image.Gray, error) {
 	if reader.events, err = mqOpen(eventQueue, syscall.O_RDONLY|syscall.O_NONBLOCK); err != nil {
 		log.Printf("event queue: %v", err)
 	}
+	reader.wake = make(chan struct{}, 1)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, inputSignal)
+	go reader.forwardInputSignals(signals)
 	// The screen is portrait and the framebuffer landscape: the framebuffer's rows are the
 	// screen's columns.
 	size := image.Pt(reader.framebufferHeight, framebufferWidth)
@@ -158,6 +168,40 @@ func (reader *readerFirmware) nextHardwareEvent() ([]byte, bool) {
 	return buffer, true
 }
 
+// inputSignal is the signal mq_notify sends when input arrives: a real-time signal, which
+// neither the firmware nor the Go runtime uses.
+const inputSignal = syscall.Signal(40)
+
+// forwardInputSignals turns each inputSignal into a value on wake, as the watch it ends.
+func (reader *readerFirmware) forwardInputSignals(signals <-chan os.Signal) {
+	for range signals {
+		reader.watching.Store(false)
+		select {
+		case reader.wake <- struct{}{}:
+		default: // a wake-up is already due
+		}
+	}
+}
+
+// watchInput asks mq_notify for inputSignal, unless a request is still waiting for input.
+func (reader *readerFirmware) watchInput() bool {
+	if reader.events < 0 {
+		return false
+	}
+	if reader.watching.Load() {
+		return true
+	}
+	if err := mqNotify(reader.events, inputSignal); err != nil {
+		log.Printf("event queue: %v", err)
+		return false
+	}
+	reader.watching.Store(true)
+	return true
+}
+
+// inputWake receives a value when inputSignal comes.
+func (reader *readerFirmware) inputWake() <-chan struct{} { return reader.wake }
+
 // nextTaskMessage returns the next message for this task, if any.
 func (reader *readerFirmware) nextTaskMessage() ([]byte, bool) {
 	return reader.receive(taskEventMtype | reader.pgid)
@@ -209,6 +253,31 @@ func (reader *readerFirmware) battery() (percent int, charging, ok bool) {
 	}
 	percent, charging = batteryState(reader.global)
 	return percent, charging, true
+}
+
+// firmwareSettingsPath is the firmware's main settings file (see firmware_settings.go).
+const firmwareSettingsPath = "/mnt/ext1/system/config/global.cfg"
+
+// darkMode reads the firmware's settings and reports whether they turn dark mode on. ok is
+// false when they cannot be read or lack the setting: an older firmware, or a file read while
+// the firmware rewrites it. It logs what it found when that changes.
+func (reader *readerFirmware) darkMode() (dark, ok bool) {
+	data, err := os.ReadFile(firmwareSettingsPath)
+	if err == nil {
+		dark, ok = darkModeOf(parseSettings(data))
+	}
+	status := fmt.Sprintf("dark mode %v", dark)
+	switch {
+	case err != nil:
+		status = fmt.Sprintf("dark mode unknown: %v", err)
+	case !ok:
+		status = fmt.Sprintf("dark mode unknown: no %s in %s", darkModeSetting, firmwareSettingsPath)
+	}
+	if status != reader.darkStatus {
+		reader.darkStatus = status
+		log.Print(status)
+	}
+	return dark, ok
 }
 
 // readInt reads a file that holds a decimal number.

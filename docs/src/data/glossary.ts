@@ -125,7 +125,7 @@ export const glossary: readonly GlossaryEntry[] = [
     id: 'event-loop',
     term: 'Event loop',
     group: 'Device',
-    short: 'The one goroutine that polls for input and firmware messages every 20 ms and calls the app. It is the only one that draws.',
+    short: 'The one goroutine that input wakes, and a timer otherwise, to read the firmware’s messages and call the app. It is the only one that draws.',
     chapter: '/screen/event-loop',
   },
   {

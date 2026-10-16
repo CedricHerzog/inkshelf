@@ -16,21 +16,25 @@ import (
 )
 
 // pageWaveform is the e-ink waveform of page turns: GL16 takes about 435 ms, where GC16 takes
-// 576 ms for a little less ghosting.
+// 576 ms for a little less ghosting. A dark page, and the toolbar or popup over it, refresh
+// with GC16: GL16 is tuned for a white background, and on a black one it flashes the area white.
+// KOReader's night mode on PocketBook does the same, at the same cost.
 const pageWaveform = pocketbook.GL16
 
-// The widths of the toolbar's buttons, in InkPad 3 pixels: the direction, A− and A+, Contents
-// and Return.
+// The widths of the toolbar's buttons, in InkPad 3 pixels: the direction, A− and A+, Contents,
+// Return, and in the bottom bar, dark or light pages.
 const (
 	directionWidth      = 220
+	darkPageWidth       = 300
 	textSizeButtonWidth = 130
 	contentsButtonWidth = 240
 	returnButtonWidth   = 220
 )
 
-// toolbarButton is a button of the reader's toolbar for a Reflowable book.
+// toolbarButton is a button of the reader's toolbar.
 type toolbarButton struct {
 	label       string
+	font        widgets.Font
 	buttonWidth int // in InkPad 3 pixels
 	onTap       func()
 }
@@ -109,14 +113,13 @@ func (screen *Screen) DrawAndRefreshLocked(fullRefresh bool) {
 	if app.Reader.Toolbar {
 		screen.drawToolbarLocked()
 	}
-	switch {
-	case fullRefresh:
-		pocketbook.FlashRefresh()
-	case app.Reader.PageErr == nil:
-		pocketbook.Refresh(refreshArea, pageWaveform)
-	default:
-		pocketbook.Refresh(refreshArea, pocketbook.GC16)
+	// The toolbar, the popup and an error show as the page does.
+	dark := openbook.DarkPageLocked(app)
+	waveform := pageWaveform
+	if dark || app.Reader.PageErr != nil {
+		waveform = pocketbook.GC16
 	}
+	widgets.Show(dark, fullRefresh, waveform, refreshArea...)
 	pageName := fmt.Sprintf("page %d", app.Reader.OpenBook.Page)
 	if app.Reader.Text != nil {
 		at := app.Reader.Text.Book.At()
@@ -185,23 +188,40 @@ func (screen *Screen) shownPopupLocked() (*state.NotePopup, int) {
 
 // refreshAreaLocked returns the part of the panel to refresh to show the page at pageRect: what
 // changed since the reader was last drawn, or the whole screen.
-func (screen *Screen) refreshAreaLocked(fullRefresh bool, pageRect image.Rectangle) image.Rectangle {
+func (screen *Screen) refreshAreaLocked(fullRefresh bool, pageRect image.Rectangle) []image.Rectangle {
 	app := screen.app
-	toolbarRect := image.Rect(0, 0, pocketbook.Screen().Dx(), widgets.Px(widgets.BarHeight))
+	bars := toolbarRects()
 	shownBefore := app.Reader.Shown
 	popup, popupAt := screen.shownPopupLocked()
 	samePage := shownBefore.Page == app.Reader.OpenBook.Page && shownBefore.Text == screen.shownTextPageLocked()
 	switch {
-	case fullRefresh || !shownBefore.Valid || app.Reader.PageErr != nil:
-		return pocketbook.Screen()
+	case fullRefresh || !shownBefore.Valid || shownBefore.Rect.Empty() || app.Reader.PageErr != nil: // an error, or after one
+		return []image.Rectangle{pocketbook.Screen()}
 	case samePage && shownBefore.Toolbar == app.Reader.Toolbar && (shownBefore.Popup != popup || shownBefore.PopupAt != popupAt):
-		return popupRect(popup).Union(popupRect(shownBefore.Popup)) // only the popup changed: opened, turned or closed
+		return []image.Rectangle{popupRect(popup).Union(popupRect(shownBefore.Popup))} // only the popup changed: opened, turned or closed
 	case samePage && shownBefore.Toolbar != app.Reader.Toolbar:
-		return toolbarRect // only the toolbar changed
-	case shownBefore.Toolbar || app.Reader.Toolbar:
-		return pageRect.Union(shownBefore.Rect).Union(toolbarRect)
+		// Only the toolbar changed: each bar alone, as the box around both is the whole page.
+		return bars
 	}
-	return pageRect.Union(shownBefore.Rect)
+	changed := pageRect.Union(shownBefore.Rect)
+	if shownBefore.Toolbar || app.Reader.Toolbar {
+		for _, bar := range bars {
+			changed = changed.Union(bar)
+		}
+	}
+	return []image.Rectangle{changed}
+}
+
+// toolbarRects returns the bars of the toolbar: the top one, and in dark mode the bottom one, which
+// holds the Dark page or Light page toggle.
+func toolbarRects() []image.Rectangle {
+	screenRect := pocketbook.Screen()
+	bar := widgets.Px(widgets.BarHeight)
+	rects := []image.Rectangle{image.Rect(0, 0, screenRect.Dx(), bar)}
+	if pocketbook.DarkMode() {
+		rects = append(rects, image.Rect(0, screenRect.Dy()-bar, screenRect.Dx(), screenRect.Dy()))
+	}
+	return rects
 }
 
 // drawPageErrorLocked draws why the current page cannot be shown.
@@ -216,12 +236,14 @@ func (screen *Screen) drawPageErrorLocked() {
 }
 
 // drawToolbarLocked draws the toolbar over the page: Back, the title, the page number, and the
-// direction button, or for a Reflowable book the text size, Contents and Return buttons.
+// direction button, or for a Reflowable book the text size, Contents and Return buttons. In
+// dark mode, a button switches the pages between dark and light.
 func (screen *Screen) drawToolbarLocked() {
 	app := screen.app
 	screenWidth := pocketbook.Screen().Dx()
 	margin, bar := widgets.Px(widgets.ListMargin), widgets.Px(widgets.BarHeight)
-	toolbarRect := image.Rect(0, 0, screenWidth, bar)
+	bars := toolbarRects()
+	toolbarRect := bars[0]
 	pocketbook.Fill(toolbarRect, widgets.White)
 	pocketbook.Fill(image.Rect(0, bar-widgets.Px(3), screenWidth, bar), widgets.Black)
 	backButton := widgets.BackButton(app.Fonts, &app.Targets, "‹ Back")
@@ -231,37 +253,39 @@ func (screen *Screen) drawToolbarLocked() {
 	}
 	pageLabelLeft := screenWidth - margin - app.Fonts.Body.Width(pageLabel)
 	widgets.Text(app.Fonts.Body, widgets.Black, image.Pt(pageLabelLeft, app.Fonts.Body.CenterTop(toolbarRect)), pageLabel)
-	buttonsLeft := pageLabelLeft - widgets.Px(40)
+	var buttons []toolbarButton
 	if app.Reader.Text != nil {
 		// A− and A+ (the size of the text), Contents, and Return after a jump.
-		buttons := []toolbarButton{
-			{"A+", textSizeButtonWidth, func() { openbook.ChangeTextSize(app, true) }},
-			{"A−", textSizeButtonWidth, func() { openbook.ChangeTextSize(app, false) }},
-			{"Contents", contentsButtonWidth, screen.openContents},
+		buttons = []toolbarButton{
+			{"A+", app.Fonts.Bold, textSizeButtonWidth, func() { openbook.ChangeTextSize(app, true) }},
+			{"A−", app.Fonts.Bold, textSizeButtonWidth, func() { openbook.ChangeTextSize(app, false) }},
+			{"Contents", app.Fonts.Bold, contentsButtonWidth, screen.openContents},
 		}
 		if app.Reader.Text.Book.CanReturn() {
-			buttons = append(buttons, toolbarButton{"‹ Return", returnButtonWidth, screen.returnText})
-		}
-		for _, each := range buttons {
-			rect := image.Rect(buttonsLeft-widgets.Px(each.buttonWidth), backButton.Min.Y, buttonsLeft, backButton.Max.Y)
-			widgets.Button(app.Fonts.Bold, rect, each.label, true)
-			app.Targets.Tap(rect, each.onTap)
-			buttonsLeft = rect.Min.X - widgets.Px(24)
+			buttons = append(buttons, toolbarButton{"‹ Return", app.Fonts.Bold, returnButtonWidth, screen.returnText})
 		}
 	} else {
 		direction := "LTR →"
 		if openbook.RightToLeftLocked(app) {
 			direction = "← RTL"
 		}
-		directionButton := image.Rect(buttonsLeft-widgets.Px(directionWidth), backButton.Min.Y, buttonsLeft, backButton.Max.Y)
-		widgets.Button(app.Fonts.Body, directionButton, direction, true)
-		app.Targets.Tap(directionButton, screen.flipDirection)
-		buttonsLeft = directionButton.Min.X - widgets.Px(24)
+		buttons = []toolbarButton{{direction, app.Fonts.Body, directionWidth, screen.flipDirection}}
+	}
+	// The buttons go from right to left, after the page label.
+	buttonsLeft := pageLabelLeft - widgets.Px(40)
+	for _, each := range buttons {
+		rect := image.Rect(buttonsLeft-widgets.Px(each.buttonWidth), backButton.Min.Y, buttonsLeft, backButton.Max.Y)
+		widgets.Button(each.font, rect, each.label, true)
+		app.Targets.Tap(rect, each.onTap)
+		buttonsLeft = rect.Min.X - widgets.Px(24)
 	}
 	titleLeft := backButton.Max.X + widgets.Px(40)
 	title := widgets.Ellipsize(app.Fonts.Bold, widgets.Clean(app.Reader.OpenBook.Title), buttonsLeft-widgets.Px(8)-titleLeft)
 	if title != "…" { // the Return button may leave no room for it
 		widgets.Text(app.Fonts.Bold, widgets.Black, image.Pt(titleLeft, app.Fonts.Bold.CenterTop(toolbarRect)), title)
+	}
+	if len(bars) > 1 {
+		screen.drawDarkPageBarLocked(bars[1])
 	}
 }
 
@@ -292,23 +316,59 @@ func (screen *Screen) closeBook() {
 // flipDirection reverses the reading direction of the open book's series, and saves it in the
 // preferences.
 func (screen *Screen) flipDirection() {
+	screen.changePreferences(false, func(preferences *state.Preferences) {
+		direction := servers.RightToLeft
+		if openbook.RightToLeftLocked(screen.app) {
+			direction = servers.LeftToRight
+		}
+		if preferences.Directions == nil {
+			preferences.Directions = map[string]servers.Direction{}
+		}
+		preferences.Directions[screen.app.Reader.OpenBook.SeriesID] = direction
+	})
+}
+
+// drawDarkPageBarLocked draws the toolbar's bottom bar, shown in dark mode: a button that
+// switches the pages of the open book's series between dark and light, labelled with how they
+// show now.
+func (screen *Screen) drawDarkPageBarLocked(bar image.Rectangle) {
+	app := screen.app
+	pocketbook.Fill(bar, widgets.White)
+	pocketbook.Fill(image.Rect(bar.Min.X, bar.Min.Y, bar.Max.X, bar.Min.Y+widgets.Px(3)), widgets.Black)
+	label := "Light page"
+	if openbook.DarkPageLocked(app) {
+		label = "Dark page"
+	}
+	right, top := bar.Max.X-widgets.Px(widgets.ListMargin), bar.Min.Y+(bar.Dy()-widgets.Px(widgets.ButtonHeight))/2
+	button := image.Rect(right-widgets.Px(darkPageWidth), top, right, top+widgets.Px(widgets.ButtonHeight))
+	widgets.Button(app.Fonts.Bold, button, label, true)
+	app.Targets.Tap(button, screen.flipDarkPage)
+}
+
+// flipDarkPage switches the pages of the open book's series between dark and light, and saves
+// the choice in the preferences. The whole panel refreshes: the page and its margins change.
+func (screen *Screen) flipDarkPage() {
+	screen.changePreferences(true, func(preferences *state.Preferences) {
+		dark := !openbook.DarkPageLocked(screen.app)
+		if preferences.DarkPages == nil {
+			preferences.DarkPages = map[string]bool{}
+		}
+		preferences.DarkPages[screen.app.Reader.OpenBook.SeriesID] = dark
+	})
+}
+
+// changePreferences changes the preferences with change while the reader shows, redraws it
+// (whole if fullRefresh), and saves the preferences once the state's lock is released.
+func (screen *Screen) changePreferences(fullRefresh bool, change func(*state.Preferences)) {
 	app := screen.app
 	var saved state.Preferences
 	changed := false
-	app.Update(false, func() bool {
+	app.Update(fullRefresh, func() bool {
 		if app.Screen != state.ReaderScreen {
 			return false
 		}
-		direction := servers.RightToLeft
-		if openbook.RightToLeftLocked(app) {
-			direction = servers.LeftToRight
-		}
-		if app.Preferences.Directions == nil {
-			app.Preferences.Directions = map[string]servers.Direction{}
-		}
-		app.Preferences.Directions[app.Reader.OpenBook.SeriesID] = direction
-		saved = app.Preferences
-		changed = true
+		change(&app.Preferences)
+		saved, changed = app.Preferences, true
 		return true
 	})
 	if changed {

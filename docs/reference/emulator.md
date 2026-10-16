@@ -33,6 +33,8 @@ text looks as it does on the reader. It has no CJK font: Chinese and Japanese sh
 | `-fake-type T` | `komga` | the kind of fake server: `komga`, `mealie`, `calibreweb`, or several separated by commas, used in turn |
 | `-servers N` | 1 | with `-fake`, how many fake servers, to get the server screen |
 | `-fresh` | off | start with no downloaded books and no saved filters |
+| `-dark` | off | start with the reader's dark mode on |
+| `-no-wifi` | off | start with the network off: the servers cannot be reached, and connecting fails at once, until `net up` (or the side panel's Wi-Fi up) |
 | `-size WxH` | `1404x1872` | the screen size, portrait |
 | `-eink` | off | refreshes take as long as on an InkPad 3 |
 | `-addr ADDR` | `localhost:8740` | where the web page is served |
@@ -46,7 +48,8 @@ Pass flags through make with `EMUFLAGS`, e.g. `make emu-fake EMUFLAGS="-servers 
 ## Script commands
 
 One command per line, `#` starts a comment, coordinates in screen pixels. The full reference is
-at the top of [cmd/emulator/script.go](../../cmd/emulator/script.go).
+in the package doc of [device/pocketbook/script](../../internal/device/pocketbook/script/doc.go),
+which the reader's [remote control](remote-control.md) shares.
 
 | Command | What it does |
 |---|---|
@@ -57,7 +60,8 @@ at the top of [cmd/emulator/script.go](../../cmd/emulator/script.go).
 | `hold NAME DURATION` | press a button, release it after `DURATION` (e.g. `2s`) |
 | `home`, `resume` | send the app to the background, bring it back |
 | `battery PERCENT [charging]` | set the battery |
-| `net up`, `net down` | the firmware's network events |
+| `net up`, `net down` | turn the emulated network on or off, with the firmware's network events |
+| `dark on`, `dark off` | switch the emulated dark mode setting; the app reads it when it comes back to the foreground, so follow it with `home` and `resume` |
 | `wait DURATION` | sleep |
 | `idle [TIMEOUT]` | wait until the app is idle (default timeout 2m) |
 | `shot NAME` | wait until idle, then save the panel to `OUT/NAME.png` |
@@ -144,8 +148,13 @@ and of each screen's package, scaled by `widgets.Px`.
 
 ## On the reader
 
-Ghosting, speed, Wi-Fi, sleep, USB and going to the background need the real reader: `make
-deploy`, use the app, then read `applications/inkshelf.log` over USB. Each page turn logs its
-load and refresh times, and the firmware code logs its refresh waits. See
-[eink-and-firmware.md](eink-and-firmware.md). To profile the reader itself, see
-[profiling.md](profiling.md).
+Ghosting, speed, Wi-Fi, sleep, USB and going to the background need the real reader. Each page
+turn logs its load and refresh times, and the firmware code logs its refresh waits. See
+[eink-and-firmware.md](eink-and-firmware.md). There are two ways to read that log:
+
+- By hand: `make deploy`, use the app, then read `applications/inkshelf.log` over USB.
+- Under [remote control](remote-control.md), over Wi-Fi. `make reader-deploy` installs a build,
+  `make reader-shots` runs a script of `emulator/scripts/reader/` on the reader, and
+  `make reader-log` follows the log.
+
+To profile the reader itself, see [profiling.md](profiling.md).

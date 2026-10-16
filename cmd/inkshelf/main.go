@@ -16,6 +16,9 @@ import (
 // appDir holds config.json, copied over USB, and the downloaded books.
 const appDir = "/mnt/ext1/applications/inkshelf"
 
+// appPath is the app's program, which remote control may replace.
+const appPath = "/mnt/ext1/applications/inkshelf.app"
+
 func main() {
 	if err := setupLogging(); err != nil {
 		log.Printf("logging to %s disabled: %v", logPath, err)
@@ -25,8 +28,19 @@ func main() {
 	stopProfiling := startProfiling()
 	application := app.New(appDir, registry.Opener(httpclient.New()), registry.KindOf, app.Options{})
 	// Run returns the error that stopped loading, already logged and shown.
-	err := pocketbook.Run(application)
+	var err error
+	if token := remoteToken(); token != "" {
+		remote := &pocketbook.RemoteControl{}
+		startRemoteControl(token, remote, application.BackgroundWork)
+		err = pocketbook.RunRemoteControlled(application, remote)
+	} else {
+		err = pocketbook.Run(application)
+	}
 	stopProfiling()
+	if restarting.Load() {
+		// Exec returns only if it failed: the app then exits, to be started again by hand.
+		log.Printf("remote control: restart failed: %v", execNewApp())
+	}
 	if err != nil {
 		os.Exit(1)
 	}

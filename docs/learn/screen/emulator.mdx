@@ -28,7 +28,7 @@ the firmware and the glass.
 ## One seam: the firmware interface
 
 Everything the event loop and the screen need from the reader goes through one small Go
-interface, `firmware`, with eight methods:
+interface, `firmware`, with eleven methods:
 
 ```go title="internal/device/pocketbook/firmware.go"
 type firmware interface {
@@ -36,10 +36,13 @@ type firmware interface {
 	visible() bool
 	describe() string
 	nextHardwareEvent() ([]byte, bool)
+	watchInput() bool
+	inputWake() <-chan struct{}
 	nextTaskMessage() ([]byte, bool)
 	nextReply(id int32) ([]byte, bool)
 	send(message []byte) bool
 	battery() (percent int, charging, ok bool)
+	darkMode() (dark, ok bool)
 }
 ```
 
@@ -161,7 +164,7 @@ make shots SCRIPT=emulator/scripts/mealie.txt EMUFLAGS="-fake-type mealie"   # P
   {path: 'internal/device/pocketbook/app.go', symbol: 'RunEmulated', what: 'The same run loop, on an Emulator.'},
   {path: 'cmd/emulator/main.go', symbol: 'run', what: 'Flags, fake servers, the web page or a script.'},
   {path: 'cmd/emulator/server.go', symbol: 'newServer', what: 'GET /, /panel.png, /refreshes; POST /pointer, /key, /control.'},
-  {path: 'cmd/emulator/script.go', symbol: 'runScript', what: 'Script commands, waiting until settled or idle, shots.'},
+  {path: 'internal/device/pocketbook/script/run.go', symbol: 'Run', what: 'Script commands, waiting until settled or idle, shots.'},
   {path: 'emulator/scripts/smoke.txt', what: 'The smoke test of the main screens.'},
   {path: 'Makefile', symbol: 'shots-all', what: 'Every script with its fake servers; baseline and shots-compare.'},
 ]} />

@@ -82,12 +82,17 @@ func RunEmulated(app App, emulator *Emulator) error {
 // exits.
 func run(app App, readerOrEmulator firmware, canvas *image.Gray) error {
 	current = &device{canvas: canvas, firmware: readerOrEmulator}
+	followDarkMode()
 	loop := &eventLoop{
 		app:        app,
 		firmware:   readerOrEmulator,
 		screenSize: canvas.Rect.Size(),
 		visible:    readerOrEmulator.visible(),
 		pid:        os.Getpid(),
+	}
+	if loop.visible {
+		// Before emptying the queue, so that input arriving meanwhile still wakes the loop.
+		loop.watchInput()
 	}
 	loop.dropStaleEvents()
 
@@ -99,10 +104,19 @@ func run(app App, readerOrEmulator firmware, canvas *image.Gray) error {
 	if err := app.Init(); err != nil {
 		return err
 	}
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
+	// The timer is due when poll is. Input may bring it closer (a finger down), never later.
+	nextPollAt := time.Now().Add(loop.nextPoll())
+	timer := time.NewTimer(loop.nextPoll())
+	defer timer.Stop()
 	for {
 		select {
+		case <-readerOrEmulator.inputWake():
+			now := time.Now()
+			loop.inputWoke(now)
+			if due := now.Add(loop.nextPoll()); due.Before(nextPollAt) {
+				timer.Reset(loop.nextPoll())
+				nextPollAt = due
+			}
 		case <-repaints:
 			app.Draw()
 		case <-exits:
@@ -114,10 +128,12 @@ func run(app App, readerOrEmulator firmware, canvas *image.Gray) error {
 		case received := <-signals:
 			log.Printf("%v: closing", received)
 			return app.Close()
-		case now := <-ticker.C:
+		case now := <-timer.C:
 			if loop.poll(now) {
 				return app.Close()
 			}
+			timer.Reset(loop.nextPoll())
+			nextPollAt = now.Add(loop.nextPoll())
 		}
 	}
 }

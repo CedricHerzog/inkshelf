@@ -40,7 +40,7 @@ const touchSteps = (target: string): Step[] => [
   {
     lane: 'loop',
     code: 'Pointer(PointerDown)',
-    say: 'A finger touches the panel. The event loop, which polls the firmware every 20 ms, calls app.Pointer. A PointerDown only records where the touch started (touchStart).',
+    say: 'A finger touches the panel. The kernel wakes the event loop, which reads the touch and calls app.Pointer. A PointerDown only records where the touch started (touchStart).',
     lock: 'free',
   },
   {

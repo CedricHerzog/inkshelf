@@ -3,8 +3,10 @@
 // and sendLongPress (internal/device/pocketbook/touch.go), repeatHeldKey (keys.go) and the
 // order of poll (event_loop.go).
 
-/** pollInterval: the event loop reads the firmware's queues every 20 ms. */
+/** pollInterval: while a finger or a button is down, the event loop polls every 20 ms. */
 export const POLL_INTERVAL_MS = 20;
+/** idlePollInterval: otherwise, it polls the task queue every 250 ms; input wakes it at once. */
+export const IDLE_POLL_INTERVAL_MS = 250;
 /** longPressDelay and holdInterval of touch.go. */
 export const LONG_PRESS_DELAY_MS = 500;
 export const HOLD_INTERVAL_MS = 500;

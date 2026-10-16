@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
+	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook/script"
 )
 
 //go:embed index.html
@@ -133,7 +134,7 @@ func (backend *server) key(writer http.ResponseWriter, request *http.Request) {
 	if !decode(writer, request, &press) {
 		return
 	}
-	key, ok := keyNames[press.Key]
+	key, ok := script.KeyNames[press.Key]
 	switch {
 	case !ok:
 		http.Error(writer, "unknown key "+press.Key, http.StatusBadRequest)
@@ -167,9 +168,9 @@ func (backend *server) control(writer http.ResponseWriter, request *http.Request
 	case "battery":
 		backend.emulator.SetBattery(min(max(command.Percent, 0), 100), command.Charging)
 	case "net-up":
-		backend.emulator.SendSystem(pocketbook.NetConnected)
+		setNetwork(backend.emulator, true)
 	case "net-down":
-		backend.emulator.SendSystem(pocketbook.NetDisconnected)
+		setNetwork(backend.emulator, false)
 	case "exit":
 		backend.emulator.RequestExit()
 	default:

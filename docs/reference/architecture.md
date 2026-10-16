@@ -12,6 +12,7 @@ interactive animations.
 | Domain | Packages | What it knows |
 |---|---|---|
 | device | [device/pocketbook](../../internal/device/pocketbook) | The PocketBook reader without its SDK: framebuffer, e-ink refreshes, firmware messages, input, the event loop, Wi-Fi, and an emulated reader for the host. |
+| device | [device/pocketbook/script](../../internal/device/pocketbook/script) | Scripts of taps, buttons, waits and shots, parsed and run against the emulator or a reader under remote control. |
 | graphics | [graphics/fonts](../../internal/graphics/fonts), [graphics/pageimage](../../internal/graphics/pageimage) | Pixels: TrueType fonts, shaping and drawing text in gray; page images decoded, fitted, toned, dithered to 16 grays and packed into `.pg4` files. |
 | web | [web/css](../../internal/web/css), [web/svgimage](../../internal/web/svgimage), [web/mathml](../../internal/web/mathml), [web/webfont](../../internal/web/webfont), [web/webimage](../../internal/web/webimage), [web/uri](../../internal/web/uri) | The web formats books are written in: the CSS cascade, SVG, MathML, WOFF fonts, a book's images, relative links and data: URIs. |
 | typesetting | [typesetting/document](../../internal/typesetting/document), [typesetting/layout](../../internal/typesetting/layout), [typesetting/hyphen](../../internal/typesetting/hyphen) | Text on pages: the document model (blocks of styled runs), line breaking, bidi, justification, floats, tables, pagination, hyphenation. |

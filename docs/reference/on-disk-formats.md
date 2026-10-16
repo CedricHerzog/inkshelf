@@ -10,11 +10,13 @@ guard it (see the end of this page).
 
 ```text
 /mnt/ext1/applications/
-├── inkshelf.app                         the program (make deploy)
+├── inkshelf.app                         the program (make deploy, or make reader-deploy)
+├── inkshelf.app.new                     only while remote control installs a new program
 ├── icons/inkshelf.bmp, inkshelf_f.bmp   launcher icons
 ├── inkshelf.log                         the log, truncated at start-up above 1 MB
 └── inkshelf/
     ├── config.json                      the servers, written by the user
+    ├── profile, remote                  markers written by the user: profiling, remote control
     └── servers/<name>/                  one folder per server, named after its "name"
         ├── filters.json                 the lists' filters and the reader's settings
         ├── covers/
@@ -50,8 +52,9 @@ must be a valid FAT folder name and unique, ignoring case. The app never writes 
 `state.Preferences` ([app/state/preferences.go](../../internal/app/state/preferences.go)), per
 server: the series list's library (`library`, an id) and read status (`status`), the book list's
 filter (`books`), the server's `libraries` (so the filter works offline), the reading
-`directions` chosen per series id (`"ltr"`/`"rtl"`), and `textSize`, the EPUB font size. The
-name is historical: keep it.
+`directions` chosen per series id (`"ltr"`/`"rtl"`), `textSize`, the EPUB font size, and
+`darkPages`, whether a series' pages show white on black in dark mode, per series id (`true` or
+`false`, absent until chosen). The name is historical: keep it.
 
 ## Covers
 

@@ -1,6 +1,9 @@
 package pocketbook
 
-import "image"
+import (
+	"fmt"
+	"image"
+)
 
 // Waveform is the sequence of voltages the panel drives its pixels with to change them, as
 // numbered by the firmware (waveform_type_t in hwconfig.h). Faster waveforms show fewer grays
@@ -16,6 +19,17 @@ const (
 	GL16 Waveform = 5 // 16 grays, for text on white; libinkview's PartialUpdateHQ
 	DU4  Waveform = 8 // 4 grays, fast
 )
+
+// waveformNames are the waveforms' names, for the log.
+var waveformNames = map[Waveform]string{DU: "DU", GC16: "GC16", GC4: "GC4", A2: "A2", GL16: "GL16", DU4: "DU4"}
+
+// String returns the waveform's name, as the firmware's headers write it.
+func (waveform Waveform) String() string {
+	if name, ok := waveformNames[waveform]; ok {
+		return name
+	}
+	return fmt.Sprintf("waveform %d", int(waveform))
+}
 
 // FlashRefresh shows the whole canvas on the panel with a full GC16 refresh: the panel flashes,
 // and the ghosts of earlier pages are gone.

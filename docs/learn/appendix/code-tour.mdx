@@ -66,7 +66,7 @@ Open the two programs. They are short, and everything else hangs from them.
 ]} />
 
 **Notice:** `run` in `pocketbook/app.go` is the heart of the program. One goroutine, one
-`select`: repaint requests call `app.Draw`, a ticker polls the firmware, which ends in
+`select`: repaint requests call `app.Draw`, input wakes it and a timer polls the firmware, which ends in
 `app.Key`, `app.Pointer` or `app.System`. Everything the app does starts from one of these
 calls.
 

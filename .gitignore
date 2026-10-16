@@ -3,6 +3,8 @@
 
 # The emulator's reader files: the API key, downloaded books, covers and filters (emulator/fonts is committed).
 /emulator/config.json
+# The reader under remote control: its address and token (make reader-shots).
+/emulator/reader.json
 /emulator/servers/
 /emulator/fake/
 

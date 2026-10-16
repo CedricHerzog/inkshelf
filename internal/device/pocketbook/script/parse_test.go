@@ -1,4 +1,4 @@
-package main
+package script
 
 import (
 	"image"
@@ -11,7 +11,7 @@ import (
 )
 
 func TestParseScript(t *testing.T) {
-	steps, err := parseScript(`
+	steps, err := Parse(`
 # a comment
 tap 10 20
 long 1 2   # trailing comment
@@ -22,6 +22,7 @@ home
 resume
 battery 15 charging
 net down
+dark on
 wait 300ms
 idle
 idle 1m
@@ -31,7 +32,7 @@ exit
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []step{
+	want := []Step{
 		{line: 3, command: "tap", points: []image.Point{{10, 20}}},
 		{line: 4, command: "long", points: []image.Point{{1, 2}}},
 		{line: 5, command: "swipe", points: []image.Point{{100, 900}, {1200, 900}}},
@@ -41,14 +42,15 @@ exit
 		{line: 9, command: "resume"},
 		{line: 10, command: "battery", number: 15, flag: true},
 		{line: 11, command: "net"},
-		{line: 12, command: "wait", duration: 300 * time.Millisecond},
-		{line: 13, command: "idle", duration: defaultTimeout},
-		{line: 14, command: "idle", duration: time.Minute},
-		{line: 15, command: "shot", name: "01-series"},
-		{line: 16, command: "exit"},
+		{line: 12, command: "dark", flag: true},
+		{line: 13, command: "wait", duration: 300 * time.Millisecond},
+		{line: 14, command: "idle", duration: defaultTimeout},
+		{line: 15, command: "idle", duration: time.Minute},
+		{line: 16, command: "shot", name: "01-series"},
+		{line: 17, command: "exit"},
 	}
 	if !reflect.DeepEqual(steps, want) {
-		t.Errorf("parseScript =\n%+v\nwant\n%+v", steps, want)
+		t.Errorf("Parse =\n%+v\nwant\n%+v", steps, want)
 	}
 }
 
@@ -64,12 +66,13 @@ func TestParseScriptErrors(t *testing.T) {
 		"battery 101",
 		"battery 50 plugged",
 		"net sideways",
+		"dark maybe",
 		"wait",
 		"shot ../escape",
 		"jump 1 2",
 	} {
-		if _, err := parseScript("tap 1 1\n" + source); err == nil || !strings.HasPrefix(err.Error(), "line 2: ") {
-			t.Errorf("parseScript(%q) = %v, want an error on line 2", source, err)
+		if _, err := Parse("tap 1 1\n" + source); err == nil || !strings.HasPrefix(err.Error(), "line 2: ") {
+			t.Errorf("Parse(%q) = %v, want an error on line 2", source, err)
 		}
 	}
 }

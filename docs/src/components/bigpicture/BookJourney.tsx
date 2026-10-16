@@ -80,7 +80,7 @@ const stations: readonly Station[] = [
     comic: {
       text: (
         <>
-          You tap the book in its list. The event loop reads the touch from the firmware (it polls every 20 ms),
+          You tap the book in its list. The event loop reads the touch from the firmware (the kernel wakes it as it arrives),
           finds the target the screen registered there as it drew, and runs it: the book joins the download queue
           (package <code>downloadqueue</code>), which downloads on a goroutine of its own.
         </>

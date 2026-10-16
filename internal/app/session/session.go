@@ -1,7 +1,11 @@
-// Package session starts the app's work with a server: it reads config.json, turns the Wi-Fi
-// on, lets the reader choose a server when there are several, opens that server's folder on
-// the reader, and loads the series list, or falls back to the downloaded books when the server
-// cannot be reached.
+// Package session starts the app's work with a server: it reads config.json, lets the reader
+// choose a server when there are several, opens that server's folder on the reader, and loads
+// the series list, or falls back to the downloaded books when the server cannot be reached.
+//
+// Nothing before the series list needs the network. When the reader is not connected yet, the
+// downloaded books show at once, while the Wi-Fi turns on: connecting can take a while, or never
+// happen, and the books on the reader can be read meanwhile. Once connected, the server's list
+// takes their place.
 //
 // Loading runs on a goroutine of its own, as connecting can take a while: meanwhile the app
 // keeps answering the Back button and the firmware.
@@ -10,20 +14,24 @@
 package session
 
 import (
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/CedricHerzog/inkshelf/internal/app/catalog"
 	"github.com/CedricHerzog/inkshelf/internal/app/state"
-	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
 	"github.com/CedricHerzog/inkshelf/internal/servers"
 	"github.com/CedricHerzog/inkshelf/internal/shelf"
 )
 
-// Load reads config.json, lets the reader choose a server when there are several, connects to
-// the Wi-Fi meanwhile, and reads the series list, or falls back to the server's downloaded
-// books offline. It runs on a goroutine of its own.
+// errNoWiFi is why the app is offline when the Wi-Fi does not connect.
+var errNoWiFi = errors.New("no Wi-Fi connection")
+
+// Load reads config.json, lets the reader choose a server when there are several, and reads
+// the series list, or falls back to the server's downloaded books offline. When the reader is
+// not connected, it shows the downloaded books first and connects to the Wi-Fi after. It runs on
+// a goroutine of its own.
 func Load(app *state.State) {
 	configs, err := servers.LoadConfig(app.Dir)
 	if err != nil {
@@ -43,7 +51,6 @@ func Load(app *state.State) {
 			return true
 		})
 	}
-	connectNetwork(app)
 	config, ok := waitForServerChoice(app, configs)
 	if !ok {
 		return
@@ -62,7 +69,47 @@ func Load(app *state.State) {
 		app.Server.Client = client
 		return false
 	})
-	err = catalog.FetchSeries(app, client)
+	if app.Options.WiFiConnected() {
+		fetchSeries(app, client)
+		return
+	}
+	local := app.Store.Books()
+	if len(local) == 0 {
+		app.Update(false, func() bool {
+			app.Loading.Status = "Connecting to Wi-Fi…"
+			return app.Screen == state.LoadingScreen
+		})
+	} else {
+		showDownloaded(app, local, "Connecting to Wi-Fi…")
+	}
+	if !connectNetwork(app) {
+		if app.Ctx.Err() != nil {
+			return
+		}
+		if len(local) == 0 {
+			showLoadError(app, errNoWiFi)
+		} else {
+			setSeriesNotice(app, "Offline: "+errNoWiFi.Error())
+		}
+		return
+	}
+	if len(local) == 0 {
+		app.Update(false, func() bool {
+			app.Loading.Status = "Loading series…"
+			return app.Screen == state.LoadingScreen
+		})
+		fetchSeries(app, client)
+		return
+	}
+	// The downloaded books show: the server's list replaces them if the reader is still on it,
+	// else the firmware's news of the network, or the next start, brings it.
+	catalog.RefreshNow(app)
+}
+
+// fetchSeries reads the series list from client and shows it, or the downloaded books if it
+// cannot.
+func fetchSeries(app *state.State, client servers.Server) {
+	err := catalog.FetchSeries(app, client)
 	if err == nil || app.Ctx.Err() != nil {
 		return
 	}
@@ -78,14 +125,15 @@ func showLoadError(app *state.State, err error) {
 }
 
 // connectNetwork turns the Wi-Fi on and keeps it on until the app closes. When it cannot, it
-// logs why, and the app works offline.
-func connectNetwork(app *state.State) {
-	stop, err := pocketbook.KeepWiFiOn(app.Ctx)
+// logs why and returns false, and the app works offline.
+func connectNetwork(app *state.State) bool {
+	stop, err := app.Options.ConnectWiFi(app.Ctx)
 	if err != nil {
 		log.Printf("Wi-Fi not connected: %v", err)
-		return
+		return false
 	}
 	app.StopNetwork = stop
+	return true
 }
 
 // waitForServerChoice returns the server to use: the only one of config.json, or the one
@@ -95,7 +143,7 @@ func waitForServerChoice(app *state.State, configs []servers.Config) (servers.Co
 		return configs[0], true
 	}
 	app.Update(false, func() bool {
-		app.Loading.Status = "" // connected or not, the choice is all that is left
+		app.Loading.Status = "" // the choice is all that is left
 		return app.Screen == state.ServersScreen
 	})
 	// The choice is the reader's: the app is idle until it comes. The server screen counts the
@@ -146,11 +194,29 @@ func loadOffline(app *state.State, err error) {
 		showLoadError(app, err)
 		return
 	}
+	showDownloaded(app, local, "Offline: "+err.Error())
+}
+
+// showDownloaded shows the series of local, the downloaded books, with notice in the list's
+// header.
+func showDownloaded(app *state.State, local []shelf.Book, notice string) {
 	app.Update(true, func() bool {
-		app.List.Notice = "Offline: " + err.Error()
+		app.List.Notice = notice
 		catalog.AddDownloadedSeriesLocked(app, local)
 		app.Series.Resume = catalog.LocalResumeLocked(app)
 		app.ShowLocked(state.SeriesScreen)
+		return true
+	})
+}
+
+// setSeriesNotice shows notice in the header of the series list, if the list still shows and no
+// refresh has a notice of its own there.
+func setSeriesNotice(app *state.State, notice string) {
+	app.Update(false, func() bool {
+		if app.Screen != state.SeriesScreen || app.Series.Refreshing {
+			return false
+		}
+		app.List.Notice = notice
 		return true
 	})
 }

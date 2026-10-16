@@ -20,7 +20,6 @@ import (
 
 	"github.com/CedricHerzog/inkshelf/internal/app/state"
 	"github.com/CedricHerzog/inkshelf/internal/app/widgets"
-	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
 	"github.com/CedricHerzog/inkshelf/internal/servers"
 	"github.com/CedricHerzog/inkshelf/internal/shelf"
 )
@@ -167,7 +166,7 @@ func DrawLocked(app *state.State, box image.Rectangle, request state.CoverReques
 		return
 	}
 	size := cover.Bounds().Size()
-	pocketbook.DrawImage(cover, box.Min.Add(box.Size().Sub(size).Div(2)))
+	widgets.Picture(cover, box.Min.Add(box.Size().Sub(size).Div(2)))
 }
 
 // RequestNextPageLocked asks for the covers of the list page after the one shown, which

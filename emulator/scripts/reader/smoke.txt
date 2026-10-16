@@ -1,0 +1,15 @@
+# Smoke test on a real reader under remote control (make reader-shots): it moves through the
+# lists without opening a book, so that it changes nothing on the servers, whatever they hold.
+# Start the app on a series screen with more than one page of series. Coordinates are those of
+# the emulator's scripts (docs/reference/emulator.md#screen-coordinates): the footer is at
+# y 1790, its left third ‹ Prev, its right third Next ›.
+
+shot 01-start
+tap 1200 1790               # Next ›
+shot 02-next-page
+swipe 300 900 1100 900      # swipe right: previous list page
+shot 03-previous-page
+key next                    # the page button: next list page
+shot 04-page-button
+key prev
+shot 05-back-to-start

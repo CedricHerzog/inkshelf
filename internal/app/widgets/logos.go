@@ -60,6 +60,8 @@ func (logos *Logos) Draw(kind servers.Kind, box image.Rectangle) bool {
 	if logo == nil {
 		return false
 	}
+	// Not a Picture: a logo is a one-color icon drawn like text, so it shows white in dark mode,
+	// as the firmware's icons do.
 	pocketbook.DrawImage(logo, box.Min.Add(box.Size().Sub(logo.Bounds().Size()).Div(2)))
 	return true
 }

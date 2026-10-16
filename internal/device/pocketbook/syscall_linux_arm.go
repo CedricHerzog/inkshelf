@@ -12,6 +12,7 @@ import (
 const (
 	sysMqOpen         = 274
 	sysMqTimedReceive = 277
+	sysMqNotify       = 278
 	sysMsgSnd         = 301
 	sysMsgRcv         = 302
 	sysMsgGet         = 303
@@ -75,4 +76,25 @@ func mqOpen(name string, flags int) (int, error) {
 		return -1, fmt.Errorf("mq_open %s: %w", name, errno)
 	}
 	return int(fd), nil
+}
+
+// A struct sigevent, which tells mq_notify how to notify: sigevSize bytes, of which the signal
+// number and the way to notify are the second and third int32s. sigevSignal notifies with a
+// signal.
+const (
+	sigevSize   = 64
+	sigevSignal = 0
+)
+
+// mqNotify asks the kernel to send this process signal once a message arrives on the empty
+// POSIX queue fd. The request lasts for one notification. It fails with EBUSY if a process
+// already asked.
+func mqNotify(fd int, signal syscall.Signal) error {
+	var event [sigevSize]byte
+	putInt32s(event[:], 0, int32(signal), sigevSignal)
+	_, _, errno := syscall.Syscall(sysMqNotify, uintptr(fd), uintptr(unsafe.Pointer(&event[0])), 0)
+	if errno != 0 {
+		return fmt.Errorf("mq_notify: %w", errno)
+	}
+	return nil
 }

@@ -45,7 +45,7 @@ The spans in place:
 | `layout chapter` with `chapter document`, `paginate` | `reading`'s renderer | `layout chapter 3: 140ms, 22 pages` |
 | `render page` | `reading`'s renderer | `render chapter 3 page 5: 30ms` |
 | `build index` | `epub.BuildIndex` | no |
-| `refresh`, `wait for the panel` | the firmware's flush, on the reader and in the emulator | `refresh …: wait …, copy …, send …` (reader only) |
+| `refresh`, `wait for the panel` | the firmware's flush, on the reader and in the emulator | `refresh RECT WAVEFORM [full]: wait …, copy …, send …` (reader only) |
 | `download` (task and span), `fetch page`, `prepare page` with `decode`, `fit`, `dither`, `write page` | `downloadqueue`, `shelf` | `download 42 in 31s: <nil>` and the per-page line |
 | `draw fixed-layout pages` | `shelf` | `download 42: fixed-layout EPUB of 30 pages drawn in …` |
 | `http request`, `http body` | `httpclient` | no |
@@ -87,8 +87,9 @@ Cortex-A7: compare profiles with each other, not with the reader's log.
 It profiles into `applications/inkshelf-profile/` until the app exits, or for the duration
 written in the file (`90s`, `10m`; 5 minutes if empty), since the firmware may kill the app
 without letting it stop the capture and a trace grows by megabytes a minute. The log says
-`profiling to …` and `… stopped`. Copy the folder back over USB, then delete the marker file:
-profiling slows the app down.
+`profiling to …` and `… stopped`. Copy the folder back over USB, or under
+[remote control](remote-control.md) run `make reader-profile` (into `build/reader-profile/`). Then
+delete the marker file: profiling slows the app down.
 
 ### Reading a trace
 

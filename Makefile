@@ -6,7 +6,7 @@ APP := build/inkshelf.app
 # The reader: InkPad 3 (B288, Cortex-A7), firmware 6.x.
 TARGET := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: build test lint deploy emu emu-fake shots shots-all shots-compare baseline verify bench bench-baseline \
+.PHONY: build test lint deploy reader-deploy reader-shots reader-log reader-profile emu emu-fake shots shots-all shots-compare baseline verify bench bench-baseline \
 	bench-compare profile icons docs docs-build docs-shots clean
 
 # Release build: optimised and stripped.
@@ -24,6 +24,21 @@ lint:
 
 deploy:
 	./deploy.sh
+
+# A reader under remote control, over Wi-Fi (docs/reference/remote-control.md): its address and
+# token are in emulator/reader.json.
+READER_SCRIPT ?= emulator/scripts/reader/smoke.txt
+reader-deploy: build
+	go run ./cmd/readerctl deploy
+
+reader-shots:
+	go run ./cmd/readerctl script $(READER_SCRIPT)
+
+reader-log:
+	go run ./cmd/readerctl log -f
+
+reader-profile:
+	go run ./cmd/readerctl profile
 
 # The app on an emulated reader, at http://localhost:8740: against the Komga in emulator/config.json,
 # or a built-in fake one. EMUFLAGS adds the emulator's flags (e.g. -eink, -size 1072x1448).

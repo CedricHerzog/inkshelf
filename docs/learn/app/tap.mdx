@@ -10,8 +10,8 @@ import RepaintCoalescing from '@site/src/components/app/RepaintCoalescing';
 
 <OneSentence>A tap finds the button under the finger with the state locked, runs what the button does with the state unlocked, and that work changes the state through `state.Update`, which asks the event loop for one redraw.</OneSentence>
 
-The part about the screen showed the <Term id="event-loop" />: one goroutine that polls the
-firmware every 20 ms and calls the app. The part about books showed how a page is laid out. This
+The part about the screen showed the <Term id="event-loop" />: one goroutine that input wakes,
+and a timer otherwise, and that calls the app. The part about books showed how a page is laid out. This
 part is about the app itself: what it does with those calls. We start with the most common one, a tap, and follow it all the way to the panel.
 
 Two constraints shape the whole path. Only one goroutine may draw, since the panel and the

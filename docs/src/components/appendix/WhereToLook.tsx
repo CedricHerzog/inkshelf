@@ -82,7 +82,7 @@ const entries: readonly Entry[] = [
     task: 'The emulator, its scripts and screenshots',
     area: 'tools',
     places: [
-      {path: 'cmd/emulator/script.go'},
+      {path: 'internal/device/pocketbook/script/run.go'},
       {path: 'internal/device/pocketbook/emulated_firmware.go', symbol: 'NewEmulator'},
       {path: 'emulator/scripts'},
     ],

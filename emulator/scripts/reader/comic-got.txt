@@ -1,0 +1,107 @@
+# Comic page turns on a real reader (make reader-shots READER_SCRIPT=emulator/scripts/reader/comic-got.txt).
+# Start on the server screen (make reader-deploy restarts there). Test book, agreed with its
+# owner: A Game of Thrones – La Bataille des Rois, Volume 1 (colour BD), on server A. Its reading progress changes.
+# Coordinates: docs/reference/emulator.md#screen-coordinates; server A is the first button.
+
+tap 700 680                 # server A
+tap 207 230                 # library: All
+tap 867 334                 # status: Unread
+tap 700 1048                # A Game of Thrones – La Bataille des Rois
+shot 01-books
+tap 700 433                 # Volume 1: download it, or open it if it is downloaded
+idle 5m
+shot 02-downloaded
+tap 700 433                 # open it (a downloaded book opens on a tap)
+shot 03-open
+# 40 turns forward with the page button, then 40 back.
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+key next
+shot 04-forward
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+key prev
+shot 05-back
+swipe 300 900 1100 900      # swipe turns, both ways
+swipe 1100 900 300 900
+shot 06-swiped
+tap 700 900                 # the toolbar
+tap 150 84                  # ‹ Back closes the book
+tap 150 84                  # ‹ Back to the series
+tap 1197 230                # library: Manga, as it was
+tap 207 334                 # status: All, as it was
+shot 07-restored

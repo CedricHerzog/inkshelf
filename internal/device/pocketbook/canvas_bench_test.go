@@ -53,3 +53,13 @@ func BenchmarkDrawImage(b *testing.B) {
 		DrawImage(page, image.Point{})
 	}
 }
+
+// BenchmarkInvert inverts the whole screen, what a page turn costs in dark mode before the
+// refresh.
+func BenchmarkInvert(b *testing.B) {
+	benchmarkCanvas(b)
+	b.ReportAllocs()
+	for b.Loop() {
+		Invert(Screen())
+	}
+}

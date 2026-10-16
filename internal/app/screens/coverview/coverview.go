@@ -24,7 +24,7 @@ func (screen *Screen) DrawLocked() {
 	app := screen.app
 	screenRect := pocketbook.Screen()
 	if cover := app.CoverView.Image; cover != nil {
-		pocketbook.DrawImage(cover, screenRect.Size().Sub(cover.Bounds().Size()).Div(2))
+		widgets.Picture(cover, screenRect.Size().Sub(cover.Bounds().Size()).Div(2))
 		return
 	}
 	lines := []string{"Loading the cover…"}

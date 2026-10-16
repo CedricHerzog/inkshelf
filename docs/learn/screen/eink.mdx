@@ -122,7 +122,8 @@ comic flash.
 
 A refresh is not only a waveform: it is also a **rectangle**. The app tells the panel which
 area to update, and only that area waits half a second. When you open the reader's toolbar,
-Inkshelf refreshes only the toolbar's strip at the top (`refreshAreaLocked` in
+Inkshelf refreshes only the toolbar's strip at the top, and in dark mode its second strip at the
+bottom, each on its own (`refreshAreaLocked` in
 <CodeRef path="internal/app/screens/reader/reader.go" />). When a page turns, it refreshes the
 page's area and the area of the page before, in case the two pictures have different sizes.
 
@@ -131,7 +132,7 @@ works on its own. That raises a question. What if a second refresh comes while t
 still running? If they touch the same pixels, the new pixels would be changed under a refresh
 that is still driving them. If they don't, there is no reason to wait.
 
-That is exactly the rule: Inkshelf waits only when the new rectangle **overlaps** the one still
+That is exactly the rule: Inkshelf waits only when the new rectangle **overlaps** one still
 being refreshed.
 
 <Figure
@@ -150,15 +151,18 @@ reader, both end in `flush`, which waits if needed, copies the area from the app
 driver with an <Term id="ioctl" />:
 
 ```go title="internal/device/pocketbook/framebuffer_linux_arm.go"
-// waitForOverlappingRefresh waits for the last refresh to end if it overlaps
-// panelRect. Refreshes elsewhere go on meanwhile.
+// waitForOverlappingRefresh waits for the refreshes still running that overlap
+// panelRect to end. Refreshes elsewhere go on meanwhile.
 func (reader *readerFirmware) waitForOverlappingRefresh(panelRect image.Rectangle) {
-	if reader.lastMarker == 0 || !panelRect.Overlaps(reader.lastRect) {
-		return
+	kept := reader.running[:0]
+	for _, refresh := range reader.running {
+		if !refresh.rect.Overlaps(panelRect) {
+			kept = append(kept, refresh)
+			continue
+		}
+		reader.wait(refresh.marker) // an ioctl: "tell me when refresh N is over"
 	}
-	marker := reader.lastMarker
-	// The ioctl fails when the refresh is already over: nothing to wait for.
-	_ = ioctl(reader.framebufferFD, mxcfbWaitForUpdate, unsafe.Pointer(&marker))
+	reader.running = kept
 }
 ```
 
@@ -177,17 +181,17 @@ number N is over".
 - **Rotated rectangles.** The panel is mounted turned a quarter, so the rectangle sent to the
   driver is the app's rectangle rotated into framebuffer coordinates (`framebufferRect`). The
   overlap test is done on those, which gives the same answer.
-- **Only the last refresh is remembered.** `flush` keeps one `lastRect` and one `lastMarker`.
-  With three refreshes A, B, C where B does not overlap A but C does, C compares itself only
-  with B and does not wait for A. In practice the app's refreshes come one after the other on
-  one thread, and the case does not arise often.
+- **The last few refreshes are remembered.** `flush` keeps the last four: a refresh lasts under
+  a second, and the app sends at most two at a time (the toolbar's two strips in dark mode).
+  With three refreshes A, B, C where B does not overlap A but C does, C waits for A. Before it
+  forgets the oldest of four, `flush` waits for it, so none is ever overlapped while running.
 - **What a page turn costs besides the panel.** The copy into the framebuffer, which also
   rotates the pixels, takes about 22 ms a page turn (`copyRotated`). `flush` logs its wait, copy and send times to `applications/inkshelf.log`: that is how
   page turns are timed on the reader.
 - **Visible or not.** Before every refresh, `flush` checks that the app is in the foreground and
   that the firmware does not suppress refreshes; otherwise it does nothing.
 - **DU and A2 are unused.** Inkshelf only uses GL16 (page turns) and GC16 (flashes, other
-  screens, error pages). The fast waveforms are in `Waveform` because the firmware has them.
+  screens, error pages, and dark pages, where GL16 would flash the area white). The fast waveforms are in `Waveform` because the firmware has them.
 - **The emulator is pessimistic.** With `-eink`, the emulated panel sleeps for the refresh time
   after *every* refresh, overlapping or not, so it shows the worst case
   (`refreshTime` in `emulated_firmware.go`).
@@ -204,7 +208,7 @@ number N is over".
   {path: 'internal/device/pocketbook/eink_refresh.go', symbol: 'Waveform, Refresh, FlashRefresh', what: 'The waveforms, and the two calls the app refreshes the panel with.'},
   {path: 'internal/device/pocketbook/eink_refresh.go', symbol: 'mxcfbUpdate', what: 'Encodes the request for the panel: rectangle, waveform, mode, marker, temperature.'},
   {path: 'internal/device/pocketbook/framebuffer_linux_arm.go', symbol: 'flush', what: 'On the reader: wait if needed, copy and rotate, send the ioctl, log the times.'},
-  {path: 'internal/device/pocketbook/framebuffer_linux_arm.go', symbol: 'waitForOverlappingRefresh', what: 'Waits for the last refresh only if it overlaps the new one.'},
+  {path: 'internal/device/pocketbook/framebuffer_linux_arm.go', symbol: 'waitForOverlappingRefresh', what: 'Waits only for the running refreshes that overlap the new one.'},
   {path: 'internal/device/pocketbook/emulated_firmware.go', symbol: 'refreshTime', what: 'The measured refresh times, used by the emulator.'},
   {path: 'internal/app/openbook/openbook.go', symbol: 'fullRefreshDue', what: 'Every 5th turn of a comic, every 6th of a text (textFullEvery in text.go), flashes.'},
   {path: 'internal/app/screens/reader/reader.go', symbol: 'pageWaveform, refreshAreaLocked', what: 'GL16 for page turns, and the smallest area to refresh.'},
@@ -234,7 +238,7 @@ Next: the panel shows only 16 grays, so a comic page must be turned into them. T
     question: 'The page is refreshing. You open the toolbar, a strip across the top of the page. What happens?',
     choices: ['The toolbar refresh starts at once, in parallel', 'The toolbar refresh waits for the page refresh to end, because they overlap', 'The page refresh is cancelled'],
     answer: 1,
-    why: 'waitForOverlappingRefresh waits only when the new rectangle overlaps the last one, so as not to change pixels the panel is still driving.',
+    why: 'waitForOverlappingRefresh waits only when the new rectangle overlaps a refresh still running, so as not to change pixels the panel is still driving.',
   },
   {
     question: 'Which waveform does Inkshelf use for an ordinary page turn?',

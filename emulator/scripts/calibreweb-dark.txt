@@ -1,0 +1,34 @@
+# The reader's dark mode, against the fake Calibre-Web:
+#   make shots SCRIPT=emulator/scripts/calibreweb-dark.txt EMUFLAGS="-fake-type calibreweb"
+# The app reads the setting when it comes back from Home. Everything shows white on black but
+# pictures: the covers, and a comic's pages unless the reader darkens them. The series list's
+# rows are centred at y 433, 715, 997: Les Étoiles (EPUB), Ruines (CBZ), No series.
+
+dark on
+home
+wait 300ms
+resume                      # back from Home in dark mode: the list white on black
+shot 01-series
+tap 700 715                 # Ruines: covers in their own colors
+tap 700 433                 # download Tome 1
+idle 60s
+tap 700 433                 # read it: the page keeps its colors, its margins white
+shot 02-comic-page
+tap 700 900                 # toolbar: light as the page, and a bottom bar with Light page
+shot 03-comic-toolbar
+tap 1206 1788               # Light page: the series' pages go dark, saved for Ruines
+shot 04-comic-dark
+tap 150 84                  # ‹ Back to the books
+idle
+tap 150 84                  # ‹ Back to the series, Continue Ruines first
+idle
+tap 700 715                 # Les Étoiles
+idle
+tap 700 433                 # download Tome 1, the EPUB
+idle 60s
+tap 700 433                 # read it: text white on black
+shot 05-text-page
+tap 700 900                 # toolbar: A+, A− and Contents with the title, Dark page at the bottom
+shot 06-text-toolbar
+tap 1206 1788               # Dark page: the series' pages go light, the toolbar with them
+shot 07-text-light

@@ -10,7 +10,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'The reader',
       collapsed: false,
-      items: ['eink-and-firmware', 'image-pipeline', 'emulator'],
+      items: ['eink-and-firmware', 'image-pipeline', 'emulator', 'remote-control'],
     },
     {
       type: 'category',
