@@ -27,14 +27,14 @@ type Emulator struct {
 	panel *image.Gray
 	// isVisible is true while the app is in the foreground.
 	isVisible bool
-	// hardwareEvents are the /hwevent messages not read yet.
-	hardwareEvents [][]byte
+	// input is the input not read yet.
+	input injectedInput
 	// taskMessages are the task messages not read yet.
 	taskMessages [][]byte
-	// handlingInput and handlingTasks are true from when the event loop takes a message of
-	// hardwareEvents or taskMessages until it asks for the next one and there is none: until
-	// then, it may still be handling the message.
-	handlingInput, handlingTasks bool
+	// handlingTasks is true from when the event loop takes a message of taskMessages until it
+	// asks for the next one and there is none: until then, it may still be handling the
+	// message.
+	handlingTasks bool
 	// replies are the replies to requests not read yet, by request id.
 	replies map[int32][]byte
 	// messageID is the id of the last task message sent.
@@ -100,24 +100,15 @@ func NewEmulator(size image.Point, simulateRefresh bool) *Emulator {
 // Size returns the screen's size.
 func (emulator *Emulator) Size() image.Point { return emulator.canvas.Rect.Size() }
 
-// flush copies rect of canvas to the panel, rounding each pixel to the grays waveform can
-// show, so that a waveform of 2 or 4 grays looks in the emulator as it does on the reader.
+// flush copies rect of canvas to the panel (see copyToPanel).
 func (emulator *Emulator) flush(canvas *image.Gray, rect image.Rectangle, waveform Waveform, full bool) {
 	rect = rect.Intersect(canvas.Rect)
 	if rect.Empty() {
 		return
 	}
 	defer timing.Start(context.Background(), "refresh").End()
-	levels := waveformLevels(waveform)
 	emulator.mu.Lock()
-	for offset := range rect.Dy() {
-		row := rect.Min.Y + offset
-		source := canvas.Pix[canvas.PixOffset(rect.Min.X, row):][:rect.Dx()]
-		destination := emulator.panel.Pix[emulator.panel.PixOffset(rect.Min.X, row):][:rect.Dx()]
-		for column, gray := range source {
-			destination[column] = quantize(gray, levels)
-		}
-	}
+	copyToPanel(emulator.panel, canvas, rect, waveform)
 	refresh := PanelRefresh{Rect: rect, Waveform: waveform, Full: full, At: time.Now()}
 	emulator.lastRefresh = refresh.At
 	for subscriber := range emulator.subscribers {
@@ -135,6 +126,21 @@ func (emulator *Emulator) flush(canvas *image.Gray, rect image.Rectangle, wavefo
 		// The panel kept changing until now.
 		emulator.lastRefresh = time.Now()
 		emulator.mu.Unlock()
+	}
+}
+
+// copyToPanel copies rect of canvas to panel, rounding each pixel to the grays waveform can
+// show, so that a waveform of 2 or 4 grays looks in a copy of the panel as it does on the
+// reader. rect must be inside both.
+func copyToPanel(panel, canvas *image.Gray, rect image.Rectangle, waveform Waveform) {
+	levels := waveformLevels(waveform)
+	for offset := range rect.Dy() {
+		row := rect.Min.Y + offset
+		source := canvas.Pix[canvas.PixOffset(rect.Min.X, row):][:rect.Dx()]
+		destination := panel.Pix[panel.PixOffset(rect.Min.X, row):][:rect.Dx()]
+		for column, gray := range source {
+			destination[column] = quantize(gray, levels)
+		}
 	}
 }
 
@@ -186,9 +192,7 @@ func (emulator *Emulator) describe() string {
 func (emulator *Emulator) nextHardwareEvent() ([]byte, bool) {
 	emulator.mu.Lock()
 	defer emulator.mu.Unlock()
-	message, ok := pop(&emulator.hardwareEvents)
-	emulator.handlingInput = ok
-	return message, ok
+	return emulator.input.next()
 }
 
 // nextTaskMessage returns the oldest task message not read yet, if any.
@@ -263,8 +267,8 @@ func (emulator *Emulator) LastRefresh() time.Time {
 func (emulator *Emulator) Pending() bool {
 	emulator.mu.Lock()
 	defer emulator.mu.Unlock()
-	return len(emulator.hardwareEvents) > 0 || len(emulator.taskMessages) > 0 ||
-		emulator.handlingInput || emulator.handlingTasks || len(repaints) > 0
+	return emulator.input.pending() || len(emulator.taskMessages) > 0 || emulator.handlingTasks ||
+		len(repaints) > 0
 }
 
 // Subscribe returns a channel that receives the panel's refreshes, and a function that ends
@@ -296,26 +300,26 @@ func (emulator *Emulator) PointerUp(point image.Point) { emulator.touch(eventPoi
 // touch queues a touch of the first finger, in the touch panel's raw coordinates.
 func (emulator *Emulator) touch(kind int32, point image.Point) {
 	rawX, rawY := rawTouch(point, emulator.Size())
-	emulator.input(hardwareEvent{kind: kind, keyOrRawX: rawX, rawY: rawY})
+	emulator.inject(hardwareEvent{kind: kind, keyOrRawX: rawX, rawY: rawY})
 }
 
 // PressKey presses a button.
 func (emulator *Emulator) PressKey(key Key) {
-	emulator.input(hardwareEvent{kind: eventKeyPress, keyOrRawX: int32(key)})
+	emulator.inject(hardwareEvent{kind: eventKeyPress, keyOrRawX: int32(key)})
 }
 
 // ReleaseKey releases a button.
 func (emulator *Emulator) ReleaseKey(key Key) {
-	emulator.input(hardwareEvent{kind: eventKeyRelease, keyOrRawX: int32(key)})
+	emulator.inject(hardwareEvent{kind: eventKeyRelease, keyOrRawX: int32(key)})
 }
 
-// input queues an /hwevent message, unless the app is in the background: input goes to the
+// inject queues an /hwevent message, unless the app is in the background: input goes to the
 // foreground app.
-func (emulator *Emulator) input(event hardwareEvent) {
+func (emulator *Emulator) inject(event hardwareEvent) {
 	emulator.mu.Lock()
 	defer emulator.mu.Unlock()
 	if emulator.isVisible {
-		emulator.hardwareEvents = append(emulator.hardwareEvents, encodeHardwareEvent(event))
+		emulator.input.add(event)
 	}
 }
 
@@ -328,7 +332,7 @@ func (emulator *Emulator) SetForeground(foreground bool) {
 	}
 	emulator.mu.Lock()
 	emulator.isVisible = foreground
-	emulator.hardwareEvents = nil
+	emulator.input.drop()
 	emulator.mu.Unlock()
 	emulator.sendTaskEvent(event)
 }
