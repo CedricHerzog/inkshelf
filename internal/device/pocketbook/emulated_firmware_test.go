@@ -107,3 +107,25 @@ func TestDarkModeKeptWhenUnknown(t *testing.T) {
 		t.Error("an unreadable setting turned dark mode off")
 	}
 }
+
+func TestEmulatorWaitWakesOnInput(t *testing.T) {
+	emulator := NewEmulator(screenSize, false)
+	if _, ok := emulator.waitHardwareEvent(0); ok {
+		t.Fatal("input before any was sent")
+	}
+	start := time.Now()
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		emulator.PressKey(KeyNext)
+	}()
+	message, ok := emulator.waitHardwareEvent(5 * time.Second)
+	if !ok || decodeHardwareEvent(message).keyOrRawX != int32(KeyNext) {
+		t.Fatalf("waitHardwareEvent = %x, %v; want the press of KeyNext", message, ok)
+	}
+	if waited := time.Since(start); waited > time.Second {
+		t.Errorf("waited %v for input sent after 20 ms", waited)
+	}
+	if !emulator.Pending() {
+		t.Error("Pending = false while the event loop may still handle the press")
+	}
+}

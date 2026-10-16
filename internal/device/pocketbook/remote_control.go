@@ -51,6 +51,7 @@ func (remote *RemoteControl) attach(reader firmware, size image.Point) {
 	}
 	remote.firmware = reader
 	remote.mu.Lock()
+	remote.input = newInjectedInput()
 	remote.panel = panel
 	remote.isVisible = reader.visible()
 	remote.mu.Unlock()
@@ -180,16 +181,29 @@ func (remote *RemoteControl) visible() bool {
 	return visible
 }
 
-// nextHardwareEvent returns the injected input first, then the reader's.
-func (remote *RemoteControl) nextHardwareEvent() ([]byte, bool) {
-	remote.mu.Lock()
-	message, ok := remote.input.next()
-	remote.mu.Unlock()
-	if ok {
-		return message, true
+// waitHardwareEvent returns the injected input first, then the reader's, waiting up to timeout
+// for either. Injected input can't wake a wait on the reader's queue: the wait looks at both
+// every remoteInputWait.
+func (remote *RemoteControl) waitHardwareEvent(timeout time.Duration) ([]byte, bool) {
+	deadline := time.Now().Add(timeout)
+	for {
+		if message, ok := remote.input.waitFor(&remote.mu, 0); ok {
+			return message, true
+		}
+		wait := min(time.Until(deadline), remoteInputWait)
+		if message, ok := remote.firmware.waitHardwareEvent(max(wait, 0)); ok {
+			return message, true
+		}
+		if time.Now().After(deadline) {
+			return nil, false
+		}
 	}
-	return remote.firmware.nextHardwareEvent()
 }
+
+// remoteInputWait is how long injected input may wait for a wait on the reader's queue to end.
+const remoteInputWait = 50 * time.Millisecond
+
+func (remote *RemoteControl) giveBack(message []byte) { remote.firmware.giveBack(message) }
 
 func (remote *RemoteControl) describe() string { return remote.firmware.describe() }
 

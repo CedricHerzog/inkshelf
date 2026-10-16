@@ -1,6 +1,9 @@
 package pocketbook
 
-import "image"
+import (
+	"image"
+	"time"
+)
 
 // firmware is what the screen and the event loop need from the reader: its framebuffer
 // driver, its message queues and its shared state. readerFirmware (firmware_linux_arm.go)
@@ -16,9 +19,13 @@ type firmware interface {
 	visible() bool
 	// describe returns the firmware state that visible depends on, for the log.
 	describe() string
-	// nextHardwareEvent returns the next input message from /hwevent, if any. Call it only
-	// when visible: the queue is shared by all apps, and the input is the foreground app's.
-	nextHardwareEvent() ([]byte, bool)
+	// waitHardwareEvent returns the next input message from /hwevent, waiting up to timeout
+	// for one (0: not at all). Call it only when visible: the queue is shared by all apps, and
+	// the input is the foreground app's. The message is the caller's to keep.
+	waitHardwareEvent(timeout time.Duration) ([]byte, bool)
+	// giveBack puts an input message back at the end of /hwevent, for the app in front, when
+	// it was taken just after this app went to the background.
+	giveBack(message []byte)
 	// nextTaskMessage returns the next message for this task, if any.
 	nextTaskMessage() ([]byte, bool)
 	// nextReply returns the firmware's reply to the request with this id, if it came.

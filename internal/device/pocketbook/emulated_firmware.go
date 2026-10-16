@@ -87,6 +87,7 @@ func NewEmulator(size image.Point, simulateRefresh bool) *Emulator {
 		simulateRefresh: simulateRefresh,
 		panel:           image.NewGray(image.Rectangle{Max: size}),
 		isVisible:       true,
+		input:           newInjectedInput(),
 		replies:         map[int32][]byte{},
 		batteryPercent:  emulatorBatteryPercent,
 		subscribers:     map[chan PanelRefresh]struct{}{},
@@ -202,12 +203,14 @@ func (emulator *Emulator) describe() string {
 	return fmt.Sprintf("emulator, visible %v", emulator.visible())
 }
 
-// nextHardwareEvent returns the oldest input not read yet, if any.
-func (emulator *Emulator) nextHardwareEvent() ([]byte, bool) {
-	emulator.mu.Lock()
-	defer emulator.mu.Unlock()
-	return emulator.input.next()
+// waitHardwareEvent returns the oldest input not read yet, waiting up to timeout for some.
+func (emulator *Emulator) waitHardwareEvent(timeout time.Duration) ([]byte, bool) {
+	return emulator.input.waitFor(&emulator.mu, timeout)
 }
+
+// giveBack does nothing: the emulator drops input while the app is in the background, so none
+// is ever meant for another app.
+func (emulator *Emulator) giveBack([]byte) {}
 
 // nextTaskMessage returns the oldest task message not read yet, if any.
 func (emulator *Emulator) nextTaskMessage() ([]byte, bool) {
