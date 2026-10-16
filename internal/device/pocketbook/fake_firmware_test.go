@@ -19,8 +19,6 @@ type fakeFirmware struct {
 	isVisible bool
 	// events are the /hwevent messages not read yet.
 	events [][]byte
-	// givenBack are the messages given back to /hwevent.
-	givenBack [][]byte
 	// messages are the task messages not read yet.
 	messages [][]byte
 	// sent are the task messages sent.
@@ -44,9 +42,8 @@ func (fake *fakeFirmware) darkMode() (bool, bool) { return fake.dark, !fake.dark
 func (fake *fakeFirmware) visible() bool    { return fake.isVisible }
 func (fake *fakeFirmware) describe() string { return "fake" }
 
-func (fake *fakeFirmware) waitHardwareEvent(time.Duration) ([]byte, bool) { return pop(&fake.events) }
-func (fake *fakeFirmware) giveBack(message []byte)                        { fake.givenBack = append(fake.givenBack, message) }
-func (fake *fakeFirmware) nextTaskMessage() ([]byte, bool)                { return pop(&fake.messages) }
+func (fake *fakeFirmware) nextHardwareEvent() ([]byte, bool) { return pop(&fake.events) }
+func (fake *fakeFirmware) nextTaskMessage() ([]byte, bool)   { return pop(&fake.messages) }
 
 func (fake *fakeFirmware) nextReply(id int32) ([]byte, bool) {
 	reply, ok := fake.replies[id]

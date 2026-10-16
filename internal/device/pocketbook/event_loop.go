@@ -50,7 +50,7 @@ func (loop *eventLoop) dropStaleEvents() {
 		return
 	}
 	for {
-		if _, ok := loop.firmware.waitHardwareEvent(0); !ok {
+		if _, ok := loop.firmware.nextHardwareEvent(); !ok {
 			return
 		}
 	}
@@ -149,7 +149,7 @@ func (loop *eventLoop) followForeground() (visible bool) {
 // is shared by all apps.
 func (loop *eventLoop) readInput(now time.Time) {
 	for {
-		message, ok := loop.firmware.waitHardwareEvent(0)
+		message, ok := loop.firmware.nextHardwareEvent()
 		if !ok {
 			return
 		}

@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 	"unsafe"
 )
 
@@ -35,12 +34,12 @@ type readerFirmware struct {
 	pgid int
 	// taskQueue is the id of the task message queue, or -1 if it is missing.
 	taskQueue int
-	// events is the file descriptor of the /hwevent queue, or -1 if it is missing. It doesn't
-	// block. eventsWaiting reads the same queue but blocks, for waitHardwareEvent's waits, and
-	// eventsReturn writes to it, for giveBack.
-	events, eventsWaiting, eventsReturn int
+	// events is the file descriptor of the /hwevent queue, or -1 if it is missing.
+	events int
 	// taskBuffer is where task messages are received: an mtype, then up to maxTaskData bytes.
 	taskBuffer []byte
+	// eventBuffer is where /hwevent messages are received.
+	eventBuffer [hardwareEventSize]byte
 	// darkStatus is what darkMode last logged, to log it only when it changes.
 	darkStatus string
 }
@@ -48,12 +47,10 @@ type readerFirmware struct {
 // openFirmware opens the framebuffer, the firmware's queues and shared state, and the canvas.
 func openFirmware() (firmware, *image.Gray, error) {
 	reader := &readerFirmware{
-		pgid:          syscall.Getpgrp(),
-		taskQueue:     -1,
-		events:        -1,
-		eventsWaiting: -1,
-		eventsReturn:  -1,
-		taskBuffer:    make([]byte, mtypeSize+maxTaskData),
+		pgid:       syscall.Getpgrp(),
+		taskQueue:  -1,
+		events:     -1,
+		taskBuffer: make([]byte, mtypeSize+maxTaskData),
 	}
 	framebufferWidth, err := reader.openFramebuffer()
 	if err != nil {
@@ -68,12 +65,6 @@ func openFirmware() (firmware, *image.Gray, error) {
 	}
 	if reader.events, err = mqOpen(eventQueue, syscall.O_RDONLY|syscall.O_NONBLOCK); err != nil {
 		log.Printf("event queue: %v", err)
-	}
-	if reader.eventsWaiting, err = mqOpen(eventQueue, syscall.O_RDONLY); err != nil {
-		log.Printf("event queue, to wait on: %v", err)
-	}
-	if reader.eventsReturn, err = mqOpen(eventQueue, syscall.O_WRONLY|syscall.O_NONBLOCK); err != nil {
-		log.Printf("event queue, to give input back: %v", err)
 	}
 	// The screen is portrait and the framebuffer landscape: the framebuffer's rows are the
 	// screen's columns.
@@ -146,41 +137,25 @@ func (reader *readerFirmware) describe() string {
 		reader.global[globalSuppressed], int32At(reader.global, globalMultitask))
 }
 
-// waitHardwareEvent returns the next /hwevent message, waiting up to timeout for one.
-func (reader *readerFirmware) waitHardwareEvent(timeout time.Duration) ([]byte, bool) {
-	fd := reader.events
-	if timeout > 0 && reader.eventsWaiting >= 0 {
-		fd = reader.eventsWaiting
-	}
-	if fd < 0 {
+// nextHardwareEvent returns the next /hwevent message, if any.
+func (reader *readerFirmware) nextHardwareEvent() ([]byte, bool) {
+	if reader.events < 0 {
 		return nil, false
 	}
-	// mq_timedreceive wants room for the queue's largest message.
-	buffer := make([]byte, hardwareEventSize)
-	count, errno := mqTimedReceive(fd, buffer, time.Now().Add(timeout))
+	buffer := reader.eventBuffer[:]
+	count, _, errno := syscall.Syscall6(sysMqTimedReceive, uintptr(reader.events), uintptr(unsafe.Pointer(&buffer[0])),
+		uintptr(len(buffer)), 0, 0, 0)
 	if errno != 0 {
-		// EAGAIN means the queue is empty; ETIMEDOUT that it stayed so.
-		if errno != syscall.EAGAIN && errno != syscall.ETIMEDOUT {
+		// EAGAIN means the queue is empty.
+		if errno != syscall.EAGAIN {
 			log.Printf("event queue: %v", errno)
 		}
 		return nil, false
 	}
-	if count < hardwareEventSize {
+	if int(count) < hardwareEventSize {
 		return nil, false
 	}
 	return buffer, true
-}
-
-// giveBack puts message back on /hwevent.
-func (reader *readerFirmware) giveBack(message []byte) {
-	if reader.eventsReturn < 0 {
-		return
-	}
-	if errno := mqSend(reader.eventsReturn, message); errno != 0 {
-		log.Printf("event queue: giving input back: %v", errno)
-		return
-	}
-	log.Printf("event queue: gave back input meant for the app in front")
 }
 
 // nextTaskMessage returns the next message for this task, if any.

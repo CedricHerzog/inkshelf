@@ -5,14 +5,12 @@ package pocketbook
 import (
 	"fmt"
 	"syscall"
-	"time"
 	"unsafe"
 )
 
 // System calls on 32-bit ARM (EABI) that package syscall lacks.
 const (
 	sysMqOpen         = 274
-	sysMqTimedSend    = 276
 	sysMqTimedReceive = 277
 	sysMsgSnd         = 301
 	sysMsgRcv         = 302
@@ -77,25 +75,4 @@ func mqOpen(name string, flags int) (int, error) {
 		return -1, fmt.Errorf("mq_open %s: %w", name, errno)
 	}
 	return int(fd), nil
-}
-
-// mqTimedReceive receives a message of the POSIX queue fd into buffer, waiting until deadline
-// if the queue is empty and fd blocks. It returns the message's length. Signals, which the Go
-// runtime sends its own threads, interrupt the wait: it then goes on until the same deadline.
-func mqTimedReceive(fd int, buffer []byte, deadline time.Time) (int, syscall.Errno) {
-	for {
-		timeout := syscall.NsecToTimespec(deadline.UnixNano())
-		count, _, errno := syscall.Syscall6(sysMqTimedReceive, uintptr(fd), uintptr(unsafe.Pointer(&buffer[0])),
-			uintptr(len(buffer)), 0, uintptr(unsafe.Pointer(&timeout)), 0)
-		if errno != syscall.EINTR {
-			return int(count), errno
-		}
-	}
-}
-
-// mqSend sends message to the POSIX queue fd, which must not block.
-func mqSend(fd int, message []byte) syscall.Errno {
-	_, _, errno := syscall.Syscall6(sysMqTimedSend, uintptr(fd), uintptr(unsafe.Pointer(&message[0])),
-		uintptr(len(message)), 0, 0, 0)
-	return errno
 }
