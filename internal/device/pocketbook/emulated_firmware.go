@@ -133,15 +133,29 @@ func (emulator *Emulator) flush(canvas *image.Gray, rect image.Rectangle, wavefo
 // show, so that a waveform of 2 or 4 grays looks in a copy of the panel as it does on the
 // reader. rect must be inside both.
 func copyToPanel(panel, canvas *image.Gray, rect image.Rectangle, waveform Waveform) {
-	levels := waveformLevels(waveform)
+	rounded := roundedGrays[waveformLevels(waveform)]
 	for offset := range rect.Dy() {
 		row := rect.Min.Y + offset
 		source := canvas.Pix[canvas.PixOffset(rect.Min.X, row):][:rect.Dx()]
 		destination := panel.Pix[panel.PixOffset(rect.Min.X, row):][:rect.Dx()]
 		for column, gray := range source {
-			destination[column] = quantize(gray, levels)
+			destination[column] = rounded[gray]
 		}
 	}
+}
+
+// roundedGrays holds, for each number of grays a waveform shows, every gray rounded by
+// quantize. Looking it up costs far less than quantize's divisions, which the reader's ARM
+// code makes in software: on a full screen, about 130 ms against a few.
+var roundedGrays = map[int]*[256]uint8{2: grayTable(2), 4: grayTable(4), panelGrays: grayTable(panelGrays)}
+
+// grayTable returns every gray rounded to levels grays.
+func grayTable(levels int) *[256]uint8 {
+	var table [256]uint8
+	for gray := range table {
+		table[gray] = quantize(uint8(gray), levels)
+	}
+	return &table
 }
 
 // waveformLevels returns the number of grays waveform shows.
