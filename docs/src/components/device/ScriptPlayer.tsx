@@ -1,6 +1,7 @@
 // An emulator script played step by step against a sketch of the panel. The lines are those of
-// emulator/scripts/smoke.txt, shortened; what each command does follows runScript and runStep of
-// cmd/emulator/script.go (waitSettled before input, waitIdle before a shot, tapTime, swipeTime).
+// emulator/scripts/smoke.txt, shortened; what each command does follows Run and runStep of
+// internal/device/pocketbook/script/run.go (waitSettled before input, waitIdle before a shot,
+// tapTime, swipeTime).
 // The screens are drawn by hand: a sketch, not the app's real rendering.
 
 import React from 'react';

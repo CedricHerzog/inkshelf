@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
+	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook/script"
 )
 
 //go:embed index.html
@@ -133,7 +134,7 @@ func (backend *server) key(writer http.ResponseWriter, request *http.Request) {
 	if !decode(writer, request, &press) {
 		return
 	}
-	key, ok := keyNames[press.Key]
+	key, ok := script.KeyNames[press.Key]
 	switch {
 	case !ok:
 		http.Error(writer, "unknown key "+press.Key, http.StatusBadRequest)

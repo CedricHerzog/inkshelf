@@ -66,6 +66,7 @@ Domains go bottom to top: a package imports only from its own domain or lower on
 ```text
 internal/
   device/pocketbook     the reader without its SDK: framebuffer, e-ink refresh, firmware IPC, event loop, Wi-Fi, emulator  -> docs/reference/eink-and-firmware.md
+  device/pocketbook/script   scripts of taps, buttons, waits and shots, run on the emulator  -> docs/reference/emulator.md
   graphics/fonts        TrueType fonts, fallbacks, HarfBuzz shaping, drawing text in gray
   graphics/pageimage    page images: decode, fit, tone, dither to 16 grays, .pg4  -> docs/reference/image-pipeline.md
   web/css               CSS parsing and cascade for EPUB stylesheets

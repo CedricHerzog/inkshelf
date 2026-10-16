@@ -73,7 +73,7 @@ the battery. "Outline refreshes" shows each panel refresh and its waveform.
 `EMUFLAGS=-eink` makes refreshes as slow as on an InkPad 3, and `EMUFLAGS="-size 1072x1448"`
 tries another screen, `EMUFLAGS="-servers 2"` (with `emu-fake` or `shots`) gives a choice of
 fake servers. Use `make shots SCRIPT=…` to run another script; the commands are listed
-at the top of `cmd/emulator/script.go`, and [emulator.md](emulator.md) explains them.
+in the package doc of `internal/device/pocketbook/script`, and [emulator.md](emulator.md) explains them.
 
 Downloaded books go to `emulator/servers/<name>/books/` (under `emulator/fake/` with the fake
 servers). The emulator draws with the reader's fonts, kept in `emulator/fonts/`.

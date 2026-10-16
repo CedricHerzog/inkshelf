@@ -176,22 +176,6 @@ func parseSize(text string) (image.Point, error) {
 	return size, nil
 }
 
-// loadScript reads and parses the script at path. It returns no steps if path is empty.
-func loadScript(path string) ([]step, error) {
-	if path == "" {
-		return nil, nil
-	}
-	source, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	steps, err := parseScript(string(source))
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
-	}
-	return steps, nil
-}
-
 // prepareAppDir returns the directory the app keeps its files in, after starting the fake
 // servers that opts asks for and clearing the saved files if opts asks for a fresh
 // start. addresses are the real addresses of the fake servers that config.json gives fixed

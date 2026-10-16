@@ -48,7 +48,7 @@ Pass flags through make with `EMUFLAGS`, e.g. `make emu-fake EMUFLAGS="-servers 
 ## Script commands
 
 One command per line, `#` starts a comment, coordinates in screen pixels. The full reference is
-at the top of [cmd/emulator/script.go](../../cmd/emulator/script.go).
+in the package doc of [device/pocketbook/script](../../internal/device/pocketbook/script/doc.go).
 
 | Command | What it does |
 |---|---|
