@@ -45,7 +45,7 @@ The spans in place:
 | `layout chapter` with `chapter document`, `paginate` | `reading`'s renderer | `layout chapter 3: 140ms, 22 pages` |
 | `render page` | `reading`'s renderer | `render chapter 3 page 5: 30ms` |
 | `build index` | `epub.BuildIndex` | no |
-| `refresh`, `wait for the panel` | the firmware's flush, on the reader and in the emulator | `refresh …: wait …, copy …, send …` (reader only) |
+| `refresh`, `wait for the panel` | the firmware's flush, on the reader and in the emulator | `refresh RECT WAVEFORM [full]: wait …, copy …, send …` (reader only) |
 | `download` (task and span), `fetch page`, `prepare page` with `decode`, `fit`, `dither`, `write page` | `downloadqueue`, `shelf` | `download 42 in 31s: <nil>` and the per-page line |
 | `draw fixed-layout pages` | `shelf` | `download 42: fixed-layout EPUB of 30 pages drawn in …` |
 | `http request`, `http body` | `httpclient` | no |

@@ -101,7 +101,11 @@ func (reader *readerFirmware) flush(canvas *image.Gray, rect image.Rectangle, wa
 	}
 	reader.running = append(reader.running, runningRefresh{rect: panelRect, marker: reader.marker})
 	sent := time.Now()
-	log.Printf("refresh %v: wait %v, copy %v, send %v", rect, copyStart.Sub(start).Round(time.Millisecond),
+	flash := ""
+	if full {
+		flash = " full"
+	}
+	log.Printf("refresh %v %v%s: wait %v, copy %v, send %v", rect, waveform, flash, copyStart.Sub(start).Round(time.Millisecond),
 		sendStart.Sub(copyStart).Round(100*time.Microsecond), sent.Sub(sendStart).Round(100*time.Microsecond))
 }
 
