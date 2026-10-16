@@ -38,9 +38,10 @@ const (
 // framebufferPath is the e-ink panel's framebuffer device.
 const framebufferPath = "/dev/fb0"
 
-// openFramebuffer opens and maps the framebuffer, and returns its width in pixels.
+// openFramebuffer opens and maps the framebuffer, and returns its width in pixels. The app
+// restarted by remote control execs itself: close-on-exec keeps it from inheriting this one.
 func (reader *readerFirmware) openFramebuffer() (framebufferWidth int, err error) {
-	if reader.framebufferFD, err = syscall.Open(framebufferPath, syscall.O_RDWR, 0); err != nil {
+	if reader.framebufferFD, err = syscall.Open(framebufferPath, syscall.O_RDWR|syscall.O_CLOEXEC, 0); err != nil {
 		return 0, err
 	}
 	var varScreenInfo [varScreenInfoSize]byte

@@ -6,6 +6,7 @@
 //	readerctl script FILE          run a script, its shots into build/reader-shots/<script>/
 //	readerctl log [-f]             print the log; -f prints what comes next, until interrupted
 //	readerctl profile              fetch the profiles into build/reader-profile/
+//	readerctl deploy               replace the app with build/inkshelf.app, and wait for it to restart
 //
 // The reader's address and token come from emulator/reader.json ({"address": "host:8740",
 // "token": "..."}), or from READER and READER_TOKEN.
@@ -32,20 +33,22 @@ const (
 	configPath = "emulator/reader.json"
 	shotsDir   = "build/reader-shots"
 	profileDir = "build/reader-profile"
+	appBuild   = "build/inkshelf.app"
 )
 
-// How long a request may take, but for a script, which takes as long as its steps; and how
-// often log -f asks for more.
+// How long a request may take, but for a script, which takes as long as its steps; how often
+// log -f asks for more; how long deploy waits for the new app to answer.
 const (
 	requestTimeout = 30 * time.Second
 	followInterval = time.Second
+	restartTimeout = time.Minute
 )
 
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("readerctl: ")
 	flag.Usage = func() {
-		fmt.Fprintln(flag.CommandLine.Output(), "usage: readerctl shot [FILE] | script FILE | log [-f] | profile")
+		fmt.Fprintln(flag.CommandLine.Output(), "usage: readerctl shot [FILE] | script FILE | log [-f] | profile | deploy")
 	}
 	flag.Parse()
 	if flag.NArg() == 0 {
@@ -84,6 +87,8 @@ func run(reader *reader, command string, arguments []string) error {
 		return reader.printLog(*following)
 	case "profile":
 		return reader.fetchProfiles()
+	case "deploy":
+		return reader.deploy()
 	default:
 		flag.Usage()
 		os.Exit(2)
@@ -260,4 +265,35 @@ func (reader *reader) fetchProfiles() error {
 		}
 	}
 	return nil
+}
+
+// deploy uploads appBuild to the reader, which replaces its app with it and restarts, then
+// waits until the new app answers: until a reply says the app started at another time.
+func (reader *reader) deploy() error {
+	program, err := os.Open(appBuild)
+	if err != nil {
+		return fmt.Errorf("%w: run make build first", err)
+	}
+	defer program.Close()
+	response, err := reader.request(http.MethodPut, "/app", program, restartTimeout)
+	if err != nil {
+		return err
+	}
+	response.Body.Close()
+	oldStart := response.Header.Get("X-Started")
+	fmt.Println("uploaded, restarting")
+	deadline := time.Now().Add(restartTimeout)
+	for time.Now().Before(deadline) {
+		time.Sleep(followInterval)
+		response, err := reader.request(http.MethodGet, "/status", nil, requestTimeout)
+		if err != nil {
+			continue // closing or starting
+		}
+		response.Body.Close()
+		if response.Header.Get("X-Started") != oldStart {
+			fmt.Println("the new app answers")
+			return nil
+		}
+	}
+	return fmt.Errorf("the new app did not answer within %v: start it on the reader, and read its log over USB", restartTimeout)
 }

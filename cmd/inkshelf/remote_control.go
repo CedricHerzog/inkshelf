@@ -18,6 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
@@ -47,7 +49,27 @@ const (
 	headerTimeout = 10 * time.Second
 	maxScriptSize = 1 << 20
 	maxLogChunk   = 1 << 20
+	maxAppSize    = 64 << 20
 )
+
+// An uploaded app must be a 32-bit little-endian ARM ELF executable, as make build makes it:
+// the four bytes of elfMagic, then elfClass32 and elfLittleEndian, and elfMachineARM at
+// elfMachineOffset.
+const (
+	elfMagic         = "\x7fELF"
+	elfClass32       = 1
+	elfLittleEndian  = 1
+	elfMachineOffset = 18
+	elfMachineARM    = 40
+	elfHeaderSize    = 52
+)
+
+// startedHeader is the reply header that says when the app started.
+const startedHeader = "X-Started"
+
+// restarting is set when an uploaded app replaced this one: main execs it once the app has
+// closed.
+var restarting atomic.Bool
 
 // remoteToken returns the token of the marker file, or "" when the reader is not remote
 // controlled.
@@ -73,6 +95,12 @@ func startRemoteControl(token string, remote *pocketbook.RemoteControl, work scr
 		work:       work,
 		logPath:    logPath,
 		profileDir: profileDir,
+		appPath:    appPath,
+		started:    time.Now(),
+		restart: func() {
+			restarting.Store(true)
+			pocketbook.Exit()
+		},
 	}
 	listener, err := new(net.ListenConfig).Listen(context.Background(), "tcp", ":"+remotePort)
 	if err != nil {
@@ -128,6 +156,13 @@ type remoteServer struct {
 	work       script.BackgroundWork
 	logPath    string
 	profileDir string
+	// appPath is the app's program, which an upload replaces; restart then closes the app and
+	// starts the new one.
+	appPath string
+	restart func()
+	// started is when this app started, sent with every reply as startedHeader: a new value
+	// tells that the app restarted.
+	started time.Time
 
 	// scripts lets one script run at a time: two would mix their input.
 	scripts sync.Mutex
@@ -140,20 +175,32 @@ type remoteServer struct {
 // handler returns the server's routes, behind the token check.
 func (server *remoteServer) handler() http.Handler {
 	routes := http.NewServeMux()
+	routes.HandleFunc("GET /status", server.status)
 	routes.HandleFunc("GET /panel.png", server.panel)
 	routes.HandleFunc("POST /script", server.runScript)
 	routes.HandleFunc("GET /shots/{name}", server.shot)
 	routes.HandleFunc("GET /log", server.log)
 	routes.HandleFunc("GET /profile/", server.profileFiles)
 	routes.HandleFunc("GET /profile/{name}", server.profileFile)
+	routes.HandleFunc("PUT /app", server.replaceApp)
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		given, bearer := strings.CutPrefix(request.Header.Get("Authorization"), "Bearer ")
 		if !bearer || subtle.ConstantTimeCompare([]byte(given), []byte(server.token)) != 1 {
 			http.Error(writer, "wrong or missing token", http.StatusUnauthorized)
 			return
 		}
+		writer.Header().Set(startedHeader, server.started.Format(time.RFC3339Nano))
 		routes.ServeHTTP(writer, request)
 	})
+}
+
+// status says whether the app has opened the reader. Its startedHeader, as every reply's,
+// tells whether the app restarted.
+func (server *remoteServer) status(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(writer).Encode(map[string]bool{"ready": server.reader.Ready()}); err != nil {
+		log.Printf("remote control: status: %v", err)
+	}
 }
 
 // panel sends what the panel shows, as a PNG.
@@ -304,6 +351,73 @@ func (server *remoteServer) profileFile(writer http.ResponseWriter, request *htt
 		return
 	}
 	http.ServeContent(writer, request, info.Name(), info.ModTime(), file)
+}
+
+// replaceApp replaces the app's program with the request's body, then restarts the app. The
+// program is written next to it, checked and synced first, then renamed over it: the running
+// app keeps its own copy open, and a failed upload leaves the old program in place.
+func (server *remoteServer) replaceApp(writer http.ResponseWriter, request *http.Request) {
+	program, err := io.ReadAll(http.MaxBytesReader(writer, request.Body, maxAppSize))
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := checkARMExecutable(program); err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := writeFileSynced(server.appPath+".new", program); err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := os.Rename(server.appPath+".new", server.appPath); err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("remote control: new app (%d bytes), restarting", len(program))
+	fmt.Fprintln(writer, "restarting")
+	// The reply must leave before the app closes.
+	if err := http.NewResponseController(writer).Flush(); err != nil {
+		log.Printf("remote control: %v", err)
+	}
+	server.restart()
+}
+
+// checkARMExecutable reports an error unless program looks like what make build makes.
+func checkARMExecutable(program []byte) error {
+	if len(program) < elfHeaderSize || string(program[:len(elfMagic)]) != elfMagic {
+		return errors.New("not an ELF executable")
+	}
+	machine := int(program[elfMachineOffset]) | int(program[elfMachineOffset+1])<<8
+	if program[4] != elfClass32 || program[5] != elfLittleEndian || machine != elfMachineARM {
+		return errors.New("not a 32-bit ARM executable: run make build")
+	}
+	return nil
+}
+
+// writeFileSynced writes contents to path and syncs it to the storage, which the reader may
+// lose power before writing back.
+func writeFileSynced(path string, contents []byte) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	if _, err := file.Write(contents); err != nil {
+		_ = file.Close()
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
+		return err
+	}
+	return file.Close()
+}
+
+// execNewApp replaces this process with the app at appPath, once the app has closed after an
+// upload. The process keeps its id and group, by which the firmware knows the app's task.
+func execNewApp() error {
+	log.Printf("remote control: starting %s", appPath)
+	return syscall.Exec(appPath, os.Args, os.Environ()) //nolint:gosec // appPath is the app's own, fixed path
 }
 
 // ready reports whether the reader is open, and replies with an error if not.

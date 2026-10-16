@@ -53,6 +53,7 @@ func newTestServer(t *testing.T, reader *fakeReader) (*httptest.Server, *remoteS
 		work:       func() ([]string, time.Time) { return nil, time.Time{} },
 		logPath:    filepath.Join(dir, "inkshelf.log"),
 		profileDir: filepath.Join(dir, "profile"),
+		appPath:    filepath.Join(dir, "inkshelf.app"),
 	}
 	httpServer := httptest.NewServer(server.handler())
 	t.Cleanup(httpServer.Close)
@@ -140,7 +141,12 @@ func TestRemoteControlScript(t *testing.T) {
 }
 
 func TestRemoteControlNotReady(t *testing.T) {
-	httpServer, _ := newTestServer(t, &fakeReader{notOpen: true})
+	httpServer, server := newTestServer(t, &fakeReader{notOpen: true})
+	server.started = time.Date(2026, time.October, 16, 9, 0, 0, 0, time.UTC)
+	status, headers, body := send(t, http.MethodGet, httpServer.URL+"/status", "")
+	if status != http.StatusOK || strings.TrimSpace(body) != `{"ready":false}` || headers.Get(startedHeader) != "2026-10-16T09:00:00Z" {
+		t.Errorf("status: %d, %q, started %q", status, body, headers.Get(startedHeader))
+	}
 	if status, _, _ := send(t, http.MethodPost, httpServer.URL+"/script", "key next"); status != http.StatusServiceUnavailable {
 		t.Errorf("status %d, want 503", status)
 	}
@@ -197,5 +203,43 @@ func TestRemoteControlProfile(t *testing.T) {
 		if status, _, body := send(t, http.MethodGet, httpServer.URL+"/profile/"+name, ""); status == http.StatusOK {
 			t.Errorf("%s: status 200, body %q, want it refused", name, body)
 		}
+	}
+}
+
+// armHeader returns the start of an ELF executable for machine, 32-bit little-endian.
+func armHeader(machine byte) string {
+	header := make([]byte, elfHeaderSize)
+	copy(header, elfMagic)
+	header[4], header[5], header[elfMachineOffset] = elfClass32, elfLittleEndian, machine
+	return string(header)
+}
+
+func TestRemoteControlReplacesTheApp(t *testing.T) {
+	httpServer, server := newTestServer(t, &fakeReader{})
+	restarts := 0
+	server.restart = func() { restarts++ }
+	if err := os.WriteFile(server.appPath, []byte("old"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const x86 = 3
+	for _, refused := range []string{"", "#!/bin/sh\n", armHeader(x86)} {
+		if status, _, _ := send(t, http.MethodPut, httpServer.URL+"/app", refused); status != http.StatusBadRequest {
+			t.Errorf("upload of %q: status %d, want 400", refused[:min(len(refused), 8)], status)
+		}
+	}
+	if contents, _ := os.ReadFile(server.appPath); string(contents) != "old" || restarts != 0 {
+		t.Fatalf("after refused uploads: app %q, %d restarts; want the old app kept", contents, restarts)
+	}
+
+	program := armHeader(elfMachineARM) + "code"
+	if status, _, body := send(t, http.MethodPut, httpServer.URL+"/app", program); status != http.StatusOK {
+		t.Fatalf("upload: status %d, body %q", status, body)
+	}
+	contents, err := os.ReadFile(server.appPath)
+	if err != nil || string(contents) != program || restarts != 1 {
+		t.Errorf("after the upload: app of %d bytes, %d restarts, %v; want the new app and a restart", len(contents), restarts, err)
+	}
+	if info, err := os.Stat(server.appPath); err != nil || info.Mode().Perm()&0o100 == 0 {
+		t.Errorf("the new app is not executable: %v", info.Mode())
 	}
 }
