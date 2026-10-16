@@ -7,9 +7,11 @@ import (
 	"image"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"unsafe"
 )
@@ -40,6 +42,10 @@ type readerFirmware struct {
 	taskBuffer []byte
 	// eventBuffer is where /hwevent messages are received.
 	eventBuffer [hardwareEventSize]byte
+	// wake receives a value when inputSignal comes (see watchInput), and watching is true from
+	// when mq_notify was asked until then.
+	wake     chan struct{}
+	watching atomic.Bool
 	// darkStatus is what darkMode last logged, to log it only when it changes.
 	darkStatus string
 }
@@ -66,6 +72,10 @@ func openFirmware() (firmware, *image.Gray, error) {
 	if reader.events, err = mqOpen(eventQueue, syscall.O_RDONLY|syscall.O_NONBLOCK); err != nil {
 		log.Printf("event queue: %v", err)
 	}
+	reader.wake = make(chan struct{}, 1)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, inputSignal)
+	go reader.forwardInputSignals(signals)
 	// The screen is portrait and the framebuffer landscape: the framebuffer's rows are the
 	// screen's columns.
 	size := image.Pt(reader.framebufferHeight, framebufferWidth)
@@ -157,6 +167,40 @@ func (reader *readerFirmware) nextHardwareEvent() ([]byte, bool) {
 	}
 	return buffer, true
 }
+
+// inputSignal is the signal mq_notify sends when input arrives: a real-time signal, which
+// neither the firmware nor the Go runtime uses.
+const inputSignal = syscall.Signal(40)
+
+// forwardInputSignals turns each inputSignal into a value on wake, as the watch it ends.
+func (reader *readerFirmware) forwardInputSignals(signals <-chan os.Signal) {
+	for range signals {
+		reader.watching.Store(false)
+		select {
+		case reader.wake <- struct{}{}:
+		default: // a wake-up is already due
+		}
+	}
+}
+
+// watchInput asks mq_notify for inputSignal, unless a request is still waiting for input.
+func (reader *readerFirmware) watchInput() bool {
+	if reader.events < 0 {
+		return false
+	}
+	if reader.watching.Load() {
+		return true
+	}
+	if err := mqNotify(reader.events, inputSignal); err != nil {
+		log.Printf("event queue: %v", err)
+		return false
+	}
+	reader.watching.Store(true)
+	return true
+}
+
+// inputWake receives a value when inputSignal comes.
+func (reader *readerFirmware) inputWake() <-chan struct{} { return reader.wake }
 
 // nextTaskMessage returns the next message for this task, if any.
 func (reader *readerFirmware) nextTaskMessage() ([]byte, bool) {

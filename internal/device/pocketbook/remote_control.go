@@ -20,7 +20,8 @@ type RemoteControl struct {
 
 	// mu guards the fields below.
 	mu sync.Mutex
-	// input is the input not read yet.
+	// input is the input not read yet. Its arrived channel also gets the reader's wake-ups
+	// (see attach), so that inputWake covers both.
 	input injectedInput
 	// panel is the app's screen as of its last refreshes, nil until RunRemoteControlled opens
 	// the reader.
@@ -51,6 +52,8 @@ func (remote *RemoteControl) attach(reader firmware, size image.Point) {
 	}
 	remote.firmware = reader
 	remote.mu.Lock()
+	remote.input = newInjectedInput()
+	go forwardWakes(reader.inputWake(), remote.input.arrived)
 	remote.panel = panel
 	remote.isVisible = reader.visible()
 	remote.mu.Unlock()
@@ -190,6 +193,21 @@ func (remote *RemoteControl) nextHardwareEvent() ([]byte, bool) {
 	}
 	return remote.firmware.nextHardwareEvent()
 }
+
+// forwardWakes passes on each value of from to to, dropping it if to already has one.
+func forwardWakes(from <-chan struct{}, to chan<- struct{}) {
+	for range from {
+		select {
+		case to <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (remote *RemoteControl) watchInput() bool { return remote.firmware.watchInput() }
+
+// inputWake receives a value when injected input or the reader's arrives.
+func (remote *RemoteControl) inputWake() <-chan struct{} { return remote.input.arrived }
 
 func (remote *RemoteControl) describe() string { return remote.firmware.describe() }
 

@@ -6,9 +6,19 @@ import (
 	"time"
 )
 
-// pollInterval is how often the event loop reads the firmware's queues. libinkview polls as
-// often: neither queue can wake the app when a message arrives.
-const pollInterval = 20 * time.Millisecond
+// Input wakes the event loop as it arrives (watchInput), but the task queue can't: the loop
+// polls it, with the foreground and the replies to requests, every idlePollInterval. While a
+// finger or a button is down, it polls every pollInterval, as libinkview does, since long
+// presses and key repeats come from the clock; so it does on a firmware that can't watch
+// input. Waking 50 times a second costs the idle app about 4.6% of a core on an InkPad 3.
+const (
+	pollInterval     = 20 * time.Millisecond
+	idlePollInterval = 250 * time.Millisecond
+)
+
+// missedWakesLimit is how many times in a row poll may find input that no wake-up announced
+// before the loop stops trusting them, and polls every pollInterval.
+const missedWakesLimit = 3
 
 // requestTimeout is how long the event loop waits for the firmware's reply to a request
 // before it forgets the request.
@@ -22,6 +32,10 @@ type eventLoop struct {
 	screenSize image.Point
 	// visible is true while the app is in the foreground and may refresh the panel.
 	visible bool
+	// pollsInput is true when input doesn't wake the loop (see watchInput), and polledInput
+	// counts the polls in a row that found input no wake-up announced.
+	pollsInput  bool
+	polledInput int
 
 	// held is true while a button is down.
 	held bool
@@ -68,7 +82,13 @@ func (loop *eventLoop) poll(now time.Time) (exit bool) {
 	if !loop.followForeground() {
 		return false
 	}
-	loop.readInput(now)
+	if loop.readInput(now) && !loop.pollsInput {
+		loop.polledInput++
+		if loop.polledInput >= missedWakesLimit {
+			log.Printf("event queue: input arrives without waking the loop: polling every %v", pollInterval)
+			loop.pollsInput = true
+		}
+	}
 	loop.repeatHeldKey(now)
 	loop.sendLongPress(now)
 	return false
@@ -139,22 +159,57 @@ func (loop *eventLoop) followForeground() (visible bool) {
 		// Back in front: the panel still shows what the previous app drew, and dark mode may
 		// have been switched meanwhile.
 		loop.visible = true
+		loop.watchInput()
 		followDarkMode()
 		loop.app.Draw()
 	}
 	return true
 }
 
-// readInput handles every waiting /hwevent message. Call it only in the foreground: the queue
-// is shared by all apps.
-func (loop *eventLoop) readInput(now time.Time) {
+// readInput handles every waiting /hwevent message, and reports whether there was any. Call it
+// only in the foreground: the queue is shared by all apps.
+func (loop *eventLoop) readInput(now time.Time) (read bool) {
 	for {
 		message, ok := loop.firmware.nextHardwareEvent()
 		if !ok {
-			return
+			return read
 		}
+		read = true
 		loop.handleHardwareEvent(decodeHardwareEvent(message), now)
 	}
+}
+
+// inputWoke handles the input that woke the loop, if the app is in front, and watches for the
+// next: in the background, the input is another app's, and the loop watches again when the
+// app comes back.
+func (loop *eventLoop) inputWoke(now time.Time) {
+	loop.polledInput = 0
+	if !loop.visible {
+		return
+	}
+	// Watching first: input that arrives while the queue is read wakes the loop again.
+	loop.watchInput()
+	loop.readInput(now)
+}
+
+// watchInput asks the firmware to wake the loop on input. When it can't, the loop polls.
+func (loop *eventLoop) watchInput() {
+	if loop.pollsInput {
+		return
+	}
+	if !loop.firmware.watchInput() {
+		log.Printf("event queue: input can't wake the loop: polling every %v", pollInterval)
+		loop.pollsInput = true
+	}
+}
+
+// nextPoll returns how long until poll is due: soon while a button or a finger is down, or
+// when input can't wake the loop; else at the idle pace.
+func (loop *eventLoop) nextPoll() time.Duration {
+	if loop.held || loop.touch.active || loop.pollsInput {
+		return pollInterval
+	}
+	return idlePollInterval
 }
 
 // handleHardwareEvent passes a button or a touch of the first finger on to the app.

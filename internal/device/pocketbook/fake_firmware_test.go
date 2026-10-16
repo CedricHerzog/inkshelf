@@ -29,6 +29,8 @@ type fakeFirmware struct {
 	flushes []image.Rectangle
 	// global is the firmware's shared state.
 	global []byte
+	// cannotWatch makes watchInput fail, as on a firmware that doesn't allow mq_notify.
+	cannotWatch bool
 	// dark is the dark mode setting, and darkUnknown makes it unreadable.
 	dark, darkUnknown bool
 }
@@ -43,6 +45,8 @@ func (fake *fakeFirmware) visible() bool    { return fake.isVisible }
 func (fake *fakeFirmware) describe() string { return "fake" }
 
 func (fake *fakeFirmware) nextHardwareEvent() ([]byte, bool) { return pop(&fake.events) }
+func (fake *fakeFirmware) watchInput() bool                  { return !fake.cannotWatch }
+func (fake *fakeFirmware) inputWake() <-chan struct{}        { return nil }
 func (fake *fakeFirmware) nextTaskMessage() ([]byte, bool)   { return pop(&fake.messages) }
 
 func (fake *fakeFirmware) nextReply(id int32) ([]byte, bool) {

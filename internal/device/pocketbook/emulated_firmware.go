@@ -87,6 +87,7 @@ func NewEmulator(size image.Point, simulateRefresh bool) *Emulator {
 		simulateRefresh: simulateRefresh,
 		panel:           image.NewGray(image.Rectangle{Max: size}),
 		isVisible:       true,
+		input:           newInjectedInput(),
 		replies:         map[int32][]byte{},
 		batteryPercent:  emulatorBatteryPercent,
 		subscribers:     map[chan PanelRefresh]struct{}{},
@@ -208,6 +209,12 @@ func (emulator *Emulator) nextHardwareEvent() ([]byte, bool) {
 	defer emulator.mu.Unlock()
 	return emulator.input.next()
 }
+
+// watchInput needs nothing: the emulator wakes the event loop on all input.
+func (emulator *Emulator) watchInput() bool { return true }
+
+// inputWake receives a value when input is sent.
+func (emulator *Emulator) inputWake() <-chan struct{} { return emulator.input.arrived }
 
 // nextTaskMessage returns the oldest task message not read yet, if any.
 func (emulator *Emulator) nextTaskMessage() ([]byte, bool) {

@@ -19,6 +19,13 @@ type firmware interface {
 	// nextHardwareEvent returns the next input message from /hwevent, if any. Call it only
 	// when visible: the queue is shared by all apps, and the input is the foreground app's.
 	nextHardwareEvent() ([]byte, bool)
+	// watchInput asks for a value on inputWake when input arrives on /hwevent while it is
+	// empty, without reading it: the event loop then reads it only if the app is in front,
+	// since the queue's input is the foreground app's. A value ends the watch; ask again. It
+	// reports whether the firmware can watch: when not, the event loop polls the queue often.
+	watchInput() bool
+	// inputWake receives a value when input may have arrived (see watchInput).
+	inputWake() <-chan struct{}
 	// nextTaskMessage returns the next message for this task, if any.
 	nextTaskMessage() ([]byte, bool)
 	// nextReply returns the firmware's reply to the request with this id, if it came.
