@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/CedricHerzog/inkshelf/internal/timing"
@@ -26,11 +26,6 @@ const networkTimeout = 40 * time.Second
 // connectPollInterval is how often KeepWiFiOn checks whether Wi-Fi is connected.
 const connectPollInterval = 250 * time.Millisecond
 
-// netagentWaitDelay is how long KeepWiFiOn waits for netagent's output once ctx has killed it.
-// The processes netagent starts outlive it and hold its output open: without a bound, waiting
-// for that output would wait for them, and the app would be stuck connecting.
-const netagentWaitDelay = 2 * time.Second
-
 // WiFiConnected reports whether the reader is connected to a network already.
 func WiFiConnected() bool { return connected() }
 
@@ -43,11 +38,8 @@ func KeepWiFiOn(ctx context.Context) (stop func(), err error) {
 	ctx, cancel := context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
 	span := timing.Start(ctx, "connect Wi-Fi")
-	command := exec.CommandContext(ctx, netagent, "net", "on")
-	command.WaitDelay = netagentWaitDelay
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("netagent net on: %w: %s", err, strings.TrimSpace(string(output)))
+	if err := runNetagent(ctx, "on"); err != nil {
+		return nil, err
 	}
 	for !connected() {
 		select {
@@ -59,10 +51,25 @@ func KeepWiFiOn(ctx context.Context) (stop func(), err error) {
 	log.Printf("Wi-Fi connected in %v", span.End())
 	return func() {
 		// It runs after KeepWiFiOn has returned and canceled ctx.
-		if output, err := exec.CommandContext(context.Background(), netagent, "net", "off").CombinedOutput(); err != nil {
-			log.Printf("netagent net off: %v: %s", err, strings.TrimSpace(string(output)))
+		if err := runNetagent(context.Background(), "off"); err != nil {
+			log.Print(err)
 		}
 	}, nil
+}
+
+// runNetagent runs "netagent net on" or "net off" and waits for it to exit. Its output goes to
+// the app's stderr, the log, rather than through a pipe: netagent exits while the processes it
+// starts to bring Wi-Fi up still write to its output, and with a pipe the wait would last as
+// long as they do. Cutting that wait short closes the pipe under them, and Wi-Fi never comes
+// up.
+func runNetagent(ctx context.Context, state string) error {
+	command := exec.CommandContext(ctx, netagent, "net", state)
+	command.Stdout = os.Stderr
+	command.Stderr = os.Stderr
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("netagent net %s: %w", state, err)
+	}
+	return nil
 }
 
 // connected reports whether an interface other than loopback is up with an IPv4 address.

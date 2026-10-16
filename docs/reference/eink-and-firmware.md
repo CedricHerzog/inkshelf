@@ -183,10 +183,12 @@ sequenceDiagram
 
 Wi-Fi is turned on by running the firmware's own tool, `/ebrmain/bin/netagent net on`, as
 libinkview's `NetConnect` does (`wifi_linux_arm.go`, `KeepWiFiOn`). It also fills
-`/etc/resolv.conf`, so Go's own DNS resolver works. `KeepWiFiOn` gives up after 40 s; the
-processes netagent starts outlive it when it is killed and hold its output open, so the wait for
-that output is bounded too (`WaitDelay`). The app does not wait for it to show the downloaded
-books: `session.Load` shows them first when the reader is not connected yet.
+`/etc/resolv.conf`, so Go's own DNS resolver works. `KeepWiFiOn` gives up after 40 s. The
+processes netagent starts outlive it and keep writing to its output, so that output goes to the
+log file, not through a pipe (`runNetagent`). With a pipe, waiting for netagent would last as
+long as they run, and cutting the wait short closed the pipe under them: Wi-Fi then never came
+up. The app does not wait for Wi-Fi to show the downloaded books: `session.Load` shows them
+first when the reader is not connected yet.
 
 The reader falls asleep after a few minutes without input. A download would be cut short, so
 the app calls `PreventSleepFor` while it works.
