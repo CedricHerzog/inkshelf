@@ -61,15 +61,20 @@ passes everything through, with two additions:
 
 - **Input.** A touch or a button of a script is queued as the same raw `/hwevent` bytes the
   firmware sends (`injectedInput`, shared with the `Emulator`). `nextHardwareEvent` returns that
-  input before the reader's own, so the real event loop decodes it.
+  input before the reader's own, so the real event loop decodes it. Queuing it wakes the loop
+  through `inputWake`, as the kernel's signal does for the reader's own input
+  ([eink-and-firmware.md](eink-and-firmware.md#the-event-loop)). The reader's queue itself only
+  takes the firmware's input: it refuses to let the app write to it.
   - While the app is in the background, injected input is dropped, as the firmware does.
   - `Pending` tells a script when the event loop has handled it all.
 - **The panel.** After each refresh, `flush` copies the refreshed area of the canvas into a
   shadow panel, rounded to the waveform's grays as the emulator does (`copyToPanel`).
   - The copy only knows the app's own refreshes. While another app is in front, it still shows
     the app's last screen.
-  - The copy costs a few milliseconds per refresh, on the app's goroutine. Page-turn times in
-    the log are a little longer under remote control.
+  - The copy runs on the app's goroutine and costs about 30 ms for a full-screen refresh on
+    the InkPad 3. Its grays are rounded through a lookup table: dividing per pixel cost about
+    130 ms, since the reader's ARM code divides in software. Subtract it from page-turn times
+    measured under remote control.
 
 The script language is the emulator's: [device/pocketbook/script](../../internal/device/pocketbook/script/doc.go).
 Both readers are a `script.Target`. Only the emulator is also `script.Emulated`, so `home`,

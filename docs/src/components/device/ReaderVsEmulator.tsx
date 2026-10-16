@@ -15,7 +15,7 @@ type Swap = {title: string; reader: [string, string]; emulator: [string, string]
 const kept: [string, string][] = [
   ['internal/app', 'the screens, the state, the servers: the same code'],
   ['event loop', 'event_loop.go, touch.go, keys.go: the same code'],
-  ['firmware interface', 'flush, visible, nextHardwareEvent, nextTaskMessage, nextReply, send, battery'],
+  ['firmware interface', 'flush, visible, nextHardwareEvent, watchInput, inputWake, nextTaskMessage, nextReply, send, battery, darkMode'],
 ];
 
 const swaps: Swap[] = [
