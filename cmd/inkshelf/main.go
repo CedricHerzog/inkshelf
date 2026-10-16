@@ -25,7 +25,14 @@ func main() {
 	stopProfiling := startProfiling()
 	application := app.New(appDir, registry.Opener(httpclient.New()), registry.KindOf, app.Options{})
 	// Run returns the error that stopped loading, already logged and shown.
-	err := pocketbook.Run(application)
+	var err error
+	if token := remoteToken(); token != "" {
+		remote := &pocketbook.RemoteControl{}
+		startRemoteControl(token, remote, application.BackgroundWork)
+		err = pocketbook.RunRemoteControlled(application, remote)
+	} else {
+		err = pocketbook.Run(application)
+	}
 	stopProfiling()
 	if err != nil {
 		os.Exit(1)
