@@ -94,7 +94,7 @@ the app started. A new value means the app restarted.
 | Request | Reply |
 |---|---|
 | `GET /status` | `{"ready": true, "logSize": N}`: whether the app has opened the reader, and the log's length, where the next lines will start |
-| `GET /stats` | Go heap (in use, from the system, allocated since start), garbage collections and their pauses, goroutines, CPU ticks from `/proc/self/stat`, `/proc/loadavg`, the battery. Reading memory stats pauses the app for a moment, so sample every few seconds at most. |
+| `GET /stats` | Go heap (in use, from the system, allocated since start), garbage collections and their pauses, goroutines, the process's CPU time in nanoseconds (`CLOCK_PROCESS_CPUTIME_ID`; the ticks of `/proc/self/stat` can stand still for minutes after a restart), `/proc/loadavg`, the battery. Reading memory stats pauses the app for a moment, so sample every few seconds at most. |
 | `POST /profile?for=90s` | starts a [profile capture](profiling.md#profiling-a-run) into `applications/inkshelf-profile/` (default 90 s, at most 10 min); 409 if one is running |
 | `GET /panel.png` | the shadow panel |
 | `POST /script` (the script as the body) | `{"shots": [...], "error": "..."}` once the script is over. One script runs at a time. A script that does not parse gets 400. |

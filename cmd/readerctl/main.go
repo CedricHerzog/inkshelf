@@ -383,7 +383,7 @@ func (reader *reader) capture(duration string) error {
 
 // statsColumns are the CSV columns of sampleStats, the JSON fields of the reader's /stats.
 var statsColumns = []string{"at", "heapAlloc", "heapSys", "totalAlloc", "numGC", "pauseTotalNs", "goroutines",
-	"userTicks", "systemTicks", "loadAverage", "battery", "charging"}
+	"cpuNanoseconds", "loadAverage", "battery", "charging"}
 
 // sampleStats samples the reader's /stats every interval for total, into a CSV file of
 // statsDir, printing each row as it comes.

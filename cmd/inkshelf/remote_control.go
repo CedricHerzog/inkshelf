@@ -23,6 +23,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
 	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook/script"
 	"github.com/CedricHerzog/inkshelf/internal/timing"
@@ -354,13 +356,11 @@ type remoteStats struct {
 	NumGC        uint32 `json:"numGC"`
 	PauseTotalNs uint64 `json:"pauseTotalNs"`
 	Goroutines   int    `json:"goroutines"`
-	// UserTicks and SystemTicks are the CPU time the process used since it started, in clock
-	// ticks (100 a second on the reader), from /proc/self/stat.
-	UserTicks   int64  `json:"userTicks"`
-	SystemTicks int64  `json:"systemTicks"`
-	LoadAverage string `json:"loadAverage"`
-	Battery     int    `json:"battery"`
-	Charging    bool   `json:"charging"`
+	// CPUNanoseconds is the CPU time the process has used (see cpuTime).
+	CPUNanoseconds int64  `json:"cpuNanoseconds"`
+	LoadAverage    string `json:"loadAverage"`
+	Battery        int    `json:"battery"`
+	Charging       bool   `json:"charging"`
 }
 
 // stats sends a remoteStats. Reading the memory stats stops the program for a moment: sample
@@ -377,7 +377,7 @@ func (server *remoteServer) stats(writer http.ResponseWriter, request *http.Requ
 		PauseTotalNs: memory.PauseTotalNs,
 		Goroutines:   runtime.NumGoroutine(),
 	}
-	sample.UserTicks, sample.SystemTicks = cpuTicks()
+	sample.CPUNanoseconds = cpuTime()
 	if loadAverage, err := os.ReadFile("/proc/loadavg"); err == nil {
 		sample.LoadAverage = strings.TrimSpace(string(loadAverage))
 	}
@@ -388,28 +388,16 @@ func (server *remoteServer) stats(writer http.ResponseWriter, request *http.Requ
 	}
 }
 
-// The fields of /proc/self/stat after the command's name, which ends with ")": the state is
-// field 3 of the whole line, utime field 14 and stime field 15.
-const (
-	statUserTimeField   = 14 - 3
-	statSystemTimeField = 15 - 3
-)
-
-// cpuTicks returns the CPU time this process used, in clock ticks, or zeros where there is no
-// /proc (off Linux).
-func cpuTicks() (user, system int64) {
-	contents, err := os.ReadFile("/proc/self/stat")
-	if err != nil {
-		return 0, 0
+// cpuTime returns the CPU time this process has used, in nanoseconds, or 0 if the system
+// can't tell. It is the kernel's exact run time (CLOCK_PROCESS_CPUTIME_ID): the user and
+// system ticks of /proc/self/stat are rescaled by the kernel to stay monotonic, and after the
+// app restarts by exec they can stand still for minutes.
+func cpuTime() int64 {
+	var spent unix.Timespec
+	if err := unix.ClockGettime(unix.CLOCK_PROCESS_CPUTIME_ID, &spent); err != nil {
+		return 0
 	}
-	_, afterName, ok := strings.Cut(string(contents), ") ")
-	fields := strings.Fields(afterName)
-	if !ok || len(fields) <= statSystemTimeField {
-		return 0, 0
-	}
-	user, _ = strconv.ParseInt(fields[statUserTimeField], 10, 64)
-	system, _ = strconv.ParseInt(fields[statSystemTimeField], 10, 64)
-	return user, system
+	return spent.Nano()
 }
 
 // startProfile starts profiling into the profile directory for the duration of the for
