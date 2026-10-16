@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"image"
 	"io"
 	"net/http"
@@ -27,16 +28,17 @@ type fakeReader struct {
 	keys    []pocketbook.Key
 }
 
-func (reader *fakeReader) Ready() bool               { return !reader.notOpen }
-func (reader *fakeReader) Size() image.Point         { return image.Pt(1404, 1872) }
-func (reader *fakeReader) PointerDown(image.Point)   {}
-func (reader *fakeReader) PointerMove(image.Point)   {}
-func (reader *fakeReader) PointerUp(image.Point)     {}
-func (reader *fakeReader) ReleaseKey(pocketbook.Key) {}
-func (reader *fakeReader) LastRefresh() time.Time    { return time.Time{} }
-func (reader *fakeReader) Pending() bool             { return false }
-func (reader *fakeReader) RequestExit()              {}
-func (reader *fakeReader) Panel() *image.Gray        { return image.NewGray(image.Rect(0, 0, 4, 4)) }
+func (reader *fakeReader) Ready() bool                { return !reader.notOpen }
+func (reader *fakeReader) Size() image.Point          { return image.Pt(1404, 1872) }
+func (reader *fakeReader) PointerDown(image.Point)    {}
+func (reader *fakeReader) PointerMove(image.Point)    {}
+func (reader *fakeReader) PointerUp(image.Point)      {}
+func (reader *fakeReader) ReleaseKey(pocketbook.Key)  {}
+func (reader *fakeReader) LastRefresh() time.Time     { return time.Time{} }
+func (reader *fakeReader) Pending() bool              { return false }
+func (reader *fakeReader) RequestExit()               {}
+func (reader *fakeReader) Battery() (int, bool, bool) { return 42, true, true }
+func (reader *fakeReader) Panel() *image.Gray         { return image.NewGray(image.Rect(0, 0, 4, 4)) }
 func (reader *fakeReader) PressKey(key pocketbook.Key) {
 	reader.mu.Lock()
 	defer reader.mu.Unlock()
@@ -144,7 +146,7 @@ func TestRemoteControlNotReady(t *testing.T) {
 	httpServer, server := newTestServer(t, &fakeReader{notOpen: true})
 	server.started = time.Date(2026, time.October, 16, 9, 0, 0, 0, time.UTC)
 	status, headers, body := send(t, http.MethodGet, httpServer.URL+"/status", "")
-	if status != http.StatusOK || strings.TrimSpace(body) != `{"ready":false}` || headers.Get(startedHeader) != "2026-10-16T09:00:00Z" {
+	if status != http.StatusOK || strings.TrimSpace(body) != `{"ready":false,"logSize":0}` || headers.Get(startedHeader) != "2026-10-16T09:00:00Z" {
 		t.Errorf("status: %d, %q, started %q", status, body, headers.Get(startedHeader))
 	}
 	if status, _, _ := send(t, http.MethodPost, httpServer.URL+"/script", "key next"); status != http.StatusServiceUnavailable {
@@ -241,5 +243,49 @@ func TestRemoteControlReplacesTheApp(t *testing.T) {
 	}
 	if info, err := os.Stat(server.appPath); err != nil || info.Mode().Perm()&0o100 == 0 {
 		t.Errorf("the new app is not executable: %v", info.Mode())
+	}
+}
+
+func TestRemoteControlStats(t *testing.T) {
+	httpServer, _ := newTestServer(t, &fakeReader{})
+	status, _, body := send(t, http.MethodGet, httpServer.URL+"/stats", "")
+	var sample remoteStats
+	if err := json.Unmarshal([]byte(body), &sample); status != http.StatusOK || err != nil {
+		t.Fatalf("status %d, body %q", status, body)
+	}
+	if sample.Goroutines == 0 || sample.HeapAlloc == 0 || sample.Battery != 42 || !sample.Charging {
+		t.Errorf("stats = %+v, want goroutines, a heap and the battery", sample)
+	}
+}
+
+func TestRemoteControlStartsAProfile(t *testing.T) {
+	httpServer, server := newTestServer(t, &fakeReader{})
+	var limits []time.Duration
+	server.capture = func(dir string, limit time.Duration) (func(), error) {
+		if dir != server.profileDir {
+			t.Errorf("capture into %s, want %s", dir, server.profileDir)
+		}
+		limits = append(limits, limit)
+		if len(limits) == 3 {
+			return nil, errors.New("cpu profiling already in use")
+		}
+		return func() {}, nil
+	}
+	for _, test := range []struct {
+		query  string
+		status int
+	}{
+		{"", http.StatusOK},
+		{"?for=30s", http.StatusOK},
+		{"?for=soon", http.StatusBadRequest},
+		{"?for=1h", http.StatusBadRequest},
+		{"?for=10s", http.StatusConflict}, // the third capture fails
+	} {
+		if status, _, body := send(t, http.MethodPost, httpServer.URL+"/profile"+test.query, ""); status != test.status {
+			t.Errorf("POST /profile%s: status %d (%q), want %d", test.query, status, body, test.status)
+		}
+	}
+	if want := []time.Duration{defaultCaptureTime, 30 * time.Second, 10 * time.Second}; !slices.Equal(limits, want) {
+		t.Errorf("captures for %v, want %v", limits, want)
 	}
 }

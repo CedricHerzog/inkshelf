@@ -128,6 +128,16 @@ func (remote *RemoteControl) ReleaseKey(key Key) {
 	remote.inject(hardwareEvent{kind: eventKeyRelease, keyOrRawX: int32(key)})
 }
 
+// Battery returns the battery's charge and whether it is charging, as Battery does. ok is
+// false before the reader is open.
+func (remote *RemoteControl) Battery() (percent int, charging, ok bool) {
+	// The firmware is set before the panel, under mu: once Ready, it can be read.
+	if !remote.Ready() {
+		return 0, false, false
+	}
+	return remote.firmware.battery()
+}
+
 // RequestExit asks the app to exit, as Exit does.
 func (remote *RemoteControl) RequestExit() { Exit() }
 

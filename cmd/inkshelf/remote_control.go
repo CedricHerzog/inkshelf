@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
 	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook/script"
+	"github.com/CedricHerzog/inkshelf/internal/timing"
 )
 
 // The reader is remote controlled when remoteMarker exists in the app's directory, holding a
@@ -42,6 +44,13 @@ const (
 const (
 	awakeInterval = time.Minute
 	awakeMargin   = 30 * time.Second
+)
+
+// A profile started by request lasts defaultCaptureTime unless the request says, and at most
+// maxCaptureTime: a trace grows by megabytes a minute.
+const (
+	defaultCaptureTime = 90 * time.Second
+	maxCaptureTime     = 10 * time.Minute
 )
 
 // Limits on what a request may send or get, and how long its headers may take to come.
@@ -97,6 +106,7 @@ func startRemoteControl(token string, remote *pocketbook.RemoteControl, work scr
 		profileDir: profileDir,
 		appPath:    appPath,
 		started:    time.Now(),
+		capture:    timing.Capture,
 		restart: func() {
 			restarting.Store(true)
 			pocketbook.Exit()
@@ -147,6 +157,7 @@ func remoteURLs() []string {
 type remoteReader interface {
 	script.Target
 	Ready() bool
+	Battery() (percent int, charging, ok bool)
 }
 
 // remoteServer answers remote control requests.
@@ -163,6 +174,8 @@ type remoteServer struct {
 	// started is when this app started, sent with every reply as startedHeader: a new value
 	// tells that the app restarted.
 	started time.Time
+	// capture starts profiling, as timing.Capture does.
+	capture func(dir string, limit time.Duration) (stop func(), err error)
 
 	// scripts lets one script run at a time: two would mix their input.
 	scripts sync.Mutex
@@ -180,6 +193,8 @@ func (server *remoteServer) handler() http.Handler {
 	routes.HandleFunc("POST /script", server.runScript)
 	routes.HandleFunc("GET /shots/{name}", server.shot)
 	routes.HandleFunc("GET /log", server.log)
+	routes.HandleFunc("GET /stats", server.stats)
+	routes.HandleFunc("POST /profile", server.startProfile)
 	routes.HandleFunc("GET /profile/", server.profileFiles)
 	routes.HandleFunc("GET /profile/{name}", server.profileFile)
 	routes.HandleFunc("PUT /app", server.replaceApp)
@@ -194,11 +209,23 @@ func (server *remoteServer) handler() http.Handler {
 	})
 }
 
-// status says whether the app has opened the reader. Its startedHeader, as every reply's,
-// tells whether the app restarted.
+// remoteStatus is the reply to a status request.
+type remoteStatus struct {
+	// Ready is whether the app has opened the reader.
+	Ready bool `json:"ready"`
+	// LogSize is the log's length in bytes: where what happens next will be logged.
+	LogSize int64 `json:"logSize"`
+}
+
+// status says whether the app has opened the reader and how long the log is. Its
+// startedHeader, as every reply's, tells whether the app restarted.
 func (server *remoteServer) status(writer http.ResponseWriter, request *http.Request) {
+	reply := remoteStatus{Ready: server.reader.Ready()}
+	if info, err := os.Stat(server.logPath); err == nil {
+		reply.LogSize = info.Size()
+	}
 	writer.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(writer).Encode(map[string]bool{"ready": server.reader.Ready()}); err != nil {
+	if err := json.NewEncoder(writer).Encode(reply); err != nil {
 		log.Printf("remote control: status: %v", err)
 	}
 }
@@ -312,6 +339,98 @@ func (server *remoteServer) log(writer http.ResponseWriter, request *http.Reques
 	writer.Header().Set("X-Log-Size", strconv.FormatInt(info.Size(), 10))
 	if _, err := io.Copy(writer, io.NewSectionReader(file, offset, min(info.Size()-offset, maxLogChunk))); err != nil {
 		log.Printf("remote control: sending the log: %v", err)
+	}
+}
+
+// remoteStats is a sample of what the app costs, for watching its CPU, memory and battery over
+// time.
+type remoteStats struct {
+	At time.Time `json:"at"`
+	// The Go heap: in use, obtained from the system, allocated since start; and the garbage
+	// collections, with their total pause.
+	HeapAlloc    uint64 `json:"heapAlloc"`
+	HeapSys      uint64 `json:"heapSys"`
+	TotalAlloc   uint64 `json:"totalAlloc"`
+	NumGC        uint32 `json:"numGC"`
+	PauseTotalNs uint64 `json:"pauseTotalNs"`
+	Goroutines   int    `json:"goroutines"`
+	// UserTicks and SystemTicks are the CPU time the process used since it started, in clock
+	// ticks (100 a second on the reader), from /proc/self/stat.
+	UserTicks   int64  `json:"userTicks"`
+	SystemTicks int64  `json:"systemTicks"`
+	LoadAverage string `json:"loadAverage"`
+	Battery     int    `json:"battery"`
+	Charging    bool   `json:"charging"`
+}
+
+// stats sends a remoteStats. Reading the memory stats stops the program for a moment: sample
+// it every few seconds at most.
+func (server *remoteServer) stats(writer http.ResponseWriter, request *http.Request) {
+	var memory runtime.MemStats
+	runtime.ReadMemStats(&memory)
+	sample := remoteStats{
+		At:           time.Now(),
+		HeapAlloc:    memory.HeapAlloc,
+		HeapSys:      memory.HeapSys,
+		TotalAlloc:   memory.TotalAlloc,
+		NumGC:        memory.NumGC,
+		PauseTotalNs: memory.PauseTotalNs,
+		Goroutines:   runtime.NumGoroutine(),
+	}
+	sample.UserTicks, sample.SystemTicks = cpuTicks()
+	if loadAverage, err := os.ReadFile("/proc/loadavg"); err == nil {
+		sample.LoadAverage = strings.TrimSpace(string(loadAverage))
+	}
+	sample.Battery, sample.Charging, _ = server.reader.Battery()
+	writer.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(writer).Encode(sample); err != nil {
+		log.Printf("remote control: stats: %v", err)
+	}
+}
+
+// The fields of /proc/self/stat after the command's name, which ends with ")": the state is
+// field 3 of the whole line, utime field 14 and stime field 15.
+const (
+	statUserTimeField   = 14 - 3
+	statSystemTimeField = 15 - 3
+)
+
+// cpuTicks returns the CPU time this process used, in clock ticks, or zeros where there is no
+// /proc (off Linux).
+func cpuTicks() (user, system int64) {
+	contents, err := os.ReadFile("/proc/self/stat")
+	if err != nil {
+		return 0, 0
+	}
+	_, afterName, ok := strings.Cut(string(contents), ") ")
+	fields := strings.Fields(afterName)
+	if !ok || len(fields) <= statSystemTimeField {
+		return 0, 0
+	}
+	user, _ = strconv.ParseInt(fields[statUserTimeField], 10, 64)
+	system, _ = strconv.ParseInt(fields[statSystemTimeField], 10, 64)
+	return user, system
+}
+
+// startProfile starts profiling into the profile directory for the duration of the for
+// parameter ("90s"; defaultCaptureTime if missing). GET /profile/ lists the files once it is
+// over. One capture runs at a time: the Go runtime has one CPU profile.
+func (server *remoteServer) startProfile(writer http.ResponseWriter, request *http.Request) {
+	limit := defaultCaptureTime
+	if text := request.URL.Query().Get("for"); text != "" {
+		var err error
+		if limit, err = time.ParseDuration(text); err != nil || limit <= 0 || limit > maxCaptureTime {
+			http.Error(writer, fmt.Sprintf("bad duration %q: want up to %v", text, maxCaptureTime), http.StatusBadRequest)
+			return
+		}
+	}
+	if _, err := server.capture(server.profileDir, limit); err != nil {
+		http.Error(writer, err.Error(), http.StatusConflict)
+		return
+	}
+	writer.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(writer).Encode(map[string]string{"profiling": limit.String()}); err != nil {
+		log.Printf("remote control: profile: %v", err)
 	}
 }
 

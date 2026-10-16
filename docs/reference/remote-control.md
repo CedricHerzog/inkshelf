@@ -37,7 +37,12 @@ make reader-shots READER_SCRIPT=emulator/scripts/reader/smoke.txt   # shots -> b
 make reader-log                                           # follow the log, until Ctrl-C
 make reader-profile                                       # build/reader-profile/
 go run ./cmd/readerctl shot                               # the panel -> build/reader-shots/panel.png
+go run ./cmd/readerctl capture 90s                        # profile 90 s now, then fetch the profiles
+go run ./cmd/readerctl stats -every 1m -for 15m           # CPU, heap, battery -> build/investigation/*.csv
 ```
+
+`readerctl script` also saves what the app logged during the script, as `log.txt` next to its
+shots. So each run comes with its own page-turn and refresh times.
 
 To turn it off, delete `applications/inkshelf/remote` and restart the app. Without the file,
 the app runs exactly as before. It opens no port and starts no extra goroutine.
@@ -77,6 +82,9 @@ While on, the app:
 - calls `PreventSleepFor` every minute (`awakeInterval`), because a script's input is not real
   input and the reader would fall asleep.
 
+So measurements under remote control see Wi-Fi always on and no sleep. Idle CPU and memory are
+real, but the battery drain is not the one of normal use.
+
 ## The HTTP API
 
 Port 8740 (`remotePort`). Every request needs `Authorization: Bearer <token>`. The token is
@@ -85,7 +93,9 @@ the app started. A new value means the app restarted.
 
 | Request | Reply |
 |---|---|
-| `GET /status` | `{"ready": true}` once the app has opened the reader |
+| `GET /status` | `{"ready": true, "logSize": N}`: whether the app has opened the reader, and the log's length, where the next lines will start |
+| `GET /stats` | Go heap (in use, from the system, allocated since start), garbage collections and their pauses, goroutines, CPU ticks from `/proc/self/stat`, `/proc/loadavg`, the battery. Reading memory stats pauses the app for a moment, so sample every few seconds at most. |
+| `POST /profile?for=90s` | starts a [profile capture](profiling.md#profiling-a-run) into `applications/inkshelf-profile/` (default 90 s, at most 10 min); 409 if one is running |
 | `GET /panel.png` | the shadow panel |
 | `POST /script` (the script as the body) | `{"shots": [...], "error": "..."}` once the script is over. One script runs at a time. A script that does not parse gets 400. |
 | `GET /shots/NAME.png` | a shot of the last script |

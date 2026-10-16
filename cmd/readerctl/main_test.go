@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -24,6 +25,21 @@ func stubReader(t *testing.T) *reader {
 	})
 	routes.HandleFunc("GET /shots/one.png", func(writer http.ResponseWriter, request *http.Request) {
 		fmt.Fprint(writer, "png")
+	})
+	// The log held "before\n" when the script started, and the script logged two lines.
+	const logged = "before\nline 1: shot\nline 2: home\n"
+	routes.HandleFunc("GET /status", func(writer http.ResponseWriter, request *http.Request) {
+		fmt.Fprint(writer, `{"ready":true,"logSize":7}`)
+	})
+	routes.HandleFunc("GET /log", func(writer http.ResponseWriter, request *http.Request) {
+		offset := request.URL.Query().Get("offset")
+		writer.Header().Set("X-Log-Offset", offset)
+		writer.Header().Set("X-Log-Size", fmt.Sprint(len(logged)))
+		start, err := strconv.Atoi(offset)
+		if err != nil {
+			t.Errorf("log offset %q", offset)
+		}
+		fmt.Fprint(writer, logged[start:])
 	})
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Authorization") != "Bearer token" {
@@ -48,5 +64,9 @@ func TestRunScriptSavesShotsAndReportsTheError(t *testing.T) {
 	saved, readErr := os.ReadFile(filepath.Join(shotsDir, "smoke", "one.png"))
 	if readErr != nil || string(saved) != "png" {
 		t.Errorf("shot one = %q, %v; want it saved", saved, readErr)
+	}
+	runLog, readErr := os.ReadFile(filepath.Join(shotsDir, "smoke", "log.txt"))
+	if want := "line 1: shot\nline 2: home\n"; readErr != nil || string(runLog) != want {
+		t.Errorf("log.txt = %q, %v; want %q", runLog, readErr, want)
 	}
 }
