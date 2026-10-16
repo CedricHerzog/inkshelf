@@ -206,7 +206,12 @@ the dark mode setting.
 The emulator encodes input as the same raw bytes as the firmware, so the real event loop
 decodes them. [cmd/emulator](../../cmd/emulator) serves it as a web page or runs scripts headless
 (`make emu-fake`, `make shots`). What it cannot show: real ghosting, real speed, Wi-Fi, sleep
-and the firmware's own behavior. Those need `make deploy` and the log on the reader.
+and the firmware's own behavior. Those need the reader.
+
+A third implementation, `RemoteControl` (`remote_control.go`), wraps `readerFirmware` on the
+reader. It adds injected input before the reader's own, and keeps a copy of what the app
+refreshes, so the emulator's scripts run on the real reader over Wi-Fi. See
+[remote-control.md](remote-control.md).
 
 ## Inside the firmware image
 

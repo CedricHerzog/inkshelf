@@ -87,8 +87,9 @@ Cortex-A7: compare profiles with each other, not with the reader's log.
 It profiles into `applications/inkshelf-profile/` until the app exits, or for the duration
 written in the file (`90s`, `10m`; 5 minutes if empty), since the firmware may kill the app
 without letting it stop the capture and a trace grows by megabytes a minute. The log says
-`profiling to …` and `… stopped`. Copy the folder back over USB, then delete the marker file:
-profiling slows the app down.
+`profiling to …` and `… stopped`. Copy the folder back over USB, or under
+[remote control](remote-control.md) run `make reader-profile` (into `build/reader-profile/`). Then
+delete the marker file: profiling slows the app down.
 
 ### Reading a trace
 

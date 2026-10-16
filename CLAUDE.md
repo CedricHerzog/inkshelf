@@ -26,6 +26,9 @@ make test       # go test ./... on the host
 make lint       # golangci-lint (.golangci.yml) on the host and for the reader; brew install golangci-lint
 make verify     # build, make lint, go test, make shots-all, make shots-compare
 make deploy     # deploy.sh: copy the app and icons to a reader mounted over USB, then eject
+make reader-deploy   # the same over Wi-Fi, to a reader under remote control (emulator/reader.json); then restarts the app
+make reader-shots READER_SCRIPT=emulator/scripts/reader/smoke.txt   # a script on the reader -> build/reader-shots/
+make reader-log # follow the reader's log (reader-profile: its profiles -> build/reader-profile/)
 make icons      # icons/*.svg -> launcher BMPs and each server's logo.png (ImageMagick + rsvg-convert; committed, make -B icons)
 make emu-fake   # the app on an emulated reader with fake servers, http://localhost:8740 (make emu: emulator/config.json)
 make shots SCRIPT=emulator/scripts/mealie.txt EMUFLAGS="-fake-type mealie"   # one script, headless -> build/shots
@@ -66,7 +69,7 @@ Domains go bottom to top: a package imports only from its own domain or lower on
 ```text
 internal/
   device/pocketbook     the reader without its SDK: framebuffer, e-ink refresh, firmware IPC, event loop, Wi-Fi, emulator  -> docs/reference/eink-and-firmware.md
-  device/pocketbook/script   scripts of taps, buttons, waits and shots, run on the emulator  -> docs/reference/emulator.md
+  device/pocketbook/script   scripts of taps, buttons, waits and shots, run on the emulator or the reader  -> docs/reference/emulator.md
   graphics/fonts        TrueType fonts, fallbacks, HarfBuzz shaping, drawing text in gray
   graphics/pageimage    page images: decode, fit, tone, dither to 16 grays, .pg4  -> docs/reference/image-pipeline.md
   web/css               CSS parsing and cascade for EPUB stylesheets
@@ -99,6 +102,7 @@ internal/
   app/screens/*         one package per screen; screens never import each other
 cmd/inkshelf            the program for the reader: logging, then pocketbook.Run
 cmd/emulator            the app on the host, interactive or headless  -> docs/reference/emulator.md
+cmd/readerctl           drives a reader under remote control over Wi-Fi  -> docs/reference/remote-control.md
 emulator/               the emulator's fonts and scripts (committed); config.json, servers/, fake/ (gitignored)
 ```
 
@@ -138,11 +142,21 @@ emulator/               the emulator's fonts and scripts (committed); config.jso
 ## Things only the reader can check
 
 The emulator runs the real event loop and screens, but not real ghosting, the reader's speed,
-Wi-Fi, sleep, USB, or the firmware's behavior when the app goes to the background. For those:
-`make deploy`, use the app, then read `applications/inkshelf.log` over USB (page turn times,
-refresh waits, downloads, errors). Firmware details: [docs/reference/eink-and-firmware.md](docs/reference/eink-and-firmware.md).
+Wi-Fi, sleep, USB, or the firmware's behavior when the app goes to the background. For those,
+use the reader. When `emulator/reader.json` exists, the reader is under remote control
+([docs/reference/remote-control.md](docs/reference/remote-control.md)), so check it yourself over
+Wi-Fi:
+
+- `make reader-deploy` installs the build and restarts the app.
+- `make reader-shots READER_SCRIPT=emulator/scripts/reader/<script>.txt` runs a script; look at
+  `build/reader-shots/`. Reader scripts must not change the servers.
+- `go run ./cmd/readerctl log` reads the log: page turn times, refresh waits, downloads, errors.
+
+Otherwise: `make deploy`, ask the user to use the app, then read
+`applications/inkshelf.log` over USB. Firmware details: [docs/reference/eink-and-firmware.md](docs/reference/eink-and-firmware.md).
 To profile on the reader, create `applications/inkshelf/profile` (optionally holding a duration,
-`90s`): the profiles land in `applications/inkshelf-profile/` ([docs/reference/profiling.md](docs/reference/profiling.md)).
+`90s`): the profiles land in `applications/inkshelf-profile/` ([docs/reference/profiling.md](docs/reference/profiling.md)),
+fetched with `make reader-profile` under remote control.
 
 ## Paths on the reader
 

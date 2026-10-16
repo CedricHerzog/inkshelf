@@ -10,11 +10,13 @@ guard it (see the end of this page).
 
 ```text
 /mnt/ext1/applications/
-├── inkshelf.app                         the program (make deploy)
+├── inkshelf.app                         the program (make deploy, or make reader-deploy)
+├── inkshelf.app.new                     only while remote control installs a new program
 ├── icons/inkshelf.bmp, inkshelf_f.bmp   launcher icons
 ├── inkshelf.log                         the log, truncated at start-up above 1 MB
 └── inkshelf/
     ├── config.json                      the servers, written by the user
+    ├── profile, remote                  markers written by the user: profiling, remote control
     └── servers/<name>/                  one folder per server, named after its "name"
         ├── filters.json                 the lists' filters and the reader's settings
         ├── covers/

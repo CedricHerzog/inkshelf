@@ -48,7 +48,8 @@ Pass flags through make with `EMUFLAGS`, e.g. `make emu-fake EMUFLAGS="-servers 
 ## Script commands
 
 One command per line, `#` starts a comment, coordinates in screen pixels. The full reference is
-in the package doc of [device/pocketbook/script](../../internal/device/pocketbook/script/doc.go).
+in the package doc of [device/pocketbook/script](../../internal/device/pocketbook/script/doc.go),
+which the reader's [remote control](remote-control.md) shares.
 
 | Command | What it does |
 |---|---|
@@ -147,8 +148,13 @@ and of each screen's package, scaled by `widgets.Px`.
 
 ## On the reader
 
-Ghosting, speed, Wi-Fi, sleep, USB and going to the background need the real reader: `make
-deploy`, use the app, then read `applications/inkshelf.log` over USB. Each page turn logs its
-load and refresh times, and the firmware code logs its refresh waits. See
-[eink-and-firmware.md](eink-and-firmware.md). To profile the reader itself, see
-[profiling.md](profiling.md).
+Ghosting, speed, Wi-Fi, sleep, USB and going to the background need the real reader. Each page
+turn logs its load and refresh times, and the firmware code logs its refresh waits. See
+[eink-and-firmware.md](eink-and-firmware.md). There are two ways to read that log:
+
+- By hand: `make deploy`, use the app, then read `applications/inkshelf.log` over USB.
+- Under [remote control](remote-control.md), over Wi-Fi. `make reader-deploy` installs a build,
+  `make reader-shots` runs a script of `emulator/scripts/reader/` on the reader, and
+  `make reader-log` follows the log.
+
+To profile the reader itself, see [profiling.md](profiling.md).
