@@ -135,12 +135,29 @@ the firmware suppresses refreshes, must not touch the panel.
 ## The event loop
 
 `Run` (`app.go`) calls the app (`Init`, `Draw`, `Key`, `Pointer`, `System`, `Close`) from one
-goroutine only. Every 20 ms, like libinkview, the loop (`event_loop.go`):
+goroutine only. Its `select` wakes on the app's channels (`Repaint`, `Exit`, `PreventSleepFor`),
+on signals, on input, and on a timer.
 
-1. reads the task queue, answers sync events, passes system events to `App.System`;
-2. checks the foreground; coming back, it calls `Draw`, since the panel shows another app;
-3. reads `/hwevent` (foreground only) and turns raw input into the app's events;
-4. reads replies to its requests.
+- **Input wakes it.** `watchInput` asks `mq_notify` to send the app a real-time signal (40)
+  when a message lands in the empty `/hwevent`. Nothing is read by the kernel for that, which
+  matters: the queue is shared by all apps, and its input is the foreground app's. On the
+  wake-up, the loop reads the queue only if the app is in front, then watches again. A blocking
+  read can't do this: after Home, it would take a tap meant for the library, and the reader
+  refuses to let the app write it back.
+- **A timer does the rest** (`nextPoll`): every 250 ms (`idlePollInterval`), or every 20 ms
+  (`pollInterval`, libinkview's pace) while a finger or a button is down, since long presses
+  and repeats come from the clock. Each tick, `poll`:
+  1. reads the task queue, answers sync events, passes system events to `App.System`;
+  2. checks the foreground; coming back, it calls `Draw`, since the panel shows another app,
+     and watches input again;
+  3. reads `/hwevent` (foreground only), as a safety net;
+  4. repeats a held key, sends long presses and holds;
+  5. reads replies to its requests.
+- **A fallback.** If `mq_notify` fails, or ticks find input that woke nobody 3 times in a row
+  (`missedWakesLimit`), the loop logs it and polls every 20 ms, as before.
+
+Polling every 20 ms kept 4.6% of a core busy on an idle InkPad 3. With wake-ups, the idle app
+uses 0.48%.
 
 The firmware only sends key press/release and touch down/move/up. Like libinkview, the loop
 makes the rest itself: key repeats (`keys.go`), long presses, holds and drags (`touch.go`). A
@@ -167,7 +184,7 @@ sequenceDiagram
     participant FB as /dev/fb0 and epdc.ko
     Finger->>Firmware: touch the panel
     Firmware->>EventLoop: message on /hwevent (raw x, y)
-    Note over EventLoop: polled every 20 ms, foreground only
+    Note over EventLoop: woken by mq_notify's signal, read in the foreground only
     EventLoop->>EventLoop: touchPoint() rotates to screen coordinates
     EventLoop->>App: Pointer(PointerEvent)
     App->>App: hit-test the tap, change state

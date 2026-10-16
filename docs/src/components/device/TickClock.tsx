@@ -1,11 +1,12 @@
-// The event loop's heartbeat, slowed down: a 20 ms ticker (pollInterval) runs poll, whose steps
-// light up in their real order (event_loop.go), while the Go channels of app.go (repaints,
-// sleepRequests) wake the loop at once. Messages on the firmware's queues wait for the next tick.
+// The event loop's heartbeat, slowed down: a timer runs poll every 250 ms (idlePollInterval), or
+// every 20 ms while a finger is down (pollInterval), whose steps light up in their real order
+// (event_loop.go). The Go channels of app.go (repaints, sleepRequests) and the kernel's signal
+// for input (watchInput) wake the loop at once; the task queue's messages wait for the next tick.
 
 import React, {useState} from 'react';
 import clsx from 'clsx';
 import {Button, Controls, Segmented, useAnimationFrame, usePrefersReducedMotion} from '@site/src/components/kit';
-import {POLL_INTERVAL_MS} from '@site/src/lib/touchGestures';
+import {IDLE_POLL_INTERVAL_MS, POLL_INTERVAL_MS} from '@site/src/lib/touchGestures';
 import styles from './device.module.css';
 
 const steps = ['readReplies', 'readTaskMessages', 'followForeground', 'readInput', 'repeatHeldKey', 'sendLongPress'] as const;
@@ -23,15 +24,21 @@ const markColor: Record<MarkKind, string> = {
 // How long the firmware takes to answer a request, in this toy.
 const REPLY_DELAY_MS = 27;
 // Visible window of the strip, in simulated ms.
-const WINDOW_MS = 120;
+const WINDOW_MS = 700;
+// Tick labels closer than this, in pixels, are left out.
+const LABEL_SPACING = 34;
 
 type Sim = {
   now: number;
   lastTick: number;
+  nextTick: number;
+  tickTimes: number[]; // the recent ticks, for the strip
+  fingerDown: boolean;
   marks: Mark[];
-  hwevent: number[]; // ids of marks waiting in /hwevent
   tasks: number[]; // ids of marks waiting in the task queue
   repaintSlot: boolean;
+  fingerSince: number;
+  longSent: boolean;
   pendingRequests: number;
   replyAt: number | null;
   log: string[];
@@ -40,13 +47,17 @@ type Sim = {
 const initial: Sim = {
   now: 0,
   lastTick: 0,
+  nextTick: IDLE_POLL_INTERVAL_MS,
+  tickTimes: [0],
+  fingerDown: false,
   marks: [],
-  hwevent: [],
   tasks: [],
   repaintSlot: false,
+  fingerSince: 0,
+  longSent: false,
   pendingRequests: 0,
   replyAt: null,
-  log: ['The loop sleeps between ticks. Press a button: watch what waits for the next tick, and what does not.'],
+  log: ['The loop sleeps between ticks, 250 ms apart. Press a button: watch what waits for the next tick, and what does not.'],
 };
 
 let nextId = 1;
@@ -54,7 +65,7 @@ let nextId = 1;
 export default function TickClock() {
   const reduced = usePrefersReducedMotion();
   const [running, setRunning] = useState<boolean | null>(null);
-  const [slowdown, setSlowdown] = useState<'50' | '200'>('50');
+  const [slowdown, setSlowdown] = useState<'10' | '50'>('10');
   const [sim, setSim] = useState<Sim>(initial);
   const playing = running ?? !reduced;
 
@@ -70,10 +81,11 @@ export default function TickClock() {
     if (next.replyAt !== null && next.now >= next.replyAt) {
       next = {...next, replyAt: null, log: addLog(next, 'The firmware’s reply lands in the task queue. Nobody is woken.')};
     }
-    // A tick: poll runs, in order.
-    const tickAt = Math.floor(next.now / POLL_INTERVAL_MS) * POLL_INTERVAL_MS;
-    if (tickAt > state.lastTick) {
-      next = poll({...next, lastTick: tickAt}, tickAt);
+    // Ticks: poll runs, in order, 20 ms apart while a finger is down, else 250 ms.
+    while (next.now >= next.nextTick) {
+      const at = next.nextTick;
+      next = poll({...next, lastTick: at, tickTimes: [...next.tickTimes.slice(-80), at]}, at);
+      next = {...next, nextTick: at + (next.fingerDown ? POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS)};
     }
     // Drop marks that left the window.
     next.marks = next.marks.filter((mark) => (mark.handled ?? next.now) > next.now - WINDOW_MS);
@@ -91,9 +103,8 @@ export default function TickClock() {
       const waited = at - (next.marks.find((mark) => mark.id === next.tasks[0])?.arrived ?? at);
       next = {...next, marks: handle(next.tasks), tasks: [], log: addLog(next, `readTaskMessages: a firmware event, after waiting ${waited.toFixed(1)} ms → App.System.`)};
     }
-    if (next.hwevent.length > 0) {
-      const waited = at - (next.marks.find((mark) => mark.id === next.hwevent[0])?.arrived ?? at);
-      next = {...next, marks: handle(next.hwevent), hwevent: [], log: addLog(next, `readInput: the touch, after waiting ${waited.toFixed(1)} ms in /hwevent → app.Pointer.`)};
+    if (next.fingerDown && next.lastTick - next.fingerSince >= 500 && !next.longSent) {
+      next = {...next, longSent: true, log: addLog(next, 'sendLongPress: the finger has been still for 500 ms → PointerLong. Only the clock could tell.')};
     }
     return next;
   }
@@ -103,9 +114,25 @@ export default function TickClock() {
       const id = nextId++;
       return {
         ...state,
-        marks: [...state.marks, {id, kind: 'input', label: 'touch', arrived: state.now}],
-        hwevent: [...state.hwevent, id],
-        log: addLog(state, 'A finger touches: the firmware posts to /hwevent. The loop is not woken.'),
+        marks: [...state.marks, {id, kind: 'input', label: 'touch', arrived: state.now, handled: state.now}],
+        log: addLog(state, 'A finger touches: the firmware posts to /hwevent, and the kernel signals the app. The select wakes at once → readInput → app.Pointer.'),
+      };
+    });
+
+  const holdFinger = () =>
+    setSim((state) => {
+      if (state.fingerDown) {
+        return {...state, fingerDown: false, log: addLog(state, 'The finger lifts: woken at once again. Back to a tick every 250 ms.')};
+      }
+      const id = nextId++;
+      return {
+        ...state,
+        fingerDown: true,
+        fingerSince: state.now,
+        longSent: false,
+        nextTick: Math.min(state.nextTick, state.now + POLL_INTERVAL_MS),
+        marks: [...state.marks, {id, kind: 'input', label: 'down', arrived: state.now, handled: state.now}],
+        log: addLog(state, 'A finger goes down and stays: no more input will come, so the loop ticks every 20 ms to time the long press.'),
       };
     });
 
@@ -157,20 +184,22 @@ export default function TickClock() {
   const left = sim.now - WINDOW_MS + 20;
   const xOf = (time: number) => ((time - left) / WINDOW_MS) * (width - 20) + 10;
   const ticks: number[] = [];
-  for (let tick = Math.ceil(left / POLL_INTERVAL_MS) * POLL_INTERVAL_MS; tick <= left + WINDOW_MS; tick += POLL_INTERVAL_MS) {
-    ticks.push(tick);
+  for (const tick of sim.tickTimes) {
+    if (tick >= left) ticks.push(tick);
   }
 
   return (
     <div className={styles.stack}>
-      <svg viewBox={`0 0 ${width} 92`} className={styles.svg} role="img" aria-label="A timeline of ticks every 20 ms and messages">
+      <svg viewBox={`0 0 ${width} 92`} className={styles.svg} role="img" aria-label="A timeline of the loop's ticks and of messages">
         <line x1={10} x2={width - 10} y1={58} y2={58} stroke="var(--ink-line)" strokeWidth={2} />
-        {ticks.map((tick) => (
+        {ticks.map((tick, index) => (
           <g key={tick}>
             <line x1={xOf(tick)} x2={xOf(tick)} y1={44} y2={72} stroke="var(--ink-text)" strokeWidth={tick === sim.lastTick ? 2.5 : 1} />
-            <text x={xOf(tick)} y={86} textAnchor="middle" fontSize={9} fontFamily="var(--ink-mono)" fill="var(--ink-muted)">
-              {tick} ms
-            </text>
+            {(index === 0 || xOf(tick) - xOf(ticks[index - 1]) >= LABEL_SPACING) && (
+              <text x={xOf(tick)} y={86} textAnchor="middle" fontSize={9} fontFamily="var(--ink-mono)" fill="var(--ink-muted)">
+                {Math.round(tick)} ms
+              </text>
+            )}
           </g>
         ))}
         <line x1={xOf(sim.now)} x2={xOf(sim.now)} y1={4} y2={74} stroke="var(--ink-accent)" strokeDasharray="3 2" />
@@ -190,7 +219,7 @@ export default function TickClock() {
         })}
       </svg>
       <div className={styles.small + ' ' + styles.muted}>
-        <span style={{color: 'var(--ink-accent)'}}>●</span> touch in /hwevent ·{' '}
+        <span style={{color: 'var(--ink-accent)'}}>●</span> touch, signalled by the kernel ·{' '}
         <span style={{color: 'var(--ink-blue)'}}>●</span> firmware event in the task queue ·{' '}
         <span style={{color: 'var(--ink-ok)'}}>●</span> Go channel · ■ handled. The bar is the wait.
       </div>
@@ -212,8 +241,8 @@ export default function TickClock() {
         </Button>
         <Segmented
           options={[
+            {value: '10', label: '10× slower'},
             {value: '50', label: '50× slower'},
-            {value: '200', label: '200× slower'},
           ]}
           value={slowdown}
           onChange={setSlowdown}
@@ -221,6 +250,7 @@ export default function TickClock() {
       </Controls>
       <Controls>
         <Button onClick={touch}>Touch</Button>
+        <Button onClick={holdFinger}>{sim.fingerDown ? 'Lift the finger' : 'Hold a finger'}</Button>
         <Button onClick={firmwareEvent}>Firmware event</Button>
         <Button onClick={() => repaint(1)}>Repaint()</Button>
         <Button onClick={() => repaint(2)}>Repaint() ×2</Button>

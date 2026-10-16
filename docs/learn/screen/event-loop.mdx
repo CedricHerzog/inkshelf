@@ -1,6 +1,6 @@
 ---
 title: The event loop and touch
-description: One goroutine wakes every 20 ms, reads the firmware's queues in a fixed order, and turns raw touches and presses into taps, long presses, drags and key repeats.
+description: One goroutine wakes when input arrives and on a timer, reads the firmware's queues in a fixed order, and turns raw touches and presses into taps, long presses, drags and key repeats.
 ---
 
 import TickClock from '@site/src/components/device/TickClock';
@@ -10,9 +10,9 @@ import KeyRepeat from '@site/src/components/device/KeyRepeat';
 # The event loop and touch
 
 <OneSentence>
-One goroutine wakes every 20 ms, reads what the firmware posted, and calls the app; it alone
-calls the app, and it builds long presses, drags and key repeats out of the firmware's bare
-downs, moves and ups.
+One goroutine wakes when input arrives and on a timer, reads what the firmware posted, and
+calls the app; it alone calls the app, and it builds long presses, drags and key repeats out of
+the firmware's bare downs, moves and ups.
 </OneSentence>
 
 The [previous chapter](./firmware.mdx) showed the mailboxes. Something has to check them,
@@ -21,42 +21,52 @@ turn their bytes into events, and call the app. That is the
 touch you make goes through it.
 
 <Analogy icon="🚶">
-A night watchman doing rounds: every 20 ms he walks past the same doors in the same order,
-looks in each mailbox, and deals with what he finds. Between rounds, he sits by a doorbell that
-colleagues can ring if they need him at once.
+A night watchman: a bell rings when a visitor comes to the front door, and every few minutes
+he walks past the other doors in the same order, looks in each mailbox, and deals with what he
+finds. While someone waits at the desk, he checks back much more often.
 </Analogy>
 
-## Why poll every 20 ms?
+## Why not just sleep until a message comes?
 
-The obvious design is to sleep until a message arrives. The firmware's queues do not allow it:
-the task queue is a System V queue, which is not a file and cannot be watched like one, and
-`/hwevent` is opened non-blocking and read without waiting. As the code says, neither queue can
-wake the app. So the loop does what libinkview
-does: it wakes on a ticker every 20 ms (`pollInterval`) and looks.
+That is the obvious design, and it is half possible. The task queue is a System V queue, which
+is not a file and cannot wake anyone: the loop has to look. libinkview looks at both queues
+every 20 ms, and so did Inkshelf, until the reader showed what it costs: waking 50 times a
+second kept **4.6%** of a core busy while a page just sat on the screen.
 
-20 ms is short enough that you cannot feel it (the panel itself takes hundreds of milliseconds
-to change), and long enough that looking costs nothing.
+`/hwevent` can do better. It is a POSIX queue, and `mq_notify` asks the kernel to send the app a
+signal when a message lands in it while it is empty, without taking the message
+(`watchInput`). The loop can't simply wait on the queue: it is shared by every app, and a
+waiting reader would take input meant for the app in front after you press Home. A signal takes
+nothing: the loop wakes, and reads the queue only if Inkshelf is in front.
+
+So input wakes the loop at once, and a timer (`nextPoll`) does the rest: every **250 ms**
+(`idlePollInterval`) for the task queue, the foreground and replies, and every **20 ms**
+(`pollInterval`) while a finger or a button is down. Idle, the app now uses 0.48% of a core.
 
 ## One tick, in order
 
-At each tick, `poll` does the same steps, in this order:
+At each tick of the timer, `poll` does the same steps, in this order:
 
 1. **`readReplies`**, only while a request waits: collect the firmware's replies.
 2. **`readTaskMessages`**: answer sync events, pass news to `App.System`, stop on exit.
 3. **`followForeground`**: read `visible()`. In the background, stop here: forget held buttons
    and touches. Back in front, call `Draw`, since the panel shows another app's picture.
 4. **`readInput`**: read every waiting `/hwevent` message, and call `App.Key` or `App.Pointer`.
+   Input normally comes with its wake-up; this is the safety net. If ticks keep finding input
+   that woke nobody, the firmware doesn't deliver the signals, and the loop goes back to
+   polling every 20 ms.
 5. **`repeatHeldKey`**: if a button is held long enough, send a repeat.
 6. **`sendLongPress`**: if a finger is held still long enough, send a long press.
 
 The last two run at every tick, even with no input: a finger held still sends nothing, so only
-the clock can say "it has been 500 ms".
+the clock can say "it has been 500 ms". That is why ticks come every 20 ms while a finger or a
+button is down.
 
 ## The doorbell: channels
 
 A Go *channel* is a pipe that goroutines pass values through, and a `select` waits on several
-channels at once and takes whichever is ready first. The loop is a `select` on the ticker and a
-few channels:
+channels at once and takes whichever is ready first. The loop is a `select` on the timer, the
+input wake-ups and a few channels:
 
 ```go title="internal/device/pocketbook/app.go"
 // trimmed: logging and the conversion to seconds left out
@@ -65,7 +75,8 @@ case <-repaints:              app.Draw()
 case <-exits:                 return app.Close()
 case duration := <-sleepRequests: loop.request(taskBanSuspend, seconds(duration), time.Now())
 case <-signals:               return app.Close()
-case now := <-ticker.C:       if loop.poll(now) { return app.Close() }
+case <-firmware.inputWake():  loop.inputWoke(time.Now())   // reads /hwevent if in front
+case now := <-timer.C:        if loop.poll(now) { return app.Close() }
 }
 ```
 
@@ -73,9 +84,9 @@ The rule that keeps the app simple: **only this goroutine calls the app**. A dow
 loader running on another <Term id="goroutine">goroutine</Term> never draws. It calls
 `Repaint()`, `Exit()` or `PreventSleepFor()`, which only drop a request into a channel that holds
 one. A second `Repaint` sent before the first is read is dropped: one `Draw` does both. Channels
-*can* wake a `select`, so a repaint does not wait for the next tick.
+*can* wake a `select`, so a repaint does not wait for the next tick, and neither does a touch.
 
-<Figure title="The 20 ms heartbeat, slowed down" tryThis="Press Touch just after a tick and watch it wait. Then press Repaint(): no wait. Press Repaint() ×2 and read the log.">
+<Figure title="The loop's heartbeat, slowed down" tryThis="Press Touch: no wait. Press Firmware event and watch it wait for the next tick. Then Hold a finger: ticks come every 20 ms until the long press.">
   <TickClock />
 </Figure>
 
@@ -118,7 +129,8 @@ case eventPointerMove:
 
 Buttons work the same way. The firmware sends a press and a release; it also sends repeats of
 its own (event 28), but libinkview ignored them and timed repeats itself, and so does Inkshelf.
-A held button repeats after **600 ms**, then every **300 ms**, checked at each tick. The reader
+A held button repeats after **600 ms**, then every **300 ms**, checked at each tick, which come
+every 20 ms while it is held. The reader
 turns page after page while you hold Next.
 
 <Figure title="Holding a page button" tryThis="Hold the button for about two seconds. Then just tap it.">
@@ -128,9 +140,8 @@ turns page after page while you hold Next.
 <details>
 <summary>Going deeper</summary>
 
-- **Timestamps are tick times.** Input waits in `/hwevent` until the next tick, and the loop
-  stamps it with the tick's time. That is why the times above land on multiples of 20 ms, and
-  why a long press arrives at the first tick at or after 500 ms.
+- **Timestamps.** Input is stamped when it wakes the loop. A long press arrives at the first
+  tick at or after 500 ms, so the times above land on multiples of 20 ms.
 - **Background resets.** `followForeground` clears the held button and the active touch when
   the app leaves the front: their releases will never be seen.
 - **Waiting for nothing.** `request` sends and returns; the reply is picked up by a later tick.
@@ -143,7 +154,9 @@ turns page after page while you hold Next.
 ## Where it lives in the code
 
 <CodeMap entries={[
-  {path: 'internal/device/pocketbook/app.go', symbol: 'run', what: 'The select: channels, signals and the 20 ms ticker.'},
+  {path: 'internal/device/pocketbook/app.go', symbol: 'run', what: 'The select: channels, signals, input wake-ups and the timer.'},
+  {path: 'internal/device/pocketbook/event_loop.go', symbol: 'nextPoll', what: 'The timer: 20 ms while a finger or a button is down, else 250 ms.'},
+  {path: 'internal/device/pocketbook/firmware_linux_arm.go', symbol: 'watchInput', what: 'mq_notify: a signal when input reaches the empty /hwevent.'},
   {path: 'internal/device/pocketbook/app.go', symbol: 'Repaint', what: 'Repaint, Exit, PreventSleepFor: one-slot channels, safe from any goroutine.'},
   {path: 'internal/device/pocketbook/event_loop.go', symbol: 'poll', what: 'One tick: replies, task messages, foreground, input, repeats, long presses.'},
   {path: 'internal/device/pocketbook/touch.go', symbol: 'touchPoint', what: 'Raw touch coordinates to screen ones.'},
@@ -162,10 +175,10 @@ Next: all of this can run on your computer, with no reader at all. That is
 
 <Quiz questions={[
   {
-    question: 'Why does the loop wake every 20 ms instead of sleeping until a message comes?',
-    choices: ['To save battery', 'The firmware’s queues cannot wake it, so it has to look', 'The panel refreshes every 20 ms'],
+    question: 'Why doesn’t the loop wait for input by reading /hwevent and blocking until a message comes?',
+    choices: ['Blocking reads are slow on ARM', 'The queue is shared: a waiting read would take input meant for the app in front after Home', 'The kernel doesn’t allow it'],
     answer: 1,
-    why: 'A System V queue and the non-blocking /hwevent read cannot be waited on in a select; libinkview polls at the same pace.',
+    why: 'Every app reads /hwevent, and the input is the foreground app’s. mq_notify only signals that input came; the loop reads it only while Inkshelf is in front.',
   },
   {
     question: 'A download goroutine calls Repaint() twice in a row. How many times is Draw called?',

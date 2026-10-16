@@ -63,7 +63,7 @@ func (reader *readerFirmware) visible() bool {
 ```
 
 `flush` asks it before every refresh, and the <Term id="event-loop">event loop</Term> (the next
-chapter) asks it at every tick, every 20 ms.
+chapter) asks it at every tick, and before it reads any input.
 
 ## The public mailbox: `/hwevent`
 
