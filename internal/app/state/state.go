@@ -97,6 +97,7 @@ type Repaint struct {
 	FullRefresh bool // the next Draw refreshes the whole panel, with a flash
 	Queued      bool // a repaint is queued: the next Draw comes from Update
 	Closing     bool // the app is closing: no more repaints
+	Dark        bool // the dark mode of the last draw: when it changes, the whole panel is refreshed
 }
 
 // Options replace what the app reads from the system to show it, so that the emulator's shots

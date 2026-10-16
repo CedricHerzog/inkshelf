@@ -22,6 +22,7 @@ home
 resume
 battery 15 charging
 net down
+dark on
 wait 300ms
 idle
 idle 1m
@@ -41,11 +42,12 @@ exit
 		{line: 9, command: "resume"},
 		{line: 10, command: "battery", number: 15, flag: true},
 		{line: 11, command: "net"},
-		{line: 12, command: "wait", duration: 300 * time.Millisecond},
-		{line: 13, command: "idle", duration: defaultTimeout},
-		{line: 14, command: "idle", duration: time.Minute},
-		{line: 15, command: "shot", name: "01-series"},
-		{line: 16, command: "exit"},
+		{line: 12, command: "dark", flag: true},
+		{line: 13, command: "wait", duration: 300 * time.Millisecond},
+		{line: 14, command: "idle", duration: defaultTimeout},
+		{line: 15, command: "idle", duration: time.Minute},
+		{line: 16, command: "shot", name: "01-series"},
+		{line: 17, command: "exit"},
 	}
 	if !reflect.DeepEqual(steps, want) {
 		t.Errorf("parseScript =\n%+v\nwant\n%+v", steps, want)
@@ -64,6 +66,7 @@ func TestParseScriptErrors(t *testing.T) {
 		"battery 101",
 		"battery 50 plugged",
 		"net sideways",
+		"dark maybe",
 		"wait",
 		"shot ../escape",
 		"jump 1 2",

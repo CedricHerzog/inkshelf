@@ -127,8 +127,11 @@ func (app *application) Draw() {
 	app.Lock()
 	defer app.Unlock()
 	// A Draw that Update did not ask for comes from the start or from the app coming back to the
-	// foreground: the panel may show anything, so refresh it whole.
-	fullRefresh := app.Repaint.FullRefresh || !app.Repaint.Queued
+	// foreground: the panel may show anything, so refresh it whole. A change of dark mode changes
+	// every pixel: refresh it whole too.
+	dark := pocketbook.DarkMode()
+	fullRefresh := app.Repaint.FullRefresh || !app.Repaint.Queued || dark != app.Repaint.Dark
+	app.Repaint.Dark = dark
 	app.Repaint.FullRefresh = false
 	app.Repaint.Queued = false
 	app.Targets.Clear()
@@ -143,9 +146,5 @@ func (app *application) Draw() {
 	app.Reader.Shown = state.Shown{}
 	pocketbook.ClearScreen()
 	screen.DrawLocked()
-	if fullRefresh {
-		pocketbook.FlashRefresh()
-	} else {
-		pocketbook.Refresh(pocketbook.Screen(), pocketbook.GC16)
-	}
+	widgets.Show(dark, fullRefresh, pocketbook.GC16, pocketbook.Screen())
 }

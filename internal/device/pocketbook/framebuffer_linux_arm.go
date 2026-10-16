@@ -93,21 +93,45 @@ func (reader *readerFirmware) flush(canvas *image.Gray, rect image.Rectangle, wa
 		log.Printf("refresh %v: %v", rect, err)
 		return
 	}
-	reader.lastRect = panelRect
-	reader.lastMarker = reader.marker
+	if len(reader.running) == maxRunningRefreshes {
+		// Forgotten, the oldest could no longer be waited for: wait for it now.
+		reader.wait(reader.running[0].marker)
+		reader.running = reader.running[1:]
+	}
+	reader.running = append(reader.running, runningRefresh{rect: panelRect, marker: reader.marker})
 	sent := time.Now()
 	log.Printf("refresh %v: wait %v, copy %v, send %v", rect, copyStart.Sub(start).Round(time.Millisecond),
 		sendStart.Sub(copyStart).Round(100*time.Microsecond), sent.Sub(sendStart).Round(100*time.Microsecond))
 }
 
-// waitForOverlappingRefresh waits for the last refresh to end if it overlaps panelRect, so as
-// not to change pixels that the panel is still refreshing. Refreshes elsewhere go on meanwhile.
+// runningRefresh is a refresh sent to the panel, which may still be running.
+type runningRefresh struct {
+	rect   image.Rectangle // in framebuffer coordinates
+	marker uint32
+}
+
+// maxRunningRefreshes is how many refreshes flush remembers. A refresh lasts under a second, and
+// the app sends at most a few at a time (the reader's two toolbar bars).
+const maxRunningRefreshes = 4
+
+// waitForOverlappingRefresh waits for the refreshes still running that overlap panelRect to end,
+// so as not to change pixels that the panel is still refreshing. Refreshes elsewhere go on
+// meanwhile.
 func (reader *readerFirmware) waitForOverlappingRefresh(panelRect image.Rectangle) {
-	if reader.lastMarker == 0 || !panelRect.Overlaps(reader.lastRect) {
-		return
+	kept := reader.running[:0]
+	for _, refresh := range reader.running {
+		if !refresh.rect.Overlaps(panelRect) {
+			kept = append(kept, refresh)
+			continue
+		}
+		reader.wait(refresh.marker)
 	}
-	marker := reader.lastMarker
-	// The ioctl fails when the refresh is already over, which is fine: there is nothing to
-	// wait for.
+	reader.running = kept
+}
+
+// wait waits for the refresh with this marker to end.
+func (reader *readerFirmware) wait(marker uint32) {
+	// The ioctl fails when the refresh is already over, which is fine: there is nothing to wait
+	// for.
 	_ = ioctl(reader.framebufferFD, mxcfbWaitForUpdate, unsafe.Pointer(&marker))
 }

@@ -1,10 +1,12 @@
 package widgets
 
 import (
+	"context"
 	"image"
 	"image/color"
 
 	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
+	"github.com/CedricHerzog/inkshelf/internal/timing"
 )
 
 // The grays the app draws with. An e-ink panel shows 16 grays, but text and lines read best in
@@ -15,6 +17,36 @@ var (
 	LightGray = color.Gray{Y: 0xaa}
 	White     = color.Gray{Y: 0xff}
 )
+
+// Show puts what the screen drew on the panel: in negative first if dark, then a flashing
+// refresh of the whole panel if full, else a refresh of each of areas with waveform. The app
+// draws black on white; in dark mode its screens show dark. The whole canvas is inverted, not
+// only areas: the canvas is also the task switcher's thumbnail of the app.
+func Show(dark, full bool, waveform pocketbook.Waveform, areas ...image.Rectangle) {
+	if dark {
+		span := timing.Start(context.Background(), "invert screen")
+		pocketbook.Invert(pocketbook.Screen())
+		span.End()
+	}
+	if full {
+		pocketbook.FlashRefresh()
+		return
+	}
+	for _, area := range areas {
+		pocketbook.Refresh(area, waveform)
+	}
+}
+
+// Picture draws img with its top-left corner at origin so that it keeps its own colors: in dark
+// mode it is drawn in negative, and Show, which inverts the whole screen, gives it back, while
+// what is drawn over it (a READ badge, a menu) shows dark like the rest. Use it only on screens
+// that Show darkens in dark mode, as every screen but the reader does.
+func Picture(img *image.Gray, origin image.Point) {
+	pocketbook.DrawImage(img, origin)
+	if pocketbook.DarkMode() {
+		pocketbook.Invert(img.Rect.Sub(img.Rect.Min).Add(origin))
+	}
+}
 
 // Text draws label in font and gray, with its top-left corner at topLeft: its baseline is the
 // font's ascent below that corner.

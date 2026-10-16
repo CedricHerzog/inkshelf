@@ -33,6 +33,7 @@ text looks as it does on the reader. It has no CJK font: Chinese and Japanese sh
 | `-fake-type T` | `komga` | the kind of fake server: `komga`, `mealie`, `calibreweb`, or several separated by commas, used in turn |
 | `-servers N` | 1 | with `-fake`, how many fake servers, to get the server screen |
 | `-fresh` | off | start with no downloaded books and no saved filters |
+| `-dark` | off | start with the reader's dark mode on |
 | `-no-wifi` | off | start with the network off: the servers cannot be reached, and connecting fails at once, until `net up` (or the side panel's Wi-Fi up) |
 | `-size WxH` | `1404x1872` | the screen size, portrait |
 | `-eink` | off | refreshes take as long as on an InkPad 3 |
@@ -59,6 +60,7 @@ at the top of [cmd/emulator/script.go](../../cmd/emulator/script.go).
 | `home`, `resume` | send the app to the background, bring it back |
 | `battery PERCENT [charging]` | set the battery |
 | `net up`, `net down` | turn the emulated network on or off, with the firmware's network events |
+| `dark on`, `dark off` | switch the emulated dark mode setting; the app reads it when it comes back to the foreground, so follow it with `home` and `resume` |
 | `wait DURATION` | sleep |
 | `idle [TIMEOUT]` | wait until the app is idle (default timeout 2m) |
 | `shot NAME` | wait until idle, then save the panel to `OUT/NAME.png` |

@@ -82,6 +82,7 @@ func RunEmulated(app App, emulator *Emulator) error {
 // exits.
 func run(app App, readerOrEmulator firmware, canvas *image.Gray) error {
 	current = &device{canvas: canvas, firmware: readerOrEmulator}
+	followDarkMode()
 	loop := &eventLoop{
 		app:        app,
 		firmware:   readerOrEmulator,

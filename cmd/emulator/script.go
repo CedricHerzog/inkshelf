@@ -30,6 +30,8 @@ import (
 //	home, resume            send the app to the background, bring it back
 //	battery PERCENT [charging]
 //	net up|down             turn the emulated network on or off, with the firmware's events
+//	dark on|off             switch the emulated dark mode setting, which the app reads when it
+//	                        comes back to the foreground: follow it with home and resume
 //	wait DURATION           sleep
 //	idle [TIMEOUT]          wait until the app is idle: its input handled, its work over and
 //	                        the panel unchanged for quietTime (default timeout 2m)
@@ -63,7 +65,7 @@ type step struct {
 	key      pocketbook.Key
 	duration time.Duration
 	number   int
-	flag     bool   // battery: charging; net: up
+	flag     bool   // battery: charging; net: up; dark: on
 	name     string // shot
 }
 
@@ -100,6 +102,7 @@ var stepParsers = map[string]func(parsed *step, arguments []string) error{
 	"exit":    parseNothing,
 	"battery": parseBattery,
 	"net":     parseNet,
+	"dark":    parseDark,
 	"wait":    parseWait,
 	"idle":    parseIdle,
 	"shot":    parseShot,
@@ -218,6 +221,18 @@ func parseNet(parsed *step, arguments []string) error {
 	return nil
 }
 
+// parseDark parses "dark on" and "dark off".
+func parseDark(parsed *step, arguments []string) error {
+	if err := checkArgumentCount(arguments, 1, 1); err != nil {
+		return err
+	}
+	if arguments[0] != "on" && arguments[0] != "off" {
+		return fmt.Errorf("want on or off, got %q", arguments[0])
+	}
+	parsed.flag = arguments[0] == "on"
+	return nil
+}
+
 // parseWait parses "wait DURATION".
 func parseWait(parsed *step, arguments []string) error {
 	if err := checkArgumentCount(arguments, 1, 1); err != nil {
@@ -315,6 +330,8 @@ func runStep(emulator *pocketbook.Emulator, work backgroundWork, current step, o
 		emulator.SetBattery(current.number, current.flag)
 	case "net":
 		setNetwork(emulator, current.flag)
+	case "dark":
+		emulator.SetDarkMode(current.flag)
 	case "wait":
 		time.Sleep(current.duration)
 	case "idle":

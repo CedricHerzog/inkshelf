@@ -41,6 +41,8 @@ type Emulator struct {
 	messageID      int32
 	batteryPercent int
 	charging       bool
+	// dark is the emulated dark mode setting (see SetDarkMode).
+	dark bool
 	// lastRefresh is when the panel last changed.
 	lastRefresh time.Time
 	// subscribers receive every refresh (see Subscribe).
@@ -352,6 +354,21 @@ func (emulator *Emulator) sendTaskEvent(event int32) {
 	emulator.messageID++
 	message := taskEvent(emulatorPGID, emulator.messageID, event, emulatorPGID, 0)
 	emulator.taskMessages = append(emulator.taskMessages, message)
+}
+
+// darkMode returns the dark mode set with SetDarkMode.
+func (emulator *Emulator) darkMode() (dark, ok bool) {
+	emulator.mu.Lock()
+	defer emulator.mu.Unlock()
+	return emulator.dark, true
+}
+
+// SetDarkMode turns the emulated reader's dark mode setting on or off. As on the reader, the app
+// reads it when it comes back to the foreground.
+func (emulator *Emulator) SetDarkMode(dark bool) {
+	emulator.mu.Lock()
+	defer emulator.mu.Unlock()
+	emulator.dark = dark
 }
 
 // SetBattery sets the battery's charge in percent, and whether it is charging.

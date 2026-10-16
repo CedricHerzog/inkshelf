@@ -50,6 +50,22 @@ func DrawImage(img *image.Gray, origin image.Point) {
 	}
 }
 
+// Invert turns rect of the canvas into its negative, 255 minus each gray: in dark mode, what
+// was drawn black on white shows white on black.
+func Invert(rect image.Rectangle) {
+	if current == nil {
+		return
+	}
+	canvas := current.canvas
+	rect = rect.Intersect(canvas.Rect)
+	for offset := range rect.Dy() {
+		row := canvas.Pix[canvas.PixOffset(rect.Min.X, rect.Min.Y+offset):][:rect.Dx()]
+		for index := range row {
+			row[index] = ^row[index]
+		}
+	}
+}
+
 // Canvas returns the canvas the app draws into, for drawing that the functions here don't do
 // (text, for one). It is nil when the app is not running.
 func Canvas() *image.Gray {

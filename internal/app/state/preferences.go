@@ -11,7 +11,8 @@ import (
 )
 
 // Preferences are what the reader chose and the app keeps across runs, per server: the
-// filters of the lists, the reading direction of each series, and the size of book text.
+// filters of the lists, the reading direction and dark pages of each series, and the size of
+// book text.
 // They also keep the server's libraries, so that the library filter works offline. They are
 // saved in the server's filters.json, whose name and format stay as older versions wrote them.
 type Preferences struct {
@@ -24,6 +25,9 @@ type Preferences struct {
 	Directions map[string]servers.Direction `json:"directions,omitempty"`
 	// TextSize is the font size of book text, in InkPad 3 pixels; 0 until the reader picks one.
 	TextSize int `json:"textSize,omitempty"`
+	// DarkPages are whether the pages of a series show white on black in dark mode, as chosen
+	// on the reader, by series ID. Without a choice, text does and pictures don't.
+	DarkPages map[string]bool `json:"darkPages,omitempty"`
 }
 
 // StatusFilter is a choice of the series list's read status filter.

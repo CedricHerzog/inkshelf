@@ -30,11 +30,8 @@ func (screen *Screen) drawEndLocked(fullRefresh bool) {
 	}
 	hint := "Previous page: back to the " + words.Book
 	widgets.Text(app.Fonts.Small, widgets.DarkGray, image.Pt((screenRect.Dx()-app.Fonts.Small.Width(hint))/2, screenRect.Dy()-widgets.Px(150)), hint)
-	if fullRefresh {
-		pocketbook.FlashRefresh()
-	} else {
-		pocketbook.Refresh(screenRect, pocketbook.GC16)
-	}
+	// Dark or light as the book's pages, so that the whole panel does not change color.
+	widgets.Show(openbook.DarkPageLocked(app), fullRefresh, pocketbook.GC16, screenRect)
 }
 
 // drawNextBookLocked draws in layout the next book of the series and whether the reader has it,

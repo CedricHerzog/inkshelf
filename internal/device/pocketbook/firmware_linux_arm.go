@@ -25,10 +25,8 @@ type readerFirmware struct {
 	framebufferStride int
 	// marker numbers the refreshes: it is the marker of the last refresh sent.
 	marker uint32
-	// lastRect is the framebuffer area of the last refresh, which may still be running.
-	lastRect image.Rectangle
-	// lastMarker is the marker of the last refresh, or 0 if none was sent.
-	lastMarker uint32
+	// running are the last refreshes sent, which may still be running, oldest first.
+	running []runningRefresh
 	// global is the firmware's shared state, or nil if it is missing: the app is then always
 	// visible.
 	global []byte
@@ -42,6 +40,8 @@ type readerFirmware struct {
 	taskBuffer []byte
 	// eventBuffer is where /hwevent messages are received.
 	eventBuffer [hardwareEventSize]byte
+	// darkStatus is what darkMode last logged, to log it only when it changes.
+	darkStatus string
 }
 
 // openFirmware opens the framebuffer, the firmware's queues and shared state, and the canvas.
@@ -209,6 +209,31 @@ func (reader *readerFirmware) battery() (percent int, charging, ok bool) {
 	}
 	percent, charging = batteryState(reader.global)
 	return percent, charging, true
+}
+
+// firmwareSettingsPath is the firmware's main settings file (see firmware_settings.go).
+const firmwareSettingsPath = "/mnt/ext1/system/config/global.cfg"
+
+// darkMode reads the firmware's settings and reports whether they turn dark mode on. ok is
+// false when they cannot be read or lack the setting: an older firmware, or a file read while
+// the firmware rewrites it. It logs what it found when that changes.
+func (reader *readerFirmware) darkMode() (dark, ok bool) {
+	data, err := os.ReadFile(firmwareSettingsPath)
+	if err == nil {
+		dark, ok = darkModeOf(parseSettings(data))
+	}
+	status := fmt.Sprintf("dark mode %v", dark)
+	switch {
+	case err != nil:
+		status = fmt.Sprintf("dark mode unknown: %v", err)
+	case !ok:
+		status = fmt.Sprintf("dark mode unknown: no %s in %s", darkModeSetting, firmwareSettingsPath)
+	}
+	if status != reader.darkStatus {
+		reader.darkStatus = status
+		log.Print(status)
+	}
+	return dark, ok
 }
 
 // readInt reads a file that holds a decimal number.

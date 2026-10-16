@@ -79,3 +79,31 @@ func TestEmulatorPanel(t *testing.T) {
 		t.Error("LastRefresh is zero after a refresh")
 	}
 }
+
+func TestEmulatorDarkMode(t *testing.T) {
+	emulator := NewEmulator(image.Pt(4, 1), false)
+	current = &device{canvas: emulator.canvas, firmware: emulator}
+	t.Cleanup(func() { current = nil })
+
+	emulator.SetDarkMode(true)
+	if DarkMode() {
+		t.Error("dark mode before the app read it")
+	}
+	followDarkMode()
+	if !DarkMode() {
+		t.Error("no dark mode once read")
+	}
+}
+
+func TestDarkModeKeptWhenUnknown(t *testing.T) {
+	fake := &fakeFirmware{isVisible: true, dark: true}
+	current = &device{canvas: image.NewGray(image.Rect(0, 0, 4, 1)), firmware: fake}
+	t.Cleanup(func() { current = nil })
+
+	followDarkMode()
+	fake.dark, fake.darkUnknown = false, true // the settings file being rewritten
+	followDarkMode()
+	if !DarkMode() {
+		t.Error("an unreadable setting turned dark mode off")
+	}
+}

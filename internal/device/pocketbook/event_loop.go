@@ -136,8 +136,10 @@ func (loop *eventLoop) followForeground() (visible bool) {
 		return false
 	}
 	if !loop.visible {
-		// Back in front: the panel still shows what the previous app drew.
+		// Back in front: the panel still shows what the previous app drew, and dark mode may
+		// have been switched meanwhile.
 		loop.visible = true
+		followDarkMode()
 		loop.app.Draw()
 	}
 	return true

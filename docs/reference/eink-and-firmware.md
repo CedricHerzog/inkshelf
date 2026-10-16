@@ -67,6 +67,31 @@ stores. `copyRotated` (`framebuffer_copy.go`) therefore works in 32-pixel tiles 
 and writes whole 32-bit words. It takes about 22 ms per page turn, against 48 ms byte by byte.
 It is a hot path: see [image-pipeline.md](image-pipeline.md#hot-paths).
 
+### Dark mode
+
+The firmware's dark mode (6.8 and later) shows its screens white on black. The app draws black
+on white as always, then inverts what must show dark before the refresh (`widgets.Show`, with
+`Invert` in `canvas.go`): every screen in dark mode (`application.Draw`), and in the reader the
+page with its toolbar, popup and end panel when the page is dark (`openbook.DarkPageLocked`: text
+by default, a series' choice in the toolbar's bottom bar). A light page is not inverted at all. Covers keep their colors
+by being drawn in negative (`widgets.Picture`), which the screen's inversion turns back. The
+canvas therefore always holds what the panel shows, and the copy to the framebuffer does not
+change. The driver's own inversion flag (`EPDC_FLAG_ENABLE_INVERSION` in `mxcfb.h`) is not
+used: it would invert everything, and KOReader found that it does not work on the B288
+(koreader#6669), so it inverts in software too. A dark page turns with GC16 instead of GL16: GL16
+is tuned for a white background and flashes the refreshed area white on a black one, where GC16
+flashes it black. KOReader's night mode on PocketBook does the same (`waveform_night` is GC16).
+
+The setting is read when the app starts and each time it comes back to the foreground
+(`followDarkMode`, `dark_mode.go`): it is changed in the settings app, which sends Inkshelf to
+the background, and a change redraws the whole panel. On
+the reader it is `screen_mode_inverted` in `/mnt/ext1/system/config/global.cfg` (`key=value`
+lines, `firmware_settings.go`), 1 in dark mode. The firmware does not document it: it was found
+by switching dark mode on the reader and comparing the settings. `night_mode`, next to it, stays
+1 either way; `invert_illustrations` is the firmware's own option for pictures in dark mode.
+If the file cannot be read or lacks the setting (an older firmware, or a file read while the
+firmware rewrites it), the last value stays. The log says what was found when that changes.
+
 ## E-ink refreshes and waveforms
 
 An e-ink pixel is a tiny capsule of black and white particles moved by an electric field.
@@ -99,8 +124,9 @@ app does a partial GL16 refresh on most page turns and a full one every few turn
 for comics than for text, which ghosts less), and a full one when it comes back to the
 foreground.
 
-`readerFirmware.flush` (`framebuffer_linux_arm.go`) waits for the previous refresh only if it
-overlaps the new rectangle, so refreshes of different areas go on in parallel. It logs its wait,
+`readerFirmware.flush` (`framebuffer_linux_arm.go`) remembers the last few refreshes and waits
+only for those still running that overlap the new rectangle, so refreshes of different areas go
+on in parallel. It logs its wait,
 copy and send times to `applications/inkshelf.log`: that is how page turns are timed.
 
 `visible()` checks the global state before every refresh: an app in the background, or while
@@ -147,7 +173,7 @@ sequenceDiagram
     App->>App: hit-test the tap, change state
     App->>Canvas: Draw: Fill, DrawImage, text
     App->>EventLoop: Refresh(rect, GL16)
-    EventLoop->>FB: wait if the last refresh overlaps
+    EventLoop->>FB: wait for running refreshes that overlap
     EventLoop->>FB: copyRotated: canvas rect to framebuffer
     EventLoop->>FB: ioctl MXCFB_SEND_UPDATE (rect, waveform, marker)
     FB-->>Finger: panel drives its pixels (about 0.5 s)
@@ -168,7 +194,8 @@ the app calls `PreventSleepFor` while it works.
 ## The emulator
 
 All of the above is behind one small interface, `firmware` (`firmware.go`): flush a rectangle,
-report visibility, read the next input or task message, send a message, read the battery.
+report visibility, read the next input or task message, send a message, read the battery and
+the dark mode setting.
 
 - `readerFirmware` talks to the real firmware. It lives in files ending in `_linux_arm.go`,
   built only for the reader; `firmware_other.go` makes `Run` fail elsewhere.

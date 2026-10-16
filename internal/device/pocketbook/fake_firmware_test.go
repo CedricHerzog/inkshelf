@@ -29,11 +29,15 @@ type fakeFirmware struct {
 	flushes []image.Rectangle
 	// global is the firmware's shared state.
 	global []byte
+	// dark is the dark mode setting, and darkUnknown makes it unreadable.
+	dark, darkUnknown bool
 }
 
 func (fake *fakeFirmware) flush(canvas *image.Gray, rect image.Rectangle, waveform Waveform, full bool) {
 	fake.flushes = append(fake.flushes, rect)
 }
+
+func (fake *fakeFirmware) darkMode() (bool, bool) { return fake.dark, !fake.darkUnknown }
 
 func (fake *fakeFirmware) visible() bool    { return fake.isVisible }
 func (fake *fakeFirmware) describe() string { return "fake" }

@@ -58,6 +58,8 @@ type options struct {
 	// noWiFi starts with the emulated Wi-Fi off: the servers cannot be reached until the
 	// network comes up.
 	noWiFi bool
+	// dark starts with the emulated reader's dark mode on.
+	dark bool
 	// size is the screen size, as WIDTHxHEIGHT.
 	size string
 	// eink makes refreshes take as long as on an InkPad 3.
@@ -84,6 +86,7 @@ func main() {
 	flag.StringVar(&opts.fakeTypes, "fake-type", "komga", "with -fake, the kind of fake server: komga, mealie or calibreweb, or several separated by commas, used in turn")
 	flag.BoolVar(&opts.fresh, "fresh", false, "start with no downloaded books and no saved filters")
 	flag.BoolVar(&opts.noWiFi, "no-wifi", false, "start with the Wi-Fi off, until the network comes up (net up)")
+	flag.BoolVar(&opts.dark, "dark", false, "start with the reader's dark mode on (dark on|off in scripts)")
 	flag.StringVar(&opts.size, "size", "1404x1872", "screen size in pixels (portrait)")
 	flag.BoolVar(&opts.eink, "eink", false, "make refreshes take as long as on an InkPad 3")
 	flag.StringVar(&opts.address, "addr", "localhost:8740", "address of the web page")
@@ -125,6 +128,7 @@ func run(opts options) error {
 	fonts.AddDir(filepath.Join(opts.dir, "fonts"))
 
 	emulator := pocketbook.NewEmulator(size, opts.eink)
+	emulator.SetDarkMode(opts.dark)
 	wifiOff.Store(opts.noWiFi)
 	application := app.New(appDir, registry.Opener(redirectingClient(addresses)), registry.KindOf, withEmulatedWiFi(appOptions(opts)))
 	if steps == nil {
