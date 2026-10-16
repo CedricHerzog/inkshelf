@@ -8,12 +8,16 @@ import (
 )
 
 // NewSyncer returns the app's progress.Syncer, which sends the progress of the downloaded books
-// to the server in use, once there is one. The Syncer takes the state's mutex itself, after its
-// own lock: never call it with the mutex held.
+// to the server in use, once there is one and the reader is connected. Offline, it waits: the
+// progress goes once the network is back (System's NetConnected) or at the next page turn. The
+// Syncer takes the state's mutex itself, after its own lock: never call it with the mutex held.
 func NewSyncer(app *state.State) *progress.Syncer {
 	return progress.NewSyncer(app, func() (servers.Server, shelf.Store) {
 		if app.Server.Client == nil {
 			return nil, shelf.Store{} // no server chosen yet
+		}
+		if !app.Options.WiFiConnected() {
+			return nil, shelf.Store{} // every request would fail at once
 		}
 		return app.Server.Client, app.Store
 	}, func(book shelf.Book) { bookSyncedLocked(app, book) })

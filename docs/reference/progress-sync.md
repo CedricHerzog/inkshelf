@@ -66,7 +66,10 @@ the series list's "Continue" row shows the book read last on the reader when it 
 
 Without the server, the app lists the downloaded books from the store
 (`catalog.AddDownloadedSeriesLocked`) and their progress comes from `book.json`. Pages turned
-offline stay `Unsynced`, and the push after the next successful series load sends them.
+offline stay `Unsynced`, and the push after the next successful series load sends them. While
+the reader is not connected, the Syncer does not try at all (`session.NewSyncer` gives it no
+server): every request would fail at once, and only fill the log. `NetConnected` schedules a
+push when the network comes back.
 
 ## Servers without progress
 
