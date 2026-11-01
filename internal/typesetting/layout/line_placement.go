@@ -304,7 +304,7 @@ func (fragment *fragment) marksAbove() int {
 	if fragment.format.marks == nil || fragment.format.marks.Under {
 		return 0
 	}
-	return fragment.format.marks.format.font.Ascent()
+	return fragment.format.marks.above()
 }
 
 // marksBelow returns how far below the baseline emphasis marks under the fragment go, 0 if it
@@ -313,22 +313,30 @@ func (fragment *fragment) marksBelow() int {
 	if fragment.format.marks == nil || !fragment.format.marks.Under {
 		return 0
 	}
-	marks := fragment.format.marks.format.font
-	return fragment.format.font.Descent() + marks.Ascent() + marks.Descent()
+	marks := fragment.format.marks
+	if marks.format == nil {
+		return fragment.format.font.Descent() + marks.size
+	}
+	return fragment.format.font.Descent() + marks.format.font.Ascent() + marks.format.font.Descent()
 }
 
 // addMarks adds the emphasis marks of fragment, placed from x on baseline, as words of their own:
 // one centred above or under each of its characters but spaces and punctuation.
 func (line *laidOutLine) addMarks(fragment fragment, x, baseline int, measure measurer) {
-	format, marks := fragment.format, fragment.format.marks.format
-	mark := string(fragment.format.marks.Mark)
-	markWidth := measure(mark, marks)
+	format, marks := fragment.format, fragment.format.marks
+	mark := string(marks.Mark)
+	// A shape sits in a square of the marks' size, right over the text's ascent; a character
+	// at its own ascent above it.
+	markWidth, markHeight := marks.size, marks.above()
+	if marks.format != nil {
+		markWidth = measure(mark, marks.format)
+	}
 	rightToLeft := format.shaping != nil && format.shaping.RightToLeft
 	if rightToLeft {
 		x += fragment.width // its first character is at the right
 	}
-	top := baseline - format.font.Ascent() - marks.font.Ascent()
-	if fragment.format.marks.Under {
+	top := baseline - format.font.Ascent() - markHeight
+	if marks.Under {
 		top = baseline + format.font.Descent()
 	}
 	for index, character := range fragment.text {
@@ -341,7 +349,13 @@ func (line *laidOutLine) addMarks(fragment fragment, x, baseline int, measure me
 		if rightToLeft {
 			characterX = x - left - characterWidth
 		}
-		line.Words = append(line.Words, PlacedWord{X: characterX + (characterWidth-markWidth)/2, Top: top, Text: mark, Size: marks.size, Gray: format.gray})
+		placed := PlacedWord{X: characterX + (characterWidth-markWidth)/2, Top: top, Size: marks.size, Gray: format.gray}
+		if marks.format != nil {
+			placed.Text = mark
+		} else {
+			placed.Mark, placed.MarkOpen = marks.shape.shape, marks.shape.open
+		}
+		line.Words = append(line.Words, placed)
 	}
 }
 

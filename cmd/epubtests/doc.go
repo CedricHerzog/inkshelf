@@ -6,8 +6,8 @@
 // Whether a test passes is judged by looking, so this program does not judge: it lays out and
 // draws each test as the app does and writes what it got, for a person to look at.
 //
-// For each test it zips the folder into an EPUB and opens it. A fixed-layout book has its
-// pages drawn as at download time; a reflowable one is laid out and drawn with the reader's
+// For each test it zips the folder into an EPUB and opens it. A fixed-layout book, or a roll,
+// has its pages drawn as at download time; a reflowable one is laid out and drawn with the reader's
 // settings (1404x1872, the default text size). It writes, in -out/<test>/, words.txt (the text
 // of each page, line by line, as laid out) and page-N.png (the first pages).
 //

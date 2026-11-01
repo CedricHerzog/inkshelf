@@ -91,6 +91,8 @@ func expand(property string, value []token, important bool) []declaration {
 		longhands = listStyleLonghands(value)
 	case "text-decoration":
 		longhands = textDecorationLonghands(value)
+	case "background":
+		longhands = backgroundLonghands(value)
 	default:
 		return []declaration{{property: property, value: serialize(value), important: important}}
 	}

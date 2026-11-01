@@ -89,6 +89,16 @@ Some elements produce more than plain blocks: a border or background becomes a b
 CSS float a float group, a `<table>` a grid of cells, `epub:type="footnote"` (or a link back to
 its call) marks a footnote. [document-model.md](document-model.md) describes the result.
 
+A box's background is a color, in gray, and up to 8 *layers* over it (`css.Backgrounds`): the
+`background` shorthand is expanded into `background-color`, `-image`, `-repeat`, `-position` and
+`-size` as it is parsed, and each image of `background-image` is a layer, with the others'
+lists repeated to give it a size, a place and a repeat. An image is a `url()` the book has (a
+remote one is left out) or a gradient: linear or radial, repeating or not, of up to 32 stops,
+in pixels or percentages. The builder converts every length of a layer into the box's units
+(`build_backgrounds.go`), and one routine, `layout.PaintBackground`, paints them for both kinds
+of page: it sizes a tile (`cover`, `contain`, lengths, `auto` from the image's own size),
+places it, and tiles it (`repeat`, `space`, `round`), up to 4096 tiles a layer.
+
 ## 3. Layout and drawing
 
 `layout.Paginate(doc, settings, faces, sizer)` breaks the document into `Page`s for a screen
@@ -151,15 +161,30 @@ at a fixed size, its elements placed with `position: absolute`. Text flowing aro
 no sense, so these chapters take another route:
 
 - The builder, given a `fixedlayout.Page`, makes a `Region` of each positioned element and of
-  each background; the page's size comes from its viewport `<meta>`.
-- `Page.Render` draws the regions, scaled to the screen: backgrounds (color, linear gradient,
-  image), then each region's content (a lone image fitted, or text laid out by `layout` inside
-  the region).
+  each background; the page's size comes from its viewport `<meta>`. The `html` element's
+  background is placed when `body` opens, under body's: the builder meets `<html>` before the
+  stylesheets of its `<head>`.
+- `Page.Render` draws the regions, scaled to the screen: backgrounds (a color, then its layers
+  through `layout.PaintBackground`, an image's transparency kept), then each region's content
+  (a lone image fitted, or text laid out by `layout` inside the region).
 - A book whose chapters are all fixed-layout (`Book.FixedLayout`) is drawn page by page at
   download time (`Book.RenderPage`), prepared as `.pg4` pages, and then read like a comic.
 - In a *mixed* book, a fixed-layout chapter's document is one image block whose path is
   `rendered-page:` followed by the item's path. `Book.Resource` recognizes the prefix and draws
   the page as a PNG at 1404×1872 when the image loader asks for it.
+
+## Rolls and scrolled flows
+
+A *roll* (`rendition:layout` roll, from the EPUB 3.4 draft) is a strip of pictures meant to be
+scrolled down, as webtoons are: no gap between them, each as wide as the screen. A paged screen
+cannot scroll, so the strip is cut into pages a screen high (`roll.go`): `Book.Roll` lays every
+chapter's images out one under the other, fitted to the screen's width, and `Book.RenderPage`
+draws the slice a page covers, a picture going on over as many pages as it needs. Like a
+fixed-layout book, a roll is drawn at download time (`Book.DrawnAsPages`, `Book.PageCount`) and
+read as a comic. A roll whose chapters hold text is read as a reflowable book.
+
+`rendition:flow` asks for pages (`paginated`) or for scrolling (`scrolled-continuous`,
+`scrolled-doc`). The panel only shows pages, so every flow is paginated, with the same content.
 
 ## The index and rune offsets
 

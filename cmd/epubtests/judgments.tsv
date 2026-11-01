@@ -14,7 +14,7 @@ css-epub-hyphens	CSS	pass
 css-epub-line-break	CSS	pass	
 css-epub-text-align-last	CSS	pass	
 css-epub-text-combine-horizontal	CSS	fail	vertical writing
-css-epub-text-emphasis	CSS	fail	sesame emphasis marks, which no font has, drawn as dots
+css-epub-text-emphasis	CSS	fail	vertical writing: the marks of its vertical text (those of horizontal text, sesames included, are drawn)
 css-epub-text-orientation	CSS	fail	vertical writing
 css-epub-text-transform	CSS	pass	
 css-epub-text-underline-position	CSS	fail	the vertical half of text-underline-position
@@ -70,19 +70,19 @@ lay-pp-spine-overrides_image-only-reflow	Fixed layout	pass
 lay-pp-spine-overrides_image-spine-pp	Fixed layout	pass	
 lay-pp-spine-overrides_image-spine-reflow	Fixed layout	pass	
 lay-pp-spread-none	Fixed layout	pass	
-lay-pp-svg-icb_multi	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
-lay-pp-xhtml-icb	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
-lay-pp-xhtml-icb_invalid_meta	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
-lay-pp-xhtml-icb_multi	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
-lay-pp-xhtml-icb_multi_declarations	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
-lay-pp-xhtml-icb_repeated-in-meta	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
-lay-pp-xhtml-icb_units	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
+lay-pp-svg-icb_multi	Fixed layout	pass	the grid drawn, the page's size from its viewport, what overflows clipped
+lay-pp-xhtml-icb	Fixed layout	pass	the grid drawn, the page's size from its viewport, what overflows clipped
+lay-pp-xhtml-icb_invalid_meta	Fixed layout	pass	the grid drawn, the page's size from its viewport, what overflows clipped
+lay-pp-xhtml-icb_multi	Fixed layout	pass	the grid drawn, the page's size from its viewport, what overflows clipped
+lay-pp-xhtml-icb_multi_declarations	Fixed layout	pass	the grid drawn, the page's size from its viewport, what overflows clipped
+lay-pp-xhtml-icb_repeated-in-meta	Fixed layout	pass	the grid drawn, the page's size from its viewport, what overflows clipped
+lay-pp-xhtml-icb_units	Fixed layout	pass	the grid drawn, the page's size from its viewport, what overflows clipped
 lay-reflow-align-x-center	Reflowable layout	out-of-scope	scrolled flows and align-x-center don't apply to paged e-ink
 lay-rendition-flow-pre-pag	Fixed layout	pass	
-lay-roll-embedded-images	Reflowable layout	fail	rendition:layout roll (EPUB 3.4) is shown a page per image
-lay-roll-embedded-images-svg	Reflowable layout	fail	rendition:layout roll (EPUB 3.4) is shown a page per image
-lay-roll-images-in-spine	Reflowable layout	fail	rendition:layout roll (EPUB 3.4) is shown a page per image
-lay-roll-images-mixed	Reflowable layout	fail	rendition:layout roll (EPUB 3.4) is shown a page per image
+lay-roll-embedded-images	Reflowable layout	pass	drawn at download as one strip as wide as the screen, cut into pages
+lay-roll-embedded-images-svg	Reflowable layout	pass	drawn at download as one strip as wide as the screen, cut into pages
+lay-roll-images-in-spine	Reflowable layout	pass	drawn at download as one strip as wide as the screen, cut into pages
+lay-roll-images-mixed	Reflowable layout	pass	drawn at download as one strip as wide as the screen, cut into pages
 lay-viewport-meta-prop	Fixed layout	pass	
 mol-audio	Media overlays	out-of-scope	no audio
 mol-audio-exceeding-clipend	Media overlays	out-of-scope	no audio

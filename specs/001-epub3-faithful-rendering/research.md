@@ -251,5 +251,23 @@ square root of the determinant. No change to oksvg.
 continuous strip: the images, each fitted to the page width, stacked and cut into screen-high
 pages. The four failing tests are read again one by one in the task to confirm what each asks.
 
+**The four roll tests, read again (T025, 2026-11-01).** All four are Kate Greenaway's *A Apple
+Pie* (Library of Congress scans, 1404 to 1674 pixels wide) with `rendition:layout` roll, and none
+says in words what passes: the roll layout does (EPUB 3.4 draft), one strip of the pictures,
+each as wide as the screen, with no gap between spine items. Before this work each showed one
+picture per page, fitted inside the margins (1224x1007 at 90,80), white above and below:
+- `lay-roll-embedded-images`: XHTML chapters, each a `<figure>` with one `<img>` (styled
+  `max-width: 100%; max-height: 100%`), after a cover page that is an image too.
+- `lay-roll-embedded-images-svg`: the same, its plates SVG documents in the spine that link the
+  PNGs with `<image>`; the title page has `page-spread-center`, which a strip ignores. (Its
+  description says "Pre-paginated", copied from the pre-paginated test; its package says roll.)
+- `lay-roll-images-in-spine`: the PNGs themselves in the spine, with XHTML fallbacks, and
+  `rendition:spread` none.
+- `lay-roll-images-mixed`: XHTML chapters and spine PNGs in turn.
+
+So a roll is drawn as a strip at download, as fixed-layout pages are (`epub/roll.go`): every
+chapter's images, fitted to the screen's width, stacked, and cut into screen-high page images.
+A roll whose chapters hold text is read as a reflowable book. No chapter's rune count changes.
+
 **Scrolled flows.** `rendition:flow` scrolled values are read and shown paged with the same
 content, which the spec counts as honoring them.

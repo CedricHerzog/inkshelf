@@ -129,69 +129,69 @@ Then `make epub-tests`: the CSS sesame tests, the ICB grid tests and the roll te
 
 ### Tests for User Story 1
 
-- [ ] T013 [P] [US1] Parser tests in `internal/web/css/color_test.go` and `internal/web/css/declarations_test.go`:
+- [X] T013 [P] [US1] Parser tests in `internal/web/css/color_test.go` and `internal/web/css/declarations_test.go`:
   - `repeating-linear-gradient`, `radial-gradient` and `repeating-radial-gradient`, with at most 32 stops;
   - the `background` shorthand expanded into longhands;
   - `background-repeat`, `background-size` (`cover`, `contain`, lengths, percentages), `background-position`;
   - several layers.
   - Extend `FuzzParseColor` to cover the new gradient functions.
-- [ ] T014 [P] [US1] Stroke test in `internal/web/svgimage/rasterize_test.go`: the same path with `stroke-width="1"` in a 10x10 viewBox and with `stroke-width="100"` in a 1000x1000 viewBox, both rasterized to 200x200, give the same stroke thickness in pixels (±1). Cover dash arrays and dash offsets the same way.
-- [ ] T015 [P] [US1] Emphasis test in `internal/typesetting/layout/emphasis_marks_test.go`: each keyword mark (•, ◦, ◉, ○, ▲, △, ﹅, ﹆) draws ink above each emphasized character with a font that lacks the glyph, and skips spaces and punctuation
+- [X] T014 [P] [US1] Stroke test in `internal/web/svgimage/rasterize_test.go`: the same path with `stroke-width="1"` in a 10x10 viewBox and with `stroke-width="100"` in a 1000x1000 viewBox, both rasterized to 200x200, give the same stroke thickness in pixels (±1). Cover dash arrays and dash offsets the same way.
+- [X] T015 [P] [US1] Emphasis test in `internal/typesetting/layout/emphasis_marks_test.go`: each keyword mark (•, ◦, ◉, ○, ▲, △, ﹅, ﹆) draws ink above each emphasized character with a font that lacks the glyph, and skips spaces and punctuation
 
 ### Implementation for User Story 1
 
-- [ ] T016 [P] [US1] Parse repeating and radial gradients in `internal/web/css/color.go`:
+- [X] T016 [P] [US1] Parse repeating and radial gradients in `internal/web/css/color.go`:
   - Generalize `ParseLinearGradient` into a `ParseGradient` returning a `Gradient` with its kind (linear, radial), repeating, stops ("≤ 32"), and either an angle or a shape and position.
   - Keep `ParseLinearGradient`'s callers working.
-- [ ] T017 [US1] Expand the `background` shorthand in `internal/web/css/declarations.go`, and parse `background-repeat` (repeat, repeat-x, repeat-y, no-repeat, space, round), `background-size` (auto, cover, contain, or two lengths/percentages), `background-position` (two lengths/percentages) and comma-separated layers in `internal/web/css/values.go`
-- [ ] T018 [US1] Add `BackgroundLayer` to `internal/typesetting/document/borders.go`:
+- [X] T017 [US1] Expand the `background` shorthand in `internal/web/css/declarations.go`, and parse `background-repeat` (repeat, repeat-x, repeat-y, no-repeat, space, round), `background-size` (auto, cover, contain, or two lengths/percentages), `background-position` (two lengths/percentages) and comma-separated layers in `internal/web/css/values.go`
+- [X] T018 [US1] Add `BackgroundLayer` to `internal/typesetting/document/borders.go`:
   - Fields: Image (none, an image resource, or a gradient), Gradient, Size, Position, Repeat, as data-model.md says.
   - Add `Background []BackgroundLayer`, "at most 8", to the border box style in place of the gray-only `Background`.
   - Keep the color as the bottom layer.
-- [ ] T019 [US1] Compute background layers in `internal/ebook/epub/build_borders.go`, replacing `backgroundGray`. Images are resolved as `build_images.go` resolves them; a remote URL is a missing image.
-- [ ] T020 [US1] Write the layer painter `internal/typesetting/layout/backgrounds.go`, which paints a box's layers in gray:
+- [X] T019 [US1] Compute background layers in `internal/ebook/epub/build_borders.go`, replacing `backgroundGray`. Images are resolved as `build_images.go` resolves them; a remote URL is a missing image.
+- [X] T020 [US1] Write the layer painter `internal/typesetting/layout/backgrounds.go`, which paints a box's layers in gray:
   - color;
   - linear and radial gradients, repeating or not;
   - images sized, positioned and tiled.
   - Rule: "tiles drawn per layer are capped (4096); past the cap the layer keeps its color only".
   - Wrap it in a `timing.Start` span.
   - Call it from `drawBorderBoxes` in `internal/typesetting/layout/border_boxes.go`.
-- [ ] T021 [P] [US1] Benchmark and fuzz the painter in `internal/typesetting/layout/backgrounds_test.go`: `BenchmarkPaintBackground` (a 1404x1872 box with a tiled repeating gradient, built in code) and `FuzzPaintBackground` (random layers and sizes; no panic, bounded time)
-- [ ] T022 [US1] Use the painter for fixed layout:
+- [X] T021 [P] [US1] Benchmark and fuzz the painter in `internal/typesetting/layout/backgrounds_test.go`: `BenchmarkPaintBackground` (a 1404x1872 box with a tiled repeating gradient, built in code) and `FuzzPaintBackground` (random layers and sizes; no panic, bounded time)
+- [X] T022 [US1] Use the painter for fixed layout:
   - In `internal/ebook/fixedlayout/page.go` and `internal/ebook/fixedlayout/background.go`, replace `fillColor`/`fillGradient` and the stretched background image with `layout`'s painter.
   - In `internal/ebook/epub/prepaginated.go`, drop the `layered`/`tiled` color-only fallback in `backgroundFill` and build `[]BackgroundLayer` in `placeOnPage`.
   - Adapt `FuzzFillGradient` in `internal/ebook/fixedlayout/fixedlayout_test.go` to the painter.
   - Check `BenchmarkPageRender` with benchstat.
-- [ ] T023 [US1] Draw emphasis marks as shapes in a new `internal/typesetting/layout/emphasis_marks.go`:
+- [X] T023 [US1] Draw emphasis marks as shapes in a new `internal/typesetting/layout/emphasis_marks.go`:
   - Shapes: dot, circle, double circle, triangle, sesame; filled or open.
   - Size: half the em, centred over each character.
   - Map the keyword runes of `document.Emphasis.Mark` to them.
   - Remove the dot fallback in `internal/typesetting/layout/text_preparation.go` (lines ~94–108).
   - In `addMarks` in `internal/typesetting/layout/line_placement.go`, emit shapes for keyword marks and keep text for custom string marks.
-- [ ] T024 [US1] Scale SVG strokes:
+- [X] T024 [US1] Scale SVG strokes:
   - In `internal/web/svgimage/rasterize.go`, pass the user-to-pixel matrix into `restyle`.
   - In `internal/web/svgimage/serialize.go`, have `write` hand the accumulated transform's scale (`matrix.scale()`, as `text.go` does) to `style()` and `addStrokeShape`.
   - Multiply `stroke-width`, each dash length and `stroke-dashoffset` by it; for a non-uniform scale, use the square root of the determinant's absolute value.
   - Check `BenchmarkRasterize` with benchstat.
-- [ ] T025 [US1] Read again the 4 failing reflowable-layout tests (`make epub-tests`, area "Reflowable layout") and write down in research.md R9 what each one shows
-- [ ] T026 [US1] Lay out roll books:
+- [X] T025 [US1] Read again the 4 failing reflowable-layout tests (`make epub-tests`, area "Reflowable layout") and write down in research.md R9 what each one shows
+- [X] T026 [US1] Lay out roll books:
   - When `Rendition.Layout` is roll, show the spine's images as one strip, each fitted to the page width, stacked and cut into screen-high pages.
   - Code: `internal/ebook/epub/roll.go`, chapter building in `internal/ebook/epub/chapter.go`.
   - Treat scrolled `Rendition.Flow` values as paginated, with the same content.
   - Compare each fake chapter's rune count (`document.Chars`) before and after. If it changes, bump `epub.IndexVersion` in this commit, and add a case to `internal/reading/textbook_test.go` showing that a `Location` saved before the change still reaches the same text (constitution III).
-- [ ] T027 [P] [US1] Tests for roll and flow in `internal/ebook/epub/roll_test.go`: a roll of three images of different heights gives ceil(total/screen) pages with no image left out, and a `scrolled-doc` book paginates as `paginated`
-- [ ] T028 [US1] Extend the fake showcase book `internal/servers/calibreweb/fakecalibreweb/showcase.go`:
+- [X] T027 [P] [US1] Tests for roll and flow in `internal/ebook/epub/roll_test.go`: a roll of three images of different heights gives ceil(total/screen) pages with no image left out, and a `scrolled-doc` book paginates as `paginated`
+- [X] T028 [US1] Extend the fake showcase book `internal/servers/calibreweb/fakecalibreweb/showcase.go`:
   - a chapter with sesame, triangle and double-circle marks;
   - a box with a tiled `repeating-linear-gradient` grid and a radial gradient;
   - the same SVG stroke in a 10x10 and a 1000x1000 viewBox.
   - Add steps and `shot`s for those pages to `emulator/scripts/calibreweb-showcase.txt`.
-- [ ] T029 [US1] Update the docs this story makes wrong (constitution VII), following docs/WRITING.md:
+- [X] T029 [US1] Update the docs this story makes wrong (constitution VII), following docs/WRITING.md:
   - docs/reference/epub-to-page.md: backgrounds, `background-*`, gradients, roll, scrolled flows;
   - docs/reference/pagination.md: emphasis shapes;
   - docs/reference/document-model.md: `BackgroundLayer`;
   - docs/learn/books/css.mdx: backgrounds.
   - Run `make docs-build`.
-- [ ] T030 [US1] Run `make verify` and `make epub-tests`:
+- [X] T030 [US1] Run `make verify` and `make epub-tests`:
   - Open each changed shot.
   - Update `cmd/epubtests/judgments.tsv` for the tests that now pass (CSS sesame, the ICB grids, roll).
   - Update docs/reference/epub-conformance.md in the same change (constitution VII): the CSS, Fixed layout and Reflowable layout rows (counts and main gaps), the Total row and the "Of the N tests in scope, M pass" sentence; remove sesame marks, the ICB grids, SVG stroke widths and roll from "Remaining work".

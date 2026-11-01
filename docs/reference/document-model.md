@@ -45,6 +45,7 @@ classDiagram
         +Start, End int
         +Top, Right, Bottom, Left Border
         +Background gray
+        +Layers List~BackgroundLayer~
     }
     class Table {
         +Rows, Columns int
@@ -117,6 +118,12 @@ may be many blocks. The model keeps the blocks flat and lists boxes on the side:
 **BorderBox** draws its borders and background around the blocks from offset `Start` to `End`.
 Boxes nest (`Document.Boxes` is ordered by `Start`, the outer box first). The blocks inside
 already have their `Left` and `Right` widened to make room for the borders and padding.
+
+A box's background is its `Background` gray (drawn when `Filled`) and up to 8 `Layers` over
+it, the first on top. A **BackgroundLayer** is CSS's: an image (a path in the book) or a
+`css.Gradient`, its size, position and repeat on each axis, and the image's own size. Its
+lengths are in the box's units, hundredths of an em here (CSS pixels on a pre-paginated page),
+written with the unit `px`; percentages and `auto` stay as they are.
 
 Layout draws a box under its text and splits it at page breaks: see
 [pagination.md](pagination.md#border-boxes-across-pages).

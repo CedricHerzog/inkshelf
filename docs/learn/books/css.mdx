@@ -209,6 +209,10 @@ with Go's `encoding/xml`:
   indent. A `<br>` on an empty line leaves a line's space instead.
 - **Prefixes.** EPUB 3 books write `-epub-hyphens` or `-webkit-text-emphasis`. `computeStyle`
   reads them as the bare property, unless the bare one is declared too.
+- **Backgrounds.** The `background` shorthand is expanded into its longhands as it is parsed,
+  and `css.Backgrounds` reads them back as layers: images and gradients (linear or radial,
+  repeating or not), each sized, placed and tiled. One painter draws them, for flowing and
+  fixed-layout pages alike, so squared paper made of two gradients looks like squared paper.
 - **More than blocks.** Tables, floats, footnotes, inline SVG and MathML formulas all come out
   of the same builder, each described beside or inside the flat list. The document model's
   reference covers them.

@@ -92,20 +92,11 @@ func (layout *paginator) makeFormats(block document.Block, size int, limit image
 			formats[index].imageSize = layout.inlineImageSize(run, runSize, limit)
 		}
 		if run.Emphasis.Mark != 0 {
-			markSize := max(font.Size()*emphasisScale/100, 1)
-			markFont, err := layout.faces.Font(0, markSize)
+			marks, err := layout.emphasisMarksOf(run.Emphasis, font.Size())
 			if err != nil {
 				return nil, err
 			}
-			emphasis := run.Emphasis
-			if !layout.faces.canDraw(markFont, emphasis.Mark) {
-				// Few fonts have the sesame mark: a dot stands for any mark that no font draws.
-				emphasis.Mark = '•'
-				if run.Emphasis.Mark == '﹆' {
-					emphasis.Mark = '◦'
-				}
-			}
-			formats[index].marks = &emphasisMarks{Emphasis: emphasis, format: &runFormat{size: markSize, font: markFont}}
+			formats[index].marks = marks
 		}
 		formats[index].space = formats[index].width(layout.faces, " ")
 		pointers[index] = &formats[index]
@@ -133,10 +124,42 @@ func (layout *paginator) inlineImageSize(run document.Run, size int, limit image
 // emphasisScale is the size of emphasis marks, in percent of their text's size.
 const emphasisScale = 50
 
-// emphasisMarks are the marks a run puts on its characters, and the format they are drawn in.
+// emphasisMarks are the marks a run puts on its characters: a shape for a keyword mark, else
+// a character drawn in format.
 type emphasisMarks struct {
 	document.Emphasis
-	format *runFormat
+	shape  markShape
+	size   int
+	format *runFormat // nil for a shape
+}
+
+// above returns how far marks above text rise over its ascent: a shape's square, or a
+// character's ascent.
+func (marks *emphasisMarks) above() int {
+	if marks.format == nil {
+		return marks.size
+	}
+	return marks.format.font.Ascent()
+}
+
+// emphasisMarksOf returns the marks of emphasis on text of size: half its size, a shape for a
+// keyword mark, else its character in the reader's font, or a dot if no font has it.
+func (layout *paginator) emphasisMarksOf(emphasis document.Emphasis, size int) (*emphasisMarks, error) {
+	marks := &emphasisMarks{Emphasis: emphasis, size: max(size*emphasisScale/100, 1)}
+	if shape, isKeyword := keywordMarks[emphasis.Mark]; isKeyword {
+		marks.shape = shape
+		return marks, nil
+	}
+	markFont, err := layout.faces.Font(0, marks.size)
+	if err != nil {
+		return nil, err
+	}
+	if !layout.faces.canDraw(markFont, emphasis.Mark) {
+		marks.shape = keywordMarks['•']
+		return marks, nil
+	}
+	marks.format = &runFormat{size: marks.size, font: markFont}
+	return marks, nil
 }
 
 // runFormat is everything about a run that its fragments need to be measured, placed and drawn.

@@ -1,5 +1,11 @@
 package document
 
+import (
+	"image"
+
+	"github.com/CedricHerzog/inkshelf/internal/web/css"
+)
+
 // BorderStyle is how a side of a box's border is drawn.
 type BorderStyle uint8
 
@@ -34,5 +40,21 @@ type BorderBox struct {
 	LeftEdge, RightEdge       Hundredths
 	Background                uint8
 	Filled                    bool // the Background is drawn: not transparent
-	PageBreak                 bool // the box starts on a new page
+	// Layers are drawn over the Background color, the first on top, at most MaxBackgroundLayers.
+	Layers    []BackgroundLayer
+	PageBreak bool // the box starts on a new page
+}
+
+// MaxBackgroundLayers caps the layers of a box's background.
+const MaxBackgroundLayers = 8
+
+// BackgroundLayer is a layer of a box's background: an image or a gradient, sized, placed and
+// repeated as CSS says. Its Image is a path in the book. Its lengths, and those of its Gradient
+// (radii, centre, stops InPixels), are percentages, auto, or in the box's units with the Unit
+// "px": hundredths of an em in a reflowable chapter, CSS pixels on a pre-paginated page.
+type BackgroundLayer struct {
+	css.BackgroundLayer
+	// ImageSize is the image's own size in the box's units, zero for a gradient: what an auto
+	// size keeps.
+	ImageSize image.Point
 }

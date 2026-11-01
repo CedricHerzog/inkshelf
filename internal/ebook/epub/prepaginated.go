@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"image"
 	"image/png"
-	"maps"
 	"math"
-	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/CedricHerzog/inkshelf/internal/ebook/epub/container"
@@ -53,8 +52,12 @@ func (book *Book) FixedLayout() bool {
 	return true
 }
 
-// RenderPage draws chapter index (counted from 0) as a fixed-layout page fitted in size.
+// RenderPage draws chapter index (counted from 0) as a fixed-layout page fitted in size, or a
+// roll's page index for a screen of size.
 func (book *Book) RenderPage(index int, size image.Point) (*image.Gray, error) {
+	if book.Roll() {
+		return book.renderRollPage(index, size)
+	}
 	if index < 0 || index >= book.Chapters() {
 		return nil, fmt.Errorf("chapter %d of %d", index, book.Chapters())
 	}
@@ -181,6 +184,12 @@ func (parser *builder) pageSize() image.Point {
 // background becomes a region drawn under the content. position: absolute or fixed takes the
 // element out of the flow into a region of its own, which its content goes into.
 func (parser *builder) placeOnPage(opened *element, declared map[string]string) {
+	if opened.name == "html" {
+		return // its head's stylesheets are not read yet: placed with body, below
+	}
+	if html := opened.parent; opened.name == "body" && html != nil && html.name == "html" {
+		parser.placeHTML(html)
+	}
 	containing := image.Rectangle{Max: parser.pageSize()}
 	for ancestor := opened.parent; ancestor != nil; ancestor = ancestor.parent {
 		if ancestor.positioned != nil {
@@ -190,20 +199,19 @@ func (parser *builder) placeOnPage(opened *element, declared map[string]string) 
 	}
 	position := strings.ToLower(declared["position"])
 	positioned := position == "absolute" || position == "fixed"
-	background := parser.backgroundOf(declared)
-	color, gradient := backgroundFill(declared)
+	color, layers := parser.backgroundFill(opened, declared)
 	if !positioned && opened.name != "html" && opened.name != "body" && (declared["width"] == "" || declared["height"] == "") {
 		// The box of an element in the flow is not known: its colors would cover the page.
-		color, gradient = css.Color{}, nil
+		color, layers = css.Color{}, nil
 	}
-	if !positioned && background == "" && color.Alpha == 0 && gradient == nil {
+	if !positioned && color.Alpha == 0 && len(layers) == 0 {
 		return
 	}
 	rect := parser.boxRect(opened, declared, containing)
 	if opened.name == "html" || opened.name == "body" {
 		rect = image.Rectangle{Max: parser.pageSize()} // their background is the page's
 	}
-	region := &fixedlayout.Region{Rect: rect, Color: color, Gradient: gradient, Background: background}
+	region := &fixedlayout.Region{Rect: rect, Color: color, Layers: layers}
 	parser.page.Regions = append(parser.page.Regions, region)
 	if !positioned {
 		return // only its background is placed: its content stays in the flow
@@ -217,6 +225,16 @@ func (parser *builder) placeOnPage(opened *element, declared map[string]string) 
 	parser.doc, parser.pending = document.Document{}, pending{}
 }
 
+// placeHTML places the background of html, under body's: from its declared values once its
+// head's stylesheets are read, which they are not when it opens.
+func (parser *builder) placeHTML(html *element) {
+	color, layers := parser.backgroundFill(html, parser.cascade.Compute(html, ""))
+	if color.Alpha == 0 && len(layers) == 0 {
+		return
+	}
+	parser.page.Regions = append(parser.page.Regions, &fixedlayout.Region{Rect: image.Rectangle{Max: parser.pageSize()}, Color: color, Layers: layers})
+}
+
 // closePositioned ends a positioned element: its content becomes its region's, and the builder
 // goes back to the content around it.
 func (parser *builder) closePositioned(closed *element) {
@@ -227,74 +245,19 @@ func (parser *builder) closePositioned(closed *element) {
 	closed.positioned = nil
 }
 
-// backgroundFill returns the background color declared (transparent if none) and the
-// linear-gradient of its background image (nil if none), from background-color and
-// background-image, else from the background shorthand. currentColor is the color declared
-// for the element, else black.
-func backgroundFill(declared map[string]string) (css.Color, *css.Gradient) {
+// backgroundFill returns the background color an element declares (transparent if none) and
+// its layers, in CSS pixels. currentColor is the color declared for the element, else black.
+func (parser *builder) backgroundFill(opened *element, declared map[string]string) (css.Color, []document.BackgroundLayer) {
 	current := css.Black
 	if value, ok := declared["color"]; ok {
 		current, _ = css.ParseColor(value, css.Black)
 	}
-	color, ok := css.ParseColor(declared["background-color"], current)
-	if !ok {
-		color, _ = css.BackgroundColor(declared["background"], current)
+	color, _ := css.ParseColor(declared["background-color"], current)
+	fontPixels := float64(opened.style.fontSize*pixelsPerEm) / 100
+	pixels := func(length css.Length) (float64, bool) {
+		return pixelsOf(strconv.FormatFloat(length.Value, 'g', -1, 64)+length.Unit, 0, fontPixels)
 	}
-	layers := cmp.Or(declared["background-image"], declared["background"])
-	if layered(layers) || tiled(declared["background-size"]) {
-		return color, nil // a pattern of gradients (a grid, stripes): drawn as one, it would hide the page
-	}
-	gradient, ok := css.ParseLinearGradient(layers, current)
-	if !ok {
-		return color, nil
-	}
-	return color, &gradient
-}
-
-// layered reports whether a background image value holds more than one layer: a comma out of
-// parentheses.
-func layered(value string) bool {
-	depth := 0
-	for _, character := range value {
-		switch character {
-		case '(':
-			depth++
-		case ')':
-			depth--
-		case ',':
-			if depth == 0 {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// tiled reports whether a background-size repeats the image in a box: any size but the
-// box's own.
-func tiled(size string) bool {
-	switch strings.Join(strings.Fields(strings.ToLower(size)), " ") {
-	case "", "auto", "auto auto", "100%", "100% 100%", "cover", "contain":
-		return false
-	}
-	return true
-}
-
-// backgroundOf returns the path in the book of the background image declared, "" if none.
-// Its URL is relative to the stylesheet that declares it, which the cascade forgets: it is
-// looked for from the chapter, then from each of its stylesheets.
-func (parser *builder) backgroundOf(declared map[string]string) string {
-	address, ok := css.URL(cmp.Or(declared["background-image"], declared["background"]))
-	if !ok || address == "" {
-		return ""
-	}
-	bases := append([]string{parser.chapterPath}, slices.Sorted(maps.Keys(parser.sheetsAdded))...)
-	for _, base := range bases {
-		if imagePath := resolve(base, address); parser.book.HasFile(imagePath) {
-			return imagePath
-		}
-	}
-	return ""
+	return color, parser.backgroundLayers(declared, current, pixels)
 }
 
 // boxRect returns the box of an element in its containing block, in CSS pixels: from its

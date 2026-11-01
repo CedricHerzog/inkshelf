@@ -103,6 +103,12 @@ hyphen draws a hyphen; if that hyphen does not fit, the last word moves to the n
   of the bidi algorithm). Offsets keep the logical order.
 - Underlines and strikes become `Stroke`s, continuous across a run; links become tap
   rectangles, merged per line.
+- **Emphasis marks** (`text-emphasis`) go above or under each character but spaces and
+  punctuation, half its size. A keyword mark (dot, circle, double circle, triangle, sesame,
+  filled or open) is a `PlacedWord` whose `Mark` is set, drawn as a shape in a square of that
+  size (`emphasis_marks.go`): few fonts have the sesame, and a font's marks are not the size and
+  place CSS gives them. A mark that is another character is drawn in the reader's font, or as a
+  dot when no font has it.
 
 ## 5. Pages
 
@@ -148,6 +154,7 @@ page ends inside a box, it is *broken*: drawn to the page's bottom without its b
 then *restarted* at the next page's top without its top border. A box whose first part would
 hold nothing moves to the next page whole, rather than leaving a lone top border at the
 bottom of a page. Margins collapse through a box that has no border or padding on that side.
+Each part of a broken box paints its own background layers, sized and placed in that part.
 
 ## Child paginators
 

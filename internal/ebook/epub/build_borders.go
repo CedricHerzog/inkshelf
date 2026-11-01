@@ -131,7 +131,8 @@ func (parser *builder) borderBoxOf(opened *element, declared map[string]string) 
 	if gray, ok := backgroundGray(declared, opened.color, opened.background); ok {
 		box.Background, box.Filled = gray, true
 	}
-	if !box.Filled && box.Top.Style == document.NoBorder && box.Right.Style == document.NoBorder &&
+	box.Layers = parser.backgroundLayers(declared, opened.color, hundredthsOf(fontSize))
+	if !box.Filled && len(box.Layers) == 0 && box.Top.Style == document.NoBorder && box.Right.Style == document.NoBorder &&
 		box.Bottom.Style == document.NoBorder && box.Left.Style == document.NoBorder {
 		return nil
 	}
@@ -186,12 +187,7 @@ func (parser *builder) borderOf(declared map[string]string, side string, opened 
 // no background, or one that doesn't differ from the one under it.
 func backgroundGray(declared map[string]string, color css.Color, under uint8) (uint8, bool) {
 	parsed, ok := css.ParseColor(declared["background-color"], color)
-	if !ok {
-		if parsed, ok = css.BackgroundColor(declared["background"], color); !ok {
-			return 0, false
-		}
-	}
-	if parsed.Alpha == 0 {
+	if !ok || parsed.Alpha == 0 {
 		return 0, false
 	}
 	gray := blend(parsed, under)

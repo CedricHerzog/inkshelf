@@ -65,6 +65,10 @@ type PlacedWord struct {
 	Spacing int // the letter spacing, in pixels
 	// Shaping, if not nil, draws the word as its fonts shape it.
 	Shaping *Shaping
+	// Mark, if set, makes the word an emphasis mark drawn as a shape, filled or MarkOpen, in a
+	// square of side Size at X, Top; its Text is empty.
+	Mark     MarkShape
+	MarkOpen bool
 }
 
 // Shaping is how to draw text that the font shapes (fonts.Font.Shape) rather than character by
@@ -88,12 +92,16 @@ type Line struct {
 
 // PlacedBorderBox is the part of a border box on a page: its border's outer edges, its
 // background, and the sides of its border drawn there, their widths in pixels. A box split across
-// pages has its top side on its first page only and its bottom side on its last. Depth is how
-// many boxes are around it: those are drawn first, under it.
+// pages has its top side on its first page only and its bottom side on its last, and each part
+// has its own background layers, sized and placed in that part. Depth is how many boxes are
+// around it: those are drawn first, under it.
 type PlacedBorderBox struct {
 	Rect                     image.Rectangle
 	Top, Right, Bottom, Left document.Border
 	Background               uint8
 	Filled                   bool
-	Depth                    int
+	// Layers are drawn over Background, their lengths in hundredths of an em: LayerUnit pixels.
+	Layers    []document.BackgroundLayer
+	LayerUnit float64
+	Depth     int
 }

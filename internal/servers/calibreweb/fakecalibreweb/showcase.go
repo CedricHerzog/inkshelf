@@ -15,8 +15,8 @@ type showcaseChapter struct {
 }
 
 // showcaseChapters are the chapters of the showcase EPUB: Arabic, Hebrew, text in both
-// directions, Chinese and Japanese lines and their punctuation, and the emphasis marks and
-// underlines of CSS Text.
+// directions, Chinese and Japanese lines and their punctuation, the emphasis marks and
+// underlines of CSS Text, and backgrounds and SVG strokes.
 var showcaseChapters = []showcaseChapter{
 	{file: "arabic.xhtml", title: "العربية", language: "ar", direction: "rtl", body: `<h1>العربية</h1>
 <p>مرحبا بكم في هذا الكتاب. تكتب اللغة العربية من اليمين إلى اليسار، وتتصل حروفها ببعضها البعض داخل الكلمة، فيتغير شكل الحرف بحسب موضعه في أولها أو وسطها أو آخرها.</p>
@@ -35,9 +35,15 @@ var showcaseChapters = []showcaseChapter{
 <p lang="ko" class="keep">한국어 문장은 띄어쓰기로 단어를 나누며, keep-all은 단어 안에서 줄을 바꾸지 않습니다.</p>`},
 	{file: "emphasis.xhtml", title: "Emphasis", language: "en", body: `<h1>Emphasis</h1>
 <p lang="ja">日本語の<span class="dots">強調</span>は文字の上に<span class="sesame">傍点</span>を打つ。</p>
-<p>Marks above: <span class="circles">circled words</span>; under: <span class="under-marks">triangles</span>.</p>
+<p>Marks above: <span class="circles">circled words</span>, <span class="double">double circles</span>; under: <span class="under-marks">triangles</span>.</p>
 <p><u>An ordinary underline, gypsy</u>, and <u class="under">one under the descenders, gypsy</u>.</p>
 <p class="last">A justified paragraph whose last line is centred by text-align-last, written with a vendor prefix: the words of its lines stretch to both margins, but the last.</p>`},
+	{file: "backgrounds.xhtml", title: "Backgrounds", language: "en", body: `<h1>Backgrounds</h1>
+<div class="grid"><p>Squared paper: two repeating gradients, a line every 40 pixels each way, tiled by background-size.</p></div>
+<div class="glow"><p>A radial gradient, light around a point left of the middle, darker to the corners.</p></div>
+<p>The same square drawn in a viewBox 10 wide, its stroke 0.5, and in one 1000 wide, its stroke 50: both lines are as thick.</p>
+<p class="strokes"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" width="80" height="80"><rect x="1" y="1" width="8" height="8" fill="none" stroke="black" stroke-width="0.5"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="80" height="80"><rect x="100" y="100" width="800" height="800" fill="none" stroke="black" stroke-width="50"/></svg></p>`},
 }
 
 // showcaseCSS is the stylesheet of the showcase: prefixed properties among them.
@@ -50,9 +56,14 @@ h1 { text-align: center; margin: 1em 0; }
 .dots { text-emphasis: filled dot; }
 .sesame { -epub-text-emphasis-style: sesame; }
 .circles { -webkit-text-emphasis-style: open circle; }
+.double { text-emphasis: double-circle; }
 .under-marks { text-emphasis-style: filled triangle; text-emphasis-position: under right; }
 .under { text-underline-position: under; }
 .last { -epub-text-align-last: center; }
+.grid { border: 1px solid black; padding: 2em 1em; margin: 1em 0; background: repeating-linear-gradient(transparent 0 38px, #999 38px 40px),
+  repeating-linear-gradient(90deg, transparent 0 38px, #999 38px 40px) 0 0 / 80px 80px, white; }
+.glow { padding: 2em 1em; margin: 1em 0; background: radial-gradient(circle at 30% 50%, white, #777); }
+.strokes { text-indent: 0; text-align: center; }
 `
 
 // makeShowcaseEPUB returns the EPUB of the showcase book: a chapter per topic of

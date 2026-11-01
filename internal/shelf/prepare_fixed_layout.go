@@ -14,12 +14,13 @@ import (
 )
 
 // downloadFixedLayout turns a fixed-layout EPUB (opened, at book's EPUBPath) into page images,
-// as a comic: each chapter drawn whole by epub.RenderPage, then prepared for the screen. The
+// as a comic: each chapter drawn whole by epub.RenderPage (a roll's strip, cut a screen high),
+// then prepared for the screen. The
 // pages already on disk (from an interrupted download) are kept. book.json is saved as a
 // ComicArchive's, and the EPUB, which only takes space now, is removed.
 func (store Store) downloadFixedLayout(ctx context.Context, opened *epub.Book, book Book, size image.Point, reports *reporter) error {
 	span := timing.Start(ctx, "draw fixed-layout pages")
-	book.Format, book.Pages = servers.ComicArchive, opened.Chapters()
+	book.Format, book.Pages = servers.ComicArchive, opened.PageCount(size)
 	if book.Direction == "" {
 		// The server says nothing: the EPUB's page progression, else its language's, and not
 		// manga's order, which page images default to.

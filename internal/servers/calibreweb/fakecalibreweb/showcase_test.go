@@ -3,6 +3,7 @@ package fakecalibreweb
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/CedricHerzog/inkshelf/internal/ebook/epub"
@@ -35,7 +36,8 @@ func TestShowcaseEPUB(t *testing.T) {
 	if block := arabic.Blocks[1]; block.Direction != document.RightToLeft || arabic.Language != "ar" {
 		t.Errorf("Arabic paragraph %+v in %q, want right to left", block, arabic.Language)
 	}
-	emphasis, err := opened.Chapter(len(showcaseChapters) - 1)
+	emphasisIndex := slices.IndexFunc(showcaseChapters, func(chapter showcaseChapter) bool { return chapter.file == "emphasis.xhtml" })
+	emphasis, err := opened.Chapter(emphasisIndex)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +49,7 @@ func TestShowcaseEPUB(t *testing.T) {
 			}
 		}
 	}
-	if marks != 4 {
-		t.Errorf("%d runs with emphasis marks, want 4", marks)
+	if marks != 5 { // dots, sesames, circles, double circles, triangles
+		t.Errorf("%d runs with emphasis marks, want 5", marks)
 	}
 }

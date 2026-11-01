@@ -48,6 +48,9 @@ type styler struct {
 	shapes int
 	modeOf func(index int) shapeMode
 	found  []foundFill
+	// pixelScale is how many pixels a user unit of the root is: oksvg draws strokes in pixels,
+	// so their widths and dashes are written multiplied by it and by the elements' transforms.
+	pixelScale float64
 }
 
 // shapeMode is how a shape is written in a pass of the styler.
@@ -86,8 +89,8 @@ type restyled struct {
 }
 
 // restyle reads an SVG, computes its styles from its stylesheets, extraCSS (under them) and
-// its attributes, and writes it back for oksvg.
-func restyle(data []byte, extraCSS string, media css.Media) (restyled, error) {
+// its attributes, and writes it back for oksvg, to be drawn through toPixels.
+func restyle(data []byte, extraCSS string, media css.Media, toPixels matrix) (restyled, error) {
 	root, err := parseTree(data)
 	if err != nil {
 		return restyled{}, err
@@ -102,7 +105,7 @@ func restyle(data []byte, extraCSS string, media css.Media) (restyled, error) {
 		sheets.Add(css.Parse(text, media))
 	}
 	addSheet(extraCSS)
-	work := styler{ids: map[string]*node{}, patternColors: map[string]paint{}, resolving: map[string]bool{}}
+	work := styler{ids: map[string]*node{}, patternColors: map[string]paint{}, resolving: map[string]bool{}, pixelScale: toPixels.scale()}
 	var collect func(element *node)
 	collect = func(element *node) {
 		if id := element.ID(); id != "" {
@@ -189,7 +192,7 @@ func (work *styler) write(element *node, transform matrix, referenced bool) {
 	}
 	if element.local == "stop" {
 		work.writeStop(element)
-	} else if style := work.style(element, mode); style != "" {
+	} else if style := work.style(element, mode, work.pixelScale*transform.scale()); style != "" {
 		writeAttribute(&work.output, xml.Name{Local: "style"}, style)
 	}
 	work.output.WriteByte('>')
@@ -219,9 +222,8 @@ func writeAttribute(output *bytes.Buffer, name xml.Name, value string) {
 	output.WriteByte('"')
 }
 
-// lengthProperties are the properties whose value is a length, written as a number of user
-// units.
-var lengthProperties = []string{"stroke-width", "stroke-miterlimit", "stroke-dashoffset"}
+// lengthProperties are the properties whose value is a length, written as a number of pixels.
+var lengthProperties = []string{"stroke-width", "stroke-dashoffset"}
 
 // keywordProperties are the properties whose value is a keyword, and the keywords oksvg reads.
 var keywordProperties = []struct {
@@ -233,11 +235,12 @@ var keywordProperties = []struct {
 }
 
 // style returns the style attribute of element for oksvg, written as mode says: its values
-// that oksvg reads, in forms it reads. A value that it could not read is left out.
-func (work *styler) style(element *node, mode shapeMode) string {
+// that oksvg reads, in forms it reads, its stroke's lengths multiplied by pixelScale, the pixels
+// of its user unit. A value that it could not read is left out.
+func (work *styler) style(element *node, mode shapeMode, pixelScale float64) string {
 	var declarations declarationList
 	work.addPaint(&declarations, element, mode)
-	addStrokeShape(&declarations, element)
+	addStrokeShape(&declarations, element, pixelScale)
 	switch mode { // last, over what the element declares and inherits
 	case shapeStrokeOnly:
 		declarations.add("fill", "none")
@@ -299,13 +302,21 @@ func (work *styler) addPaint(declarations *declarationList, element *node, mode 
 }
 
 // addStrokeShape adds the properties that shape element's stroke: its width, caps, joins and
-// dashes, lengths as numbers of user units.
-func addStrokeShape(declarations *declarationList, element *node) {
+// dashes, its lengths in user units multiplied by pixelScale, as oksvg draws them in pixels. The
+// miter limit is a ratio of the width, and stays as it is.
+func addStrokeShape(declarations *declarationList, element *node, pixelScale float64) {
 	values := element.values
 	for _, property := range lengthProperties {
-		if length, ok := lengthOf(values[property], element.inherited.fontSize); ok && length >= 0 {
-			declarations.add(property, formatNumber(length))
+		length, ok := lengthOf(values[property], element.inherited.fontSize)
+		if (!ok || length < 0) && property == "stroke-width" {
+			length, ok = 1, true // SVG's initial width, which oksvg's (2 pixels) is not
 		}
+		if ok && length >= 0 {
+			declarations.add(property, formatNumber(length*pixelScale))
+		}
+	}
+	if limit, ok := lengthOf(values["stroke-miterlimit"], element.inherited.fontSize); ok && limit >= 0 {
+		declarations.add("stroke-miterlimit", formatNumber(limit))
 	}
 	for _, keyword := range keywordProperties {
 		if value := strings.ToLower(values[keyword.property]); slices.Contains(keyword.keywords, value) {
@@ -313,7 +324,7 @@ func addStrokeShape(declarations *declarationList, element *node) {
 		}
 	}
 	if value, ok := values["stroke-dasharray"]; ok {
-		if dashes, ok := dashArrayOf(value, element.inherited.fontSize); ok {
+		if dashes, ok := dashArrayOf(value, element.inherited.fontSize, pixelScale); ok {
 			declarations.add("stroke-dasharray", dashes)
 		}
 	}
@@ -359,8 +370,9 @@ func lengthOf(value string, fontSize float64) (float64, bool) {
 	return 0, false
 }
 
-// dashArrayOf returns a stroke-dasharray as oksvg reads it: none, or numbers.
-func dashArrayOf(value string, fontSize float64) (string, bool) {
+// dashArrayOf returns a stroke-dasharray as oksvg reads it: none, or numbers of pixels, its
+// lengths in user units multiplied by pixelScale.
+func dashArrayOf(value string, fontSize, pixelScale float64) (string, bool) {
 	if strings.EqualFold(value, "none") {
 		return "none", true
 	}
@@ -374,7 +386,7 @@ func dashArrayOf(value string, fontSize float64) (string, bool) {
 		if !ok || length < 0 {
 			return "", false
 		}
-		numbers[index] = formatNumber(length)
+		numbers[index] = formatNumber(length * pixelScale)
 	}
 	return strings.Join(numbers, ","), true
 }

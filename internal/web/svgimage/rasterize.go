@@ -48,7 +48,7 @@ func Rasterize(data []byte, size image.Point, options Options) (*image.Gray, err
 	}
 	userToPixels := root.aspect.place(viewBox, bounds{width: float64(size.X), height: float64(size.Y)})
 	width, height := root.size()
-	styled, err := restyle(data, options.CSS, css.Media{Type: "screen", Width: width, Height: height})
+	styled, err := restyle(data, options.CSS, css.Media{Type: "screen", Width: width, Height: height}, userToPixels.matrix())
 	if err != nil {
 		return nil, err
 	}

@@ -17,10 +17,13 @@ var (
 )
 
 // Draw draws page into dst, which is white, from the bottom layer up: the border boxes'
-// backgrounds and borders, underlines and strike-throughs, rules in dark gray, images through
+// backgrounds (their images through images) and borders, underlines and strike-throughs, rules in dark gray, images through
 // images (one that cannot be loaded is left out), and the words in their gray.
 func (page Page) Draw(dst *image.Gray, faces *Faces, images webimage.Loader) error {
-	drawBorderBoxes(dst, page.Boxes)
+	drawBorderBoxes(dst, page.Boxes, func(path string, size image.Point) (Tile, error) {
+		picture, err := images(path, size)
+		return Tile{Gray: picture}, err
+	})
 	for _, stroke := range page.Strokes {
 		fill(dst, stroke.Rectangle, stroke.Gray)
 	}
@@ -44,6 +47,10 @@ func (page Page) Draw(dst *image.Gray, faces *Faces, images webimage.Loader) err
 	}
 	for _, line := range page.Lines {
 		for _, word := range line.Words {
+			if word.Mark != NoMark {
+				drawMark(dst, word)
+				continue
+			}
 			if err := faces.draw(dst, word.format(), image.Pt(word.X, word.Top), word.Text, color.Gray{Y: word.Gray}); err != nil {
 				return err
 			}

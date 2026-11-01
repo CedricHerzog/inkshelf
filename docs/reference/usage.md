@@ -158,8 +158,10 @@ left. A book written right to left (its `page-progression-direction`, else its l
 its pages as manga do. Arabic and Hebrew text runs right to left, joined and mixed with left-to-right
 text as in a browser; Chinese and Japanese lines break between ideographs, never before a closing
 mark; formulas (MathML) are laid out with the text, at its size; SVG illustrations get their
-styles and their text. Borders and background colors of paragraphs and boxes are drawn in
-grays, and colored text as its gray, kept legible: light text is darkened, but on a dark box.
+styles and their text, their strokes as thick as the drawing says. Borders and backgrounds of
+paragraphs and boxes (colors, images, gradients, tiled patterns) are drawn in grays, and
+colored text as its gray, kept legible: light text is darkened, but on a dark box. Emphasis
+marks (dots, circles, sesames, triangles) are drawn above or under each character.
 Books protected by DRM are refused at download. How much of EPUB 3.3
 this covers, measured with the W3C's tests, is in [epub-conformance.md](epub-conformance.md).
 
@@ -176,11 +178,13 @@ download time, one page per spine item, and read as comics: the lists show their
 and the pages turn as the EPUB's `page-progression-direction` (else its language) says unless
 the server says otherwise. Each page is drawn at the size its viewport gives (else its first image's), fitted
 in the screen and clipped to it: a page that is one image shows it whole; otherwise the
-background colors, simple gradients and images, the images and the text that `position: absolute`
+backgrounds (colors, gradients, images, tiled patterns), the images and the text that `position: absolute`
 places (in px, %, em), and the rest of the text laid out from the top. Floats, flexbox, grids,
 transforms and vertical writing are left out, and two-page spreads show one page at a time. In an EPUB that is
 reflowable but for some pages (often its cover), each such page is drawn the same way, as an
-image filling a page of the text.
+image filling a page of the text. A roll of pictures (`rendition:layout` roll, as webtoons are)
+is drawn at download time too, as one strip as wide as the screen cut into pages, and read as a
+comic.
 
 The books and filters of versions with a single server move to the first server's folder at the
 next start.

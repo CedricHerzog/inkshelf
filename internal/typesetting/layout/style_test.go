@@ -469,12 +469,11 @@ func TestUnderlineUnder(t *testing.T) {
 	}
 }
 
-// Emphasis marks are words half the text's size, centred above (or under) each character but
+// Emphasis marks are shapes half the text's size, centred above (or under) each character but
 // spaces and punctuation; they make the line taller.
 func TestEmphasisMarks(t *testing.T) {
 	faces := newTestFaces(t)
 	font, _ := faces.Font(0, 24)
-	markFont, _ := faces.Font(0, 12)
 	plainHeight := leftSettings.FontSize * leftSettings.LineSpacing / 100
 	for _, under := range []bool{false, true} {
 		doc := &document.Document{}
@@ -483,7 +482,7 @@ func TestEmphasisMarks(t *testing.T) {
 		page := paginateOne(t, doc, leftSettings, faces, noImages)
 		var marks []PlacedWord
 		for _, word := range page.Lines[0].Words {
-			if word.Text == "•" {
+			if word.Mark != NoMark {
 				marks = append(marks, word)
 			}
 		}
@@ -491,13 +490,13 @@ func TestEmphasisMarks(t *testing.T) {
 			t.Fatalf("under %v: %d marks, want one per letter: %q", under, len(marks), lineText(page.Lines[0]))
 		}
 		text := wordAt(t, page, "mark")
-		if marks[0].Size != 12 {
-			t.Errorf("marks of size %d, want 12", marks[0].Size)
+		if marks[0].Size != 12 || marks[0].Mark != DotMark || marks[0].MarkOpen {
+			t.Errorf("mark %+v, want a filled dot of size 12", marks[0])
 		}
-		if center, want := marks[0].X+markFont.Width("•")/2, text.X+font.Width("m")/2; center < want-1 || center > want+1 {
+		if center, want := marks[0].X+marks[0].Size/2, text.X+font.Width("m")/2; center < want-1 || center > want+1 {
 			t.Errorf("mark centred at %d, want %d over its letter", center, want)
 		}
-		if above := marks[0].Top+markFont.Ascent() <= text.Top; above == under {
+		if above := marks[0].Top+marks[0].Size <= text.Top; above == under {
 			t.Errorf("under %v: mark at %d, text at %d", under, marks[0].Top, text.Top)
 		}
 		if height := wordAt(t, page, "next").Top - leftSettings.Margins.Min.Y; height <= plainHeight {
@@ -505,17 +504,6 @@ func TestEmphasisMarks(t *testing.T) {
 		}
 		if err := page.Draw(whiteCanvas(leftSettings), faces, nil); err != nil {
 			t.Fatal(err)
-		}
-	}
-}
-
-// A mark that no font has, sesame, is drawn as a dot; an open one as an open dot.
-func TestEmphasisMarkFallback(t *testing.T) {
-	faces := newTestFaces(t)
-	for mark, want := range map[rune]string{'﹅': "•", '﹆': "◦", '▲': "▲"} {
-		page := paginateOne(t, oneBlock(document.Block{Runs: []document.Run{{Text: "a", Emphasis: document.Emphasis{Mark: mark}}}}), leftSettings, faces, noImages)
-		if got := page.Lines[0].Words[1].Text; got != want {
-			t.Errorf("mark %q drawn as %q, want %q", mark, got, want)
 		}
 	}
 }

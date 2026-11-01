@@ -232,7 +232,7 @@ c</p><p hidden="">hidden too</p><p>He said <q>yes</q>.</p>`)
 		Start: blocks[5].Start, End: blocks[6].Start, Top: document.Border{Style: document.Solid, Width: 6},
 		Bottom: document.Border{Style: document.Dotted, Width: 13}, MarginTop: 100, MarginBottom: 100, LeftEdge: 100, RightEdge: 375,
 	}
-	if len(doc.Boxes) != 1 || doc.Boxes[0] != wantBox {
+	if len(doc.Boxes) != 1 || !reflect.DeepEqual(doc.Boxes[0], wantBox) {
 		t.Errorf("boxes %+v, want %+v", doc.Boxes, wantBox)
 	}
 	if hang := blocks[6]; hang.Left != 200 || hang.Indent != -200 {

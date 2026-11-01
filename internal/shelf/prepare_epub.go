@@ -30,7 +30,8 @@ const (
 const CharsPerPage = 1500
 
 // downloadReflowable fetches book's EPUB, reads it through to index it, prepares its cover,
-// then saves book.json with its virtual page count. A fixed-layout EPUB becomes page images.
+// then saves book.json with its virtual page count. A fixed-layout EPUB, or a roll of images,
+// becomes page images.
 func (store Store) downloadReflowable(ctx context.Context, server servers.Server, book Book, width, height int, reports *reporter) error {
 	epubPath := store.EPUBPath(book.ID)
 	if err := fetchFile(ctx, server, book.ID, epubPath, reports); err != nil {
@@ -44,7 +45,7 @@ func (store Store) downloadReflowable(ctx context.Context, server servers.Server
 		return err
 	}
 	defer opened.Close()
-	if opened.FixedLayout() {
+	if opened.DrawnAsPages() {
 		return store.downloadFixedLayout(ctx, opened, book, image.Pt(width, height), reports)
 	}
 	index, err := epub.BuildIndex(opened)

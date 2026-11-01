@@ -158,8 +158,7 @@ func readTest(current test, work, outDir string, pages int) error {
 	if err != nil {
 		return err
 	}
-	fixedLayout := opened.FixedLayout()
-	if fixedLayout {
+	if opened.DrawnAsPages() {
 		defer opened.Close()
 		return drawFixedLayout(opened, outDir, pages)
 	}
@@ -167,11 +166,14 @@ func readTest(current test, work, outDir string, pages int) error {
 	return drawReflowable(store, book, outDir, pages)
 }
 
-// drawFixedLayout draws the first pages of a fixed-layout book at the screen's size, as the
-// download does (package shelf).
+// drawFixedLayout draws the first pages of a fixed-layout book or a roll at the screen's size,
+// as the download does (package shelf).
 func drawFixedLayout(book *epub.Book, outDir string, pages int) error {
 	var words strings.Builder
-	for index := range min(pages, book.Chapters()) {
+	if book.Roll() {
+		fmt.Fprintf(&words, "a roll of %d pages\n", book.PageCount(screenSize))
+	}
+	for index := range min(pages, book.PageCount(screenSize)) {
 		drawn, err := book.RenderPage(index, screenSize)
 		if err != nil {
 			fmt.Fprintf(&words, "page %d: error: %v\n", index+1, err)
