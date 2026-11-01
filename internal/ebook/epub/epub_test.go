@@ -541,8 +541,8 @@ func TestMetadata(t *testing.T) {
 	if book.Title != "A long title" || book.Language != "fr" || book.Identifier != "urn:uuid:abc" || strings.Join(book.Creators, "|") != "Jean Dupont|Marie Curie" {
 		t.Errorf("title %q, language %q, identifier %q, creators %q", book.Title, book.Language, book.Identifier, book.Creators)
 	}
-	if book.PageProgression != "rtl" || book.Layout != PrePaginated {
-		t.Errorf("page progression %q, layout %q", book.PageProgression, book.Layout)
+	if book.PageProgression != "rtl" || book.Rendition.Layout != PrePaginated {
+		t.Errorf("page progression %q, layout %q", book.PageProgression, book.Rendition.Layout)
 	}
 	if book.ChapterLayout(0) != Reflowable || book.ChapterLayout(1) != PrePaginated {
 		t.Errorf("chapter layouts %q, %q", book.ChapterLayout(0), book.ChapterLayout(1))

@@ -12,8 +12,11 @@
 //
 // The package document has three parts that matter here:
 //
-//   - The metadata: title, language, creators, identifiers, and rendition:layout, which says
-//     whether the book is reflowable text or pre-paginated pages.
+//   - The metadata: title, language, creators, identifiers, and the rendition properties:
+//     rendition:layout says whether the book is reflowable text or pre-paginated pages, and
+//     rendition:flow, rendition:spread and rendition:orientation how the publisher meant them
+//     to be shown. An itemref of the spine may set them for its own item, and say which side
+//     of a two-page spread its page takes (page-spread-left, -right, -center).
 //   - The manifest: every file of the book, by id, with its media type. An item the app cannot
 //     show (a scripted page, an AVIF image) may name a fallback item to show instead.
 //   - The spine: the reading order, as references to manifest items. The linear items are the

@@ -48,8 +48,12 @@ The packages, from the bottom up:
 The zip follows the Open Container Format. `META-INF/container.xml` names the *package
 document* (the `.opf` file), which has three parts that matter:
 
-- the **metadata**: title, language, identifiers, and whether the book is reflowable or
-  fixed-layout (`rendition:layout`);
+- the **metadata**: title, language, identifiers, and the *rendition* properties: whether the
+  book is reflowable or fixed-layout (`rendition:layout`), how it flows (`rendition:flow`),
+  when two pages may show side by side (`rendition:spread`) and the orientation its pages are
+  meant for (`rendition:orientation`). An `itemref` of the spine may override them for its own
+  item, and place its page on one side of a spread (`page-spread-left`, `-right`, `-center`).
+  `container.Rendition` holds them; unknown values are ignored, as EPUB 3.3 asks;
 - the **manifest**: every file of the book, by id, with its media type. An item the app cannot
   show (a scripted page, an AVIF image) may name a *fallback* item to show instead;
 - the **spine**: the reading order. Its *linear* items are the chapters; the others (notes,

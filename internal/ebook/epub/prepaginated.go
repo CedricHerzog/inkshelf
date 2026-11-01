@@ -111,7 +111,7 @@ func (book *Book) fixedPage(item container.SpineItem) (*fixedlayout.Page, error)
 	switch {
 	case item.Content == "" || strings.HasPrefix(item.ContentType, "image/"):
 		// Built as a reflowable item is: its image, or a paragraph saying it cannot be shown.
-		item.Layout = Reflowable
+		item.Rendition.Layout = Reflowable
 		doc, err := book.documentOf(item, false)
 		if err != nil {
 			return nil, err
