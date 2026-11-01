@@ -87,6 +87,7 @@ internal/
   ebook/comicarchive    the pages of a CBZ
   naturalorder          "tome 2" before "tome 10"
   timing                spans for the log and the execution trace, profile captures (any domain may use it)  -> docs/reference/profiling.md
+  deadline              workers that bound the wait for a page's slow elements, past which their fallback shows (any domain may use it)
   servers               the Server interface, its neutral model, config.json, title sorting  -> docs/reference/servers.md
   servers/{komga,mealie,calibreweb}   one package per kind of server, each with its fake*/ for the emulator
   servers/httpclient    the shared HTTP client and response handling

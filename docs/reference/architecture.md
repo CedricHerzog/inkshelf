@@ -19,6 +19,7 @@ interactive animations.
 | ebook | [ebook/epub/container](../../internal/ebook/epub/container), [ebook/epub](../../internal/ebook/epub), [ebook/fixedlayout](../../internal/ebook/fixedlayout), [ebook/comicarchive](../../internal/ebook/comicarchive) | Book files: an EPUB's zip, package and navigation; its XHTML and CSS turned into documents; fixed-layout pages; the pages of a CBZ. |
 | (utility) | [naturalorder](../../internal/naturalorder) | "Tome 2" before "Tome 10". Imports nothing; used by ebook, servers and shelf. |
 | (utility) | [timing](../../internal/timing) | Spans for the log and the execution trace, and profile captures. Imports nothing of Inkshelf's; any domain may use it. See [profiling.md](profiling.md). |
+| (utility) | [deadline](../../internal/deadline) | Workers that bound how long a page waits for a slow image, SVG or formula; past the wait, the element's fallback shows. Imports only `timing`; any domain may use it. |
 | servers | [servers](../../internal/servers), [servers/komga](../../internal/servers/komga), [servers/mealie](../../internal/servers/mealie), [servers/calibreweb](../../internal/servers/calibreweb), [servers/httpclient](../../internal/servers/httpclient), [servers/registry](../../internal/servers/registry), their fakes, [servers/servertest](../../internal/servers/servertest) | What the app needs from a server of books (the `Server` interface and its neutral model), and one package per kind of server. See [servers.md](servers.md). |
 | shelf | [shelf](../../internal/shelf) | The books downloaded on the reader: downloading them, preparing them for the panel, `book.json`, covers. See [on-disk-formats.md](on-disk-formats.md). |
 | progress | [progress](../../internal/progress) | Keeping the reading progress of the reader and the server in agreement. See [progress-sync.md](progress-sync.md). |
@@ -87,7 +88,8 @@ flowchart BT
 ```
 
 `timing` is left out of the graph to keep it readable: device, graphics, ebook, servers, shelf,
-reading, app and cmd use it, to time their work for the log and the trace.
+reading, app and cmd use it, to time their work for the log and the trace. So is `deadline`,
+which app uses to start its workers.
 
 ## Where do I look for…
 
