@@ -4,7 +4,9 @@
     "dockerfile": "Dockerfile",
     "args": {
       "GOLANGCI_LINT_VERSION": "v2.14.0",
-      "CLAUDE_CODE_VERSION": "latest"
+      "CLAUDE_CODE_VERSION": "latest",
+      "SPEC_KIT_VERSION": "1.2.5",
+      "UV_VERSION": "0.13.1"
     }
   },
   // init-firewall.sh needs to change the container's iptables.

@@ -1,5 +1,11 @@
-# A container for working on Inkshelf, with Claude Code: everything make verify, make icons and
-# make docs need. Its network is closed by init-firewall.sh, run when the container starts.
+# A container for working on Inkshelf, with Claude Code and Spec Kit: everything make verify,
+# make icons and make docs need. Its network is closed by init-firewall.sh, run when the
+# container starts.
+
+ARG UV_VERSION=0.13.1
+
+# uv as its authors advise, copied from their image, to install Spec Kit's CLI.
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
 # Go as in go.mod.
 FROM golang:1.27.2-trixie
@@ -10,12 +16,13 @@ ARG USER_GID=1000
 ARG NODE_MAJOR=24
 ARG GOLANGCI_LINT_VERSION=v2.14.0
 ARG CLAUDE_CODE_VERSION=latest
+ARG SPEC_KIT_VERSION=1.2.5
 
 # The firewall's tools (iptables, ipset, dig, aggregate), the icons' (rsvg-convert, ImageMagick),
-# and a shell to work in.
+# Spec Kit's Python, and a shell to work in.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     aggregate ca-certificates curl dnsutils fzf gh git gnupg imagemagick iproute2 ipset iptables \
-    jq less librsvg2-bin make man-db procps sudo unzip zsh \
+    jq less librsvg2-bin make man-db procps python3 sudo unzip zsh \
   && rm -rf /var/lib/apt/lists/*
 
 # The Makefile calls ImageMagick 7's magick. Should the distribution's package only ship
@@ -36,6 +43,8 @@ RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/ins
 
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
   && useradd --uid ${USER_UID} --gid ${USER_GID} --shell /bin/zsh --create-home ${USERNAME}
+
+COPY --from=uv /uv /uvx /usr/local/bin/
 
 # The user may run the firewall script as root, and nothing else.
 COPY init-firewall.sh /usr/local/bin/init-firewall.sh
@@ -61,6 +70,14 @@ RUN git config --system --add safe.directory /workspace
 USER ${USERNAME}
 
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+
+# Spec Kit's specify CLI, installed now because the firewall closes PyPI once the container runs:
+# to upgrade it, change SPEC_KIT_VERSION and rebuild. uv uses the system's Python rather than
+# downloading its own.
+ENV UV_PYTHON_PREFERENCE=only-system
+ENV UV_TOOL_BIN_DIR=/home/${USERNAME}/.local/bin
+ENV PATH=/home/${USERNAME}/.local/bin:${PATH}
+RUN uv tool install specify-cli==${SPEC_KIT_VERSION}
 
 RUN printf '%s\n' \
     'HISTFILE=/commandhistory/.zsh_history' 'HISTSIZE=10000' 'SAVEHIST=10000' \

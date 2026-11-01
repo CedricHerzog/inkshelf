@@ -51,7 +51,9 @@ layout and the app's threads, read [the documentation site](https://cedricherzog
 and Claude Code: open the folder in VS Code and choose *Reopen in Container*. Its firewall lets
 through only Anthropic's API, GitHub, the Go proxy and npm. To run `make emu` against your own
 servers, list their hosts, space-separated, in `INKSHELF_ALLOWED_DOMAINS` on the host before you
-open it. `make deploy` needs the reader mounted over USB, so it runs on the host.
+open it. `make deploy` needs the reader mounted over USB, so it runs on the host. It also has
+[Spec Kit](https://github.com/github/spec-kit)'s `specify` CLI, at the version
+`devcontainer.json` pins: rebuild the container to upgrade it.
 
 ## Maintenance
 
