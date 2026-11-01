@@ -19,8 +19,8 @@ import (
 // textSizes are the font sizes of book text, in InkPad 3 pixels, smallest first.
 var textSizes = []int{32, 36, 40, 44, 50, 56, 64}
 
-// defaultTextSize is the font size of book text until the reader picks one.
-const defaultTextSize = 44
+// DefaultTextSize is the font size of book text until the reader picks one.
+const DefaultTextSize = 44
 
 // The margins of a page of book text, and its line spacing, in InkPad 3 pixels.
 const (
@@ -48,7 +48,7 @@ func textSizeLocked(app *state.State) int {
 	if slices.Contains(textSizes, app.Preferences.TextSize) {
 		return app.Preferences.TextSize
 	}
-	return defaultTextSize
+	return DefaultTextSize
 }
 
 // moveTextLocked moves the open Reflowable book to the next or previous page, and reports

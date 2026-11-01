@@ -6,7 +6,7 @@ APP := build/inkshelf.app
 # The reader: InkPad 3 (B288, Cortex-A7), firmware 6.x.
 TARGET := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: build test lint deploy reader-deploy reader-shots reader-log reader-profile emu emu-fake shots shots-all shots-compare baseline verify bench bench-baseline \
+.PHONY: epub-tests build test lint deploy reader-deploy reader-shots reader-log reader-profile emu emu-fake shots shots-all shots-compare baseline verify bench bench-baseline \
 	bench-compare profile icons docs docs-build docs-shots clean
 
 # Release build: optimised and stripped.
@@ -85,6 +85,16 @@ verify: build lint
 	go test ./...
 	$(MAKE) shots-all
 	$(MAKE) shots-compare
+
+# The W3C's EPUB 3 reading-system tests read as the reader would (cmd/epubtests,
+# docs/reference/epub-conformance.md): each test's words and first pages in build/epub-tests, the
+# tests whose output changed since the previous run, and the results by area of
+# cmd/epubtests/judgments.tsv. EPUB_TESTS is a checkout of https://github.com/w3c/epub-tests.
+EPUB_TESTS ?= $(HOME)/src/epub-tests
+epub-tests:
+	rm -rf build/epub-tests-previous
+	if [ -d build/epub-tests ]; then mv build/epub-tests build/epub-tests-previous; fi
+	go run ./cmd/epubtests -tests $(EPUB_TESTS) -previous build/epub-tests-previous
 
 # Benchmarks (docs/reference/profiling.md): each 6 times, for benchstat, in build/bench/new.txt.
 # BENCH (a pattern) and PKG narrow them: make bench BENCH=Paginate PKG=./internal/typesetting/layout.

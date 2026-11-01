@@ -1,0 +1,207 @@
+# test	area	verdict	reason
+cnt-css-fonts_ot	Fonts	pass	
+cnt-css-fonts_tt	Fonts	pass	
+cnt-css-fonts_woff	Fonts	pass	
+cnt-css-fonts_woff2	Fonts	pass	
+cnt-mathml-support	MathML	pass	
+cnt-svg-css	SVG	pass	
+cnt-svg-css-inclusion	SVG	pass	
+cnt-svg-css-reference	SVG	pass	
+cnt-svg-embedded	SVG	pass	
+cnt-svg-support	SVG	pass	
+cnt-xhtml-support	XHTML and resources	pass	
+css-epub-hyphens	CSS	pass	
+css-epub-line-break	CSS	pass	
+css-epub-text-align-last	CSS	pass	
+css-epub-text-combine-horizontal	CSS	fail	vertical writing
+css-epub-text-emphasis	CSS	fail	sesame emphasis marks, which no font has, drawn as dots
+css-epub-text-orientation	CSS	fail	vertical writing
+css-epub-text-transform	CSS	pass	
+css-epub-text-underline-position	CSS	fail	the vertical half of text-underline-position
+css-epub-word-break	CSS	pass	
+css-epub-writing-mode	CSS	fail	vertical writing
+fxl-layout-duplication	Fixed layout	deprecated	deprecated by the suite
+fxl-page-spread-break	Fixed layout	deprecated	deprecated by the suite
+fxl-page-spread-center	Fixed layout	deprecated	deprecated by the suite
+fxl-spine-overrides_behave-as-global	Fixed layout	deprecated	deprecated by the suite
+fxl-spine-overrides_behave-as-global-bis	Fixed layout	deprecated	deprecated by the suite
+fxl-spine-overrides_duplicate	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-layout-default	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-layout-pre-paginated	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-layout-pre-paginated-spreads	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-orientation-default	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-orientation-landscape	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-page-spread-combined	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-page-spread-left	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-page-spread-right	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-spread-auto	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-spread-both	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-spread-default	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-spread-landscape	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-spread-none	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-svg-icb_multi	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-xhtml-icb	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-xhtml-icb_device_sizes	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-xhtml-icb_invalid_meta	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-xhtml-icb_multi	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-xhtml-icb_multi_declarations	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-xhtml-icb_repeated-in-meta	Fixed layout	deprecated	deprecated by the suite
+lay-fxl-xhtml-icb_units	Fixed layout	deprecated	deprecated by the suite
+lay-page-layout-both	Fixed layout	pass	
+lay-page-layout-both-spread	Fixed layout	out-of-scope	no synthetic spreads on a portrait panel
+lay-pkg-flow-paginated	Reflowable layout	pass	
+lay-pkg-flow-scrolled-continuous	Reflowable layout	out-of-scope	scrolled flows and align-x-center don't apply to paged e-ink
+lay-pkg-flow-scrolled-doc	Reflowable layout	out-of-scope	scrolled flows and align-x-center don't apply to paged e-ink
+lay-pp-embedded-images	Fixed layout	pass	
+lay-pp-embedded-images-svg	Fixed layout	pass	
+lay-pp-images-in-spine	Fixed layout	pass	
+lay-pp-images-mixed	Fixed layout	pass	
+lay-pp-layout-default	Fixed layout	pass	
+lay-pp-layout-duplication	Fixed layout	out-of-scope	a test of EPUBCheck
+lay-pp-layout-pre-paginated	Fixed layout	pass	
+lay-pp-layout-pre-paginated-spreads	Fixed layout	pass	no gap, as no synthetic spread is made
+lay-pp-page-spread-combined	Fixed layout	out-of-scope	no synthetic spreads on a portrait panel
+lay-pp-page-spread-left	Fixed layout	out-of-scope	no synthetic spreads on a portrait panel
+lay-pp-page-spread-right	Fixed layout	out-of-scope	no synthetic spreads on a portrait panel
+lay-pp-spine-overrides_behave-as-global	Fixed layout	pass	
+lay-pp-spine-overrides_behave-as-global-bis	Fixed layout	pass	
+lay-pp-spine-overrides_image-only-pp	Fixed layout	pass	
+lay-pp-spine-overrides_image-only-reflow	Fixed layout	pass	
+lay-pp-spine-overrides_image-spine-pp	Fixed layout	pass	
+lay-pp-spine-overrides_image-spine-reflow	Fixed layout	pass	
+lay-pp-spread-none	Fixed layout	pass	
+lay-pp-svg-icb_multi	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
+lay-pp-xhtml-icb	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
+lay-pp-xhtml-icb_invalid_meta	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
+lay-pp-xhtml-icb_multi	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
+lay-pp-xhtml-icb_multi_declarations	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
+lay-pp-xhtml-icb_repeated-in-meta	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
+lay-pp-xhtml-icb_units	Fixed layout	pass	judged on the page size from the viewport and the clipping; the grids are not drawn
+lay-reflow-align-x-center	Reflowable layout	out-of-scope	scrolled flows and align-x-center don't apply to paged e-ink
+lay-rendition-flow-pre-pag	Fixed layout	pass	
+lay-roll-embedded-images	Reflowable layout	fail	rendition:layout roll (EPUB 3.4) is shown a page per image
+lay-roll-embedded-images-svg	Reflowable layout	fail	rendition:layout roll (EPUB 3.4) is shown a page per image
+lay-roll-images-in-spine	Reflowable layout	fail	rendition:layout roll (EPUB 3.4) is shown a page per image
+lay-roll-images-mixed	Reflowable layout	fail	rendition:layout roll (EPUB 3.4) is shown a page per image
+lay-viewport-meta-prop	Fixed layout	pass	
+mol-audio	Media overlays	out-of-scope	no audio
+mol-audio-exceeding-clipend	Media overlays	out-of-scope	no audio
+mol-audio-no-clipbegin	Media overlays	out-of-scope	no audio
+mol-audio-no-clipend	Media overlays	out-of-scope	no audio
+mol-css	Media overlays	out-of-scope	no audio
+mol-ignore	Media overlays	pass	overlays are ignored, as required
+mol-navigation	Media overlays	out-of-scope	no audio
+mol-support_xhtml	Media overlays	out-of-scope	no audio
+mol-support_xhtml-fxl	Media overlays	out-of-scope	no audio
+mol-support_xhtml-load	Media overlays	out-of-scope	no audio
+mol-support_xhtml-load-fxl	Media overlays	out-of-scope	no audio
+mol-support_xhtml-load-next	Media overlays	out-of-scope	no audio
+mol-support_xhtml-load-next-fxl	Media overlays	out-of-scope	no audio
+mol-timing-synchronization	Media overlays	out-of-scope	no audio
+mol-timing-synchronization_fxl	Media overlays	out-of-scope	no audio
+mol-timing-synchronization_multiple_audio	Media overlays	out-of-scope	no audio
+mol-timing-synchronization_multiple_audio-fxl	Media overlays	out-of-scope	no audio
+mol-timing-synchronization_svg	Media overlays	out-of-scope	no audio
+mol-timing-synchronization_svg-fxl	Media overlays	out-of-scope	no audio
+mol-tts_multi	Media overlays	out-of-scope	no audio
+mol-tts_single	Media overlays	out-of-scope	no audio
+nav-access	Navigation	pass	
+nav-activation	Navigation	pass	
+nav-non-text_img	Navigation	pass	
+nav-non-text_img_title	Navigation	pass	
+nav-spine_in-spine	Navigation	pass	
+nav-spine_in-spine-hidden-toc-css	Navigation	pass	
+nav-spine_in-spine-hidden-toc-html	Navigation	pass	
+nav-spine_in-spine-no-list-style	Navigation	pass	
+nav-spine_not-in-spine	Navigation	pass	
+ocf-font_obfuscation	Fonts	pass	
+ocf-font_obfuscation_bis	Fonts	pass	
+ocf-metainf-inc	OCF	pass	
+ocf-metainf-manifest	OCF	pass	
+ocf-package_arbitrary	OCF	pass	
+ocf-package_multiple	OCF	pass	
+ocf-url_link-leaking-relative	OCF	pass	
+ocf-url_link-path-absolute	OCF	pass	
+ocf-url_link-relative	OCF	pass	
+ocf-url_manifest	OCF	pass	
+ocf-url_origin	OCF	out-of-scope	needs scripts to parse URLs
+ocf-url_parse-leaking-relative	OCF	out-of-scope	needs scripts to parse URLs
+ocf-url_parse-path-absolute	OCF	out-of-scope	needs scripts to parse URLs
+ocf-url_relative	OCF	pass	
+ocf-zip-comp	OCF	pass	judged on archive/zip, which refuses other methods and split archives: the suite's folder holds no such zip
+ocf-zip-mult	OCF	pass	judged on archive/zip, which refuses other methods and split archives: the suite's folder holds no such zip
+pkg-collections-unknown	Package metadata	pass	
+pkg-creator-order	Package metadata	pass	judged on epub.Book: the app's lists show the server's metadata, read from the same package document
+pkg-dir-auto_root-rtl	Internationalization	out-of-scope	titles and creators shown are the server's
+pkg-dir-auto_root-unset	Internationalization	out-of-scope	titles and creators shown are the server's
+pkg-dir_but_not_content	Internationalization	pass	
+pkg-dir_creator-rtl	Internationalization	out-of-scope	titles and creators shown are the server's
+pkg-dir_rtl-root-ltr	Internationalization	out-of-scope	titles and creators shown are the server's
+pkg-dir_rtl-root-unset	Internationalization	out-of-scope	titles and creators shown are the server's
+pkg-dir_unset-root-rtl	Internationalization	out-of-scope	titles and creators shown are the server's
+pkg-dir_unset-root-unset	Internationalization	out-of-scope	titles and creators shown are the server's
+pkg-lang_but_not_content	Internationalization	pass	
+pkg-linked-records	Package metadata	pass	judged on epub.Book: the app's lists show the server's metadata, read from the same package document
+pkg-manifest-unknown	Package metadata	pass	
+pkg-manifest-unlisted-resource	Package metadata	fail	an image missing from the manifest is still shown (kept: real books forget them)
+pkg-meta-unknown	Package metadata	pass	
+pkg-meta-whitespace	Package metadata	pass	judged on epub.Book: the app's lists show the server's metadata, read from the same package document
+pkg-spine-duplicate-item-hyperlink	Spine	pass	
+pkg-spine-duplicate-item-rendering	Spine	pass	
+pkg-spine-duplicate-item-ui	Spine	pass	
+pkg-spine-nonlinear-activation	Spine	pass	
+pkg-spine-order	Spine	pass	
+pkg-spine-order-svg	Spine	pass	
+pkg-spine-progression-default	Spine	pass	
+pkg-spine-progression-pre-paginated	Spine	pass	
+pkg-spine-progression_ltr	Spine	pass	
+pkg-spine-progression_rtl	Spine	pass	
+pkg-spine-unknown	Package metadata	pass	
+pkg-title-order	Package metadata	pass	judged on epub.Book: the app's lists show the server's metadata, read from the same package document
+pkg-unique-id	Package metadata	pass	
+pkg-unique-id_duplicate	Package metadata	pass	
+pkg-version-backward	Package metadata	pass	
+pss-support	Structural semantics	pass	
+pss-support_ignore-title	Structural semantics	pass	
+pub-cmt-avif	Core media types	fail	no AVIF decoder (its fallback is used)
+pub-cmt-gif	Core media types	pass	
+pub-cmt-jpeg	Core media types	pass	
+pub-cmt-jxl	Core media types	pass	
+pub-cmt-mp3	Core media types	out-of-scope	audio is out of scope
+pub-cmt-mp4	Core media types	out-of-scope	audio is out of scope
+pub-cmt-opus	Core media types	out-of-scope	audio is out of scope
+pub-cmt-png	Core media types	pass	
+pub-cmt-svg	Core media types	pass	
+pub-cmt-webp	Core media types	pass	
+pub-data-urls_browsing-context	XHTML and resources	pass	
+pub-data-urls_top-level-content	XHTML and resources	pass	
+pub-external-links	XHTML and resources	out-of-scope	no browser for web links
+pub-external-links_consent	XHTML and resources	out-of-scope	no browser for web links
+pub-file-urls	XHTML and resources	pass	
+pub-foreign_bad-fallback	Manifest fallbacks	pass	
+pub-foreign_image	Manifest fallbacks	pass	
+pub-foreign_json-spine	Manifest fallbacks	pass	
+pub-foreign_xml-spine	Manifest fallbacks	pass	
+pub-foreign_xml-suffix-spine	Manifest fallbacks	pass	
+pub-xml-external-id	XHTML and resources	pass	
+pub-xml-names	XHTML and resources	pass	
+pub-xml-non-validating_comment	XHTML and resources	pass	
+pub-xml-non-validating_unclosed	XHTML and resources	fail	malformed XML is read leniently, not refused (kept: real books have broken markup)
+scr-not-support_ccscript-modify-host	Scripting	out-of-scope	no scripts
+scr-not-support_ccscript-modify-size	Scripting	out-of-scope	no scripts
+scr-readingsystem-features	Scripting	out-of-scope	no scripts
+scr-readingsystem-support	Scripting	out-of-scope	no scripts
+scr-readingsystem-support_iframe	Scripting	out-of-scope	no scripts
+scr-readingsystem-support_iframe_svg	Scripting	out-of-scope	no scripts
+scr-readingsystem-support_svg	Scripting	out-of-scope	no scripts
+scr-storage-delete	Scripting	out-of-scope	no scripts
+scr-support	Scripting	out-of-scope	no scripts
+scr-support-fallback	Scripting	pass	a scripted document's manifest fallback is shown
+scr-support_iframe	Scripting	out-of-scope	no scripts
+scr-support_origin	Scripting	out-of-scope	no scripts
+scr-support_origin_unique	Scripting	out-of-scope	no scripts
+scr-support_scrolled-continuous	Scripting	out-of-scope	no scripts
+scr-support_scrolled-doc	Scripting	out-of-scope	no scripts
+scr-support_svg	Scripting	out-of-scope	no scripts
+sec-untrusted-consent_network	XHTML and resources	pass	nothing is executed or fetched
+sec-untrusted-consent_scripting	XHTML and resources	pass	nothing is executed or fetched

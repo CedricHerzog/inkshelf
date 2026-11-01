@@ -25,7 +25,7 @@ interactive animations.
 | progress | [progress](../../internal/progress) | Keeping the reading progress of the reader and the server in agreement. See [progress-sync.md](progress-sync.md). |
 | reading | [reading](../../internal/reading) | The engine behind reading an EPUB whose text flows: positions, page turns across chapters, links and notes, the table of contents. |
 | app | [app](../../internal/app) and below | The user interface: state, widgets, services, screens. See [app-threading.md](app-threading.md). |
-| cmd | [cmd/inkshelf](../../cmd/inkshelf), [cmd/emulator](../../cmd/emulator) | The program for the reader, and the emulator for the host. See [emulator.md](emulator.md). |
+| cmd | [cmd/inkshelf](../../cmd/inkshelf), [cmd/emulator](../../cmd/emulator), [cmd/readerctl](../../cmd/readerctl), [cmd/epubtests](../../cmd/epubtests) | The program for the reader, the emulator for the host, the remote control of a reader, and the W3C's EPUB tests read as the reader would. See [emulator.md](emulator.md), [remote-control.md](remote-control.md) and [epub-conformance.md](epub-conformance.md). |
 
 ## The layering rule
 

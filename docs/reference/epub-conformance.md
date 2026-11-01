@@ -12,6 +12,11 @@ checked on the laid-out words, the others on the PNGs, each against the same run
 version, so that a test that passed and changed was looked at again. A test that does not apply to
 an offline e-ink reader without scripts, audio or a browser counts as out of scope.
 
+That program is now [cmd/epubtests](../../cmd/epubtests): `make epub-tests
+EPUB_TESTS=<checkout>` draws every test into `build/epub-tests/`, lists the tests whose output
+changed since the previous run, and prints this page's table from the verdicts kept in
+`cmd/epubtests/judgments.tsv`. Judging stays a person's job: the program only shows.
+
 Two judgement calls:
 - Metadata tests (title and creator order, whitespace) are judged on `epub.Book`: the app's lists
   show the server's metadata, which Calibre-Web reads from the same package document.

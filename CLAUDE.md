@@ -36,6 +36,7 @@ make shots-all  # every script with its flags -> build/shots/<script>/
 make baseline   # shots-all, saved as build/baseline/shots for shots-compare
 make bench      # every benchmark x6 -> build/bench/new.txt (BENCH=Pattern PKG=./internal/...); bench-baseline, bench-compare (benchstat)
 make profile SCRIPT=emulator/scripts/calibreweb-epub.txt   # a script with -profile -> build/profile/<script>/ (cpu.pprof, trace.out, ...)
+make epub-tests # the W3C's EPUB 3 tests (EPUB_TESTS=a checkout of w3c/epub-tests) -> build/epub-tests/, what changed, results by area
 make docs       # the documentation site (docs, Docusaurus, Node 20+), http://localhost:3000/inkshelf/
 make docs-build # its typecheck and build, which fail on a broken link
 ```
@@ -104,6 +105,7 @@ internal/
 cmd/inkshelf            the program for the reader: logging, then pocketbook.Run
 cmd/emulator            the app on the host, interactive or headless  -> docs/reference/emulator.md
 cmd/readerctl           drives a reader under remote control over Wi-Fi  -> docs/reference/remote-control.md
+cmd/epubtests           the W3C's EPUB 3 tests laid out and drawn as the reader would, for judging by eye  -> docs/reference/epub-conformance.md
 emulator/               the emulator's fonts and scripts (committed); config.json, servers/, fake/ (gitignored)
 ```
 
