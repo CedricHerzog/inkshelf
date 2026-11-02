@@ -91,3 +91,25 @@ func BenchmarkPaginateContent(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkLabel sets and draws interface titles that need a Label, as a list of books does at
+// each draw: an Arabic title, a Japanese one and a Latin one with an Arabic word.
+func BenchmarkLabel(b *testing.B) {
+	faces := newTestFaces(b)
+	canvas := image.NewGray(image.Rect(0, 0, 1200, 60))
+	for _, test := range []struct{ name, title string }{
+		{"arabic", "الأجنحة المتكسرة"},
+		{"japanese", "草枕 夏目漱石"},
+		{"mixed", "The Broken Wings, الأجنحة المتكسرة"},
+	} {
+		b.Run(test.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				label := faces.Label(test.title, "sans-serif", document.Bold, 44)
+				if err := faces.DrawLabel(canvas, label, image.Point{}, black); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
