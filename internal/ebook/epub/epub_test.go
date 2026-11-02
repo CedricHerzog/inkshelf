@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gen2brain/gav1d/avif"
 	"golang.org/x/image/font/gofont/gobold"
 
 	"github.com/CedricHerzog/inkshelf/internal/ebook/epub/epubtest"
@@ -413,11 +414,14 @@ func TestFallbacks(t *testing.T) {
 	}
 }
 
-// A JPEG XL image is shown, not its fallback, and sized from its header; an AVIF one still
-// goes to its fallback.
-func TestJXLImage(t *testing.T) {
+// A JPEG XL image and an AVIF one are shown, not their fallbacks, and sized from their headers.
+func TestJXLAndAVIFImages(t *testing.T) {
 	jxl, err := os.ReadFile("../../graphics/pageimage/testdata/page.jxl") // 64×48
 	if err != nil {
+		t.Fatal(err)
+	}
+	var encoded bytes.Buffer
+	if err := avif.Encode(&encoded, image.NewGray(image.Rect(0, 0, 40, 30))); err != nil {
 		t.Fatal(err)
 	}
 	book := openPackage(t, "", "", `
@@ -430,7 +434,7 @@ func TestJXLImage(t *testing.T) {
 		map[string]string{
 			"OEBPS/photo.jxl":   string(jxl),
 			"OEBPS/photo.png":   pngOf(t, image.Pt(100, 100)),
-			"OEBPS/figure.avif": "\x00\x00\x00\x1cftypavif",
+			"OEBPS/figure.avif": encoded.String(),
 			"OEBPS/figure.png":  pngOf(t, image.Pt(100, 100)),
 			"OEBPS/part.xhtml":  xhtml(`<p>Text</p><img src="photo.jxl"/><img src="figure.avif"/>`),
 		})
@@ -438,12 +442,15 @@ func TestJXLImage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"Text", "[image OEBPS/photo.jxl]", "[image OEBPS/figure.png]"}
+	want := []string{"Text", "[image OEBPS/photo.jxl]", "[image OEBPS/figure.avif]"}
 	if got := texts(part); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("images %q, want %q", got, want)
 	}
 	if size, err := book.ImageSize("OEBPS/photo.jxl"); err != nil || size != image.Pt(64, 48) {
 		t.Errorf("ImageSize = %v, %v, want 64x48", size, err)
+	}
+	if size, err := book.ImageSize("OEBPS/figure.avif"); err != nil || size != image.Pt(40, 30) {
+		t.Errorf("ImageSize = %v, %v, want 40x30", size, err)
 	}
 }
 

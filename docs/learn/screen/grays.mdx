@@ -201,8 +201,9 @@ prepared when the page is drawn, at the size the layout gave them.
   normally.
 - **A test twin.** `fit` must give exactly what `fitRef`, a plain version of the same box
   filter in `fit_test.go`, gives.
-- **Huge JPEG XL images.** Their header can claim any size, so one above `maxJXLPixels` (2²³,
-  about 8.4 million pixels) is refused before decoding, and the decoder's panics are recovered.
+- **Huge JPEG XL and AVIF images.** Their header can claim any size, so one above
+  `maxJXLPixels` or `maxAVIFPixels` (2²³, about 8.4 million pixels) is refused before decoding,
+  and the decoder's panics are recovered.
 - **The widgets are exact.** The TypeScript in `src/lib/pageimage.ts` follows the Go code step
   by step; on the same input, it produces the same `.pg4` bytes as `PrepareDecoded`.
 - **Never change the format.** Books already on readers are `.pg4` files: the layout above, the

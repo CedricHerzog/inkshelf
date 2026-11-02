@@ -1,5 +1,5 @@
 // Package webimage prepares the images of a book's markup for the panel: raster images
-// (JPEG, PNG, GIF, BMP, WebP, JPEG XL) and SVGs, read from the book's files or from data: URIs.
+// (JPEG, PNG, GIF, BMP, WebP, JPEG XL, AVIF) and SVGs, read from the book's files or from data: URIs.
 package webimage
 
 import (

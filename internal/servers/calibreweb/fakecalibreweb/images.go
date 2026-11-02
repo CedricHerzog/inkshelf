@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gen2brain/gav1d/avif"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/gobold"
 	"golang.org/x/image/font/opentype"
@@ -85,6 +86,21 @@ var largeImage = sync.OnceValues(func() ([]byte, error) {
 	}
 	return encodeJPEG(img)
 })
+
+// drawAVIFPlate returns an illustration as an AVIF, with no fallback: "AVIF" in black on a light
+// gray, at the plate's size.
+func drawAVIFPlate() ([]byte, error) {
+	img := image.NewRGBA(image.Rectangle{Max: plateSize})
+	draw.Draw(img, img.Bounds(), image.NewUniform(color.Gray{Y: 200}), image.Point{}, draw.Src)
+	if err := drawLines(img, img.Bounds(), 160, []string{"AVIF"}); err != nil {
+		return nil, err
+	}
+	var encoded bytes.Buffer
+	if err := avif.Encode(&encoded, img, avif.EncodeOptions{Quality: 70}); err != nil {
+		return nil, err
+	}
+	return encoded.Bytes(), nil
+}
 
 // drawLines draws lines centred in rect, size pixels high, in black.
 func drawLines(img *image.RGBA, rect image.Rectangle, size float64, lines []string) error {

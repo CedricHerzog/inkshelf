@@ -56,7 +56,8 @@ document* (the `.opf` file), which has three parts that matter:
   `container.Rendition` holds them; unknown values are ignored, as EPUB 3.3 asks. Two
   consecutive pages make a spread by EPUB 3.3's rules (`Book.Spreads`, below);
 - the **manifest**: every file of the book, by id, with its media type. An item the app cannot
-  show (a scripted page, an AVIF image) may name a *fallback* item to show instead;
+  show (a scripted page, an image in a format it does not decode) may name a *fallback* item to
+  show instead;
 - the **spine**: the reading order. Its *linear* items are the chapters; the others (notes,
   answers) are shown only when a link leads to them.
 
@@ -156,7 +157,7 @@ go-text's pure-Go port of HarfBuzz, and only for text that needs it.
 The document stores an image by its path in the zip, or as a `data:` URI. At draw time,
 `webimage.NewLoader` reads the file and prepares it at the size the layout gave it:
 
-- a raster image (JPEG, PNG, GIF, BMP, WebP, JPEG XL) through `pageimage.Prepare`, the same
+- a raster image (JPEG, PNG, GIF, BMP, WebP, JPEG XL, AVIF) through `pageimage.Prepare`, the same
   stages as comic pages ([image-pipeline.md](image-pipeline.md));
 - an SVG through `svgimage.Rasterize`: it runs a small CSS cascade on the SVG, hands shapes to
   `github.com/srwiley/oksvg`, and draws the SVG's `<text>` with the book's `Faces` (through

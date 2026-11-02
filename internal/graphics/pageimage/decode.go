@@ -2,6 +2,7 @@ package pageimage
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -10,8 +11,11 @@ import (
 	_ "image/png"  // registers the PNG decoder with image.Decode
 	"io"
 
-	"github.com/gen2brain/jxl"  // also registers the JPEG XL decoder with image.Decode, unguarded
-	_ "golang.org/x/image/webp" // registers the WebP decoder with image.Decode
+	"github.com/gen2brain/gav1d/avif" // also registers the AVIF decoder with image.Decode, unguarded
+	"github.com/gen2brain/jxl"        // also registers the JPEG XL decoder with image.Decode, unguarded
+	_ "golang.org/x/image/webp"       // registers the WebP decoder with image.Decode
+
+	"github.com/CedricHerzog/inkshelf/internal/timing"
 )
 
 // The signatures of a JPEG XL file: a bare codestream, or the ISO BMFF container.
@@ -28,6 +32,20 @@ const maxJXLPixels = 1 << 23
 // errJXLTooLarge is returned for a JPEG XL image larger than maxJXLPixels.
 var errJXLTooLarge = errors.New("jxl: image too large")
 
+// The brands of an AVIF file, its bytes 4 to 12: a still image, or an image sequence.
+const (
+	avifStill    = "ftypavif"
+	avifSequence = "ftypavis"
+)
+
+// maxAVIFPixels is the largest AVIF image decoded, in pixels: JPEG XL's 8.4 M. An AV1 decoder
+// keeps its reference planes and works a picture in 16-bit samples, and a header may ask for any
+// size.
+const maxAVIFPixels = maxJXLPixels
+
+// errAVIFTooLarge is returned for an AVIF image larger than maxAVIFPixels.
+var errAVIFTooLarge = errors.New("avif: image too large")
+
 // maxPixels is the largest image of another format decoded, in pixels (33.5 M, a double page
 // scanned at 400 dpi): decoded, it takes up to 4 bytes a pixel, and a header may ask for any
 // size, which a book could use to take the reader's memory.
@@ -36,7 +54,7 @@ const maxPixels = 1 << 25
 // errTooLarge is returned for an image larger than maxPixels.
 var errTooLarge = errors.New("image too large")
 
-// DecodeGray decodes a JPEG, PNG, WebP or JPEG XL image to grayscale, what is transparent in
+// DecodeGray decodes a JPEG, PNG, WebP, JPEG XL or AVIF image to grayscale, what is transparent in
 // it composited over white, the page.
 func DecodeGray(data []byte) (*image.Gray, error) {
 	img, err := Decode(data)
@@ -46,13 +64,17 @@ func DecodeGray(data []byte) (*image.Gray, error) {
 	return toGray(img), nil
 }
 
-// Decode decodes an image of any registered format, a JPEG XL one through decodeJXL. It is
-// what decodes the images of books and servers: the JPEG XL decoder that image.Decode picks
-// has no size cap, and a panic in its goroutines could not be recovered. An image whose header
+// Decode decodes an image of any registered format, a JPEG XL one through decodeJXL and an AVIF
+// one through decodeAVIF. It is what decodes the images of books and servers: the decoders that
+// image.Decode picks for those have no size cap of ours, and a panic in their goroutines could
+// not be recovered. An image whose header
 // gives more than maxPixels is not decoded, and a decoder's panic is returned as an error.
 func Decode(data []byte) (img image.Image, err error) {
-	if isJXL(data) {
+	switch {
+	case isJXL(data):
 		return decodeJXL(data)
+	case isAVIF(data):
+		return decodeAVIF(data)
 	}
 	defer recoverError(&err)
 	config, _, err := image.DecodeConfig(bytes.NewReader(data))
@@ -95,6 +117,30 @@ func decodeJXL(data []byte) (img image.Image, err error) {
 	// One thread: a panic in the decoder's own goroutines would end the app. Pages are
 	// decoded in parallel already.
 	return jxl.Decode(bytes.NewReader(data), jxl.Options{Threads: 1, FrameSizeLimit: maxJXLPixels})
+}
+
+// isAVIF reports whether data is an AVIF file: an ISO BMFF file of an AVIF brand.
+func isAVIF(data []byte) bool {
+	return len(data) >= 12 && (string(data[4:12]) == avifStill || string(data[4:12]) == avifSequence)
+}
+
+// decodeAVIF decodes an AVIF image whose header gives at most maxAVIFPixels, its frame limited
+// to the same, a panic on the calling goroutine returned as an error. gav1d decodes an image's
+// tiles on goroutines of its own and offers no way to keep them on the caller, so a panic there
+// is not recovered: fuzzing (FuzzDecodeAVIF) is what guards against it. It gives *image.NRGBA,
+// or *image.NRGBA64 above 8 bits, which goes through img.At.
+func decodeAVIF(data []byte) (img image.Image, err error) {
+	span := timing.Start(context.Background(), "decode avif")
+	defer span.End()
+	defer recoverError(&err)
+	config, err := avif.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	if int64(config.Width)*int64(config.Height) > maxAVIFPixels {
+		return nil, fmt.Errorf("%w: %d×%d", errAVIFTooLarge, config.Width, config.Height)
+	}
+	return avif.Decode(bytes.NewReader(data), avif.Options{FrameSizeLimit: maxAVIFPixels})
 }
 
 // recoverError puts a panic, as an error, in *err; it is deferred.
