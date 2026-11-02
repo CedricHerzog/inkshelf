@@ -74,14 +74,18 @@ A two-page spread shows in landscape. The app does not turn the framebuffer (`ro
 into a canvas of its own, 1872×1404, the framebuffer's own shape, which `copyStraight` copies
 row for row with no rotation. `pocketbook.SetOrientation` switches between the firmware's
 portrait canvas and this one, on the main thread only; `ScreenSize`, `Screen` and `Canvas` follow
-it, and the next refresh flashes the whole panel, which still shows the other orientation. The
-firmware's shared canvas stays portrait, so its task thumbnail shows the last portrait screen,
-and the event loop sets portrait again when the app goes to the background.
+it, and the next refresh flashes the whole panel, which still shows the other orientation. That
+full refresh leaves a little ghosting of the other orientation on the InkPad 3. The firmware's
+shared canvas stays portrait, so its task thumbnail shows the last portrait screen, and the event
+loop sets portrait again when the app goes to the background: pressing the home button on a
+spread gives a portrait thumbnail.
 
 The landscape screen is the framebuffer as it is: landscape pixel (x, y) is framebuffer column
 x, row y, which is portrait pixel (1403 − y, x). That is the reader turned a quarter
-anticlockwise from portrait. Whether that is the grip readers expect has still to be checked on
-the reader (tasks T068); the direction is set in `copyStraight` and `touchPoint` alone.
+anticlockwise from portrait, and it is the right way up for the grip readers use: checked on an
+InkPad 3 on 2 November 2026. Keeping the framebuffer's own direction also makes the landscape
+copy the cheap one (row for row, about 5 ms against 22 ms for portrait's rotated copy). The
+direction is set in `copyStraight` and `touchPoint` alone.
 
 ### Dark mode
 

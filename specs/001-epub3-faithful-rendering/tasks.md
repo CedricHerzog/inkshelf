@@ -425,7 +425,7 @@ A book folder saved before the change reads in portrait.
   - `internal/device/pocketbook/emulated_firmware.go`: panel and canvas follow the orientation.
   - `cmd/emulator/script.go` and `cmd/emulator/server.go`: shots and the web view take the current size.
   - `internal/device/pocketbook/script/run.go`: check script points against the current size.
-- [ ] T068 [US3] Find the landscape direction on the reader:
+- [X] T068 [US3] Find the landscape direction on the reader:
   - Make a temporary reader script `emulator/scripts/reader/landscape-probe.txt` that opens a spread in a book already on the reader.
   - Run `make reader-deploy` and `make reader-shots`, and look at the panel.
   - If the image is upside down for the intended grip, fix the direction in `copyStraight` and `touch.go`.
@@ -475,7 +475,7 @@ A book folder saved before the change reads in portrait.
   - turn back and `shot`;
   - open the reflowable book's image spread and `shot`.
 - [X] T081 [US3] Check that old books are kept: in `internal/shelf/download_test.go`, a book folder written without `spreads` (copy of a baseline-format folder in `internal/shelf/testdata/`) opens, reads page by page in portrait, and is never redrawn
-- [ ] T082 [US3] Add the reader script `emulator/scripts/reader/spreads.txt` (reads only; changes no server): open a fixed-layout book with spreads already on the reader, turn through two spreads and a single page, open the menu on a spread. Then:
+- [X] T082 [US3] Add the reader script `emulator/scripts/reader/spreads.txt` (reads only; changes no server): open a fixed-layout book with spreads already on the reader, turn through two spreads and a single page, open the menu on a spread. Then:
   - `make reader-shots READER_SCRIPT=emulator/scripts/reader/spreads.txt`;
   - look at the ghosting at each orientation switch;
   - press the home button from a spread and check the task thumbnail is portrait;
@@ -586,7 +586,7 @@ shows a poster and a fallback.
   - `go list -deps ./internal/app/... ./internal/shelf | grep -E 'servers/(komga|mealie|calibreweb)'` prints nothing;
   - `go test ./internal/shelf ./internal/graphics/pageimage ./internal/servers ./internal/app/state -run Golden` passes with the old golden files unchanged;
   - `make bench-compare` and the `-gcflags=-m` inlining list match build/bench/inlining-before.txt for the hot paths.
-- [ ] T102 Walk through every section of [quickstart.md](quickstart.md) and the reader checks it lists, then run `make verify` and `make baseline` one last time
+- [X] T102 Walk through every section of [quickstart.md](quickstart.md) and the reader checks it lists, then run `make verify` and `make baseline` one last time
 
 ---
 
