@@ -101,13 +101,20 @@ book pair).
 
 ## Remaining work, by value for reading books on this reader
 
-1. On the reader: the time of a vertical page and of the first CJK page (its font's
-   decompression), of a shaped page, of a page of formulas, of a JPEG XL decode (about
-   270 ms on the Mac in pure Go for a full page, several seconds expected on the ARM), and of an
-   AVIF decode (0.14 s on a computer for a full page).
-2. AVIF's decoder runs an image's tiles on goroutines of its own, where a panic cannot be
+1. Arabic in the book's text: in Gibran's *The Broken Wings*, the dots of initial and medial
+   letters (ب ت ن ي) are drawn beside their place, on the reader and in the emulator alike, while
+   the fake book's Arabic chapter draws them right. Book titles in the lists are neither shaped
+   nor given the CJK fonts: Arabic titles show their letters apart and in logical order, Japanese
+   ones as boxes.
+2. The first CJK page waits 6.3 s on the reader for its font's decompression (once per install),
+   with nothing on the panel; the firmware has Noto Sans and Serif CJK of its own, which would
+   need none. Measured on the reader on 2 November 2026: vertical page turns 0.11 to 0.94 s, a
+   full-page AVIF 5.75 s (under the 10-second limit). Still to measure there: a page of formulas
+   and a JPEG XL decode (about 270 ms on the Mac in pure Go for a full page, several seconds
+   expected on the ARM).
+3. AVIF's decoder runs an image's tiles on goroutines of its own, where a panic cannot be
    recovered: an option of gav1d to decode on the caller would close that.
-3. Vertical text keeps the horizontal meaning of CSS margins (`margin-top` is the space before
+4. Vertical text keeps the horizontal meaning of CSS margins (`margin-top` is the space before
    a block), and lays a formula out across.
 
 ## Whole books

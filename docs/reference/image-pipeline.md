@@ -83,7 +83,8 @@ is recovered. The AVIF decoder (`decodeAVIF`) cannot: gav1d decodes an image's t
 goroutines of its own and offers no option to keep them on the caller, so a panic there would end
 the app. Its guards are the pixel cap, the frame size limit given to the decoder, the recovery of
 what panics on the caller (parsing the container), and fuzzing (`FuzzDecodeAVIF`). A full page
-of AVIF (1404x1872) takes about 0.14 s to decode on a computer (`BenchmarkDecodeAVIF`); each
+of AVIF (1404x1872) takes about 0.14 s to decode on a computer (`BenchmarkDecodeAVIF`) and its
+page 5.75 s to draw on the reader, under the page's 10-second limit; each
 decode is a `decode avif` span in the log and the trace.
 
 ### 2. Fit to the screen

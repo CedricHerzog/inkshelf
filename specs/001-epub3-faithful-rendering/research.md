@@ -175,10 +175,19 @@ cjk-fonts` compresses them in Go, as there is no `brotli` command here). The str
 from 16,187,552 to 43,712,672 bytes. Decompressing in the emulator (arm64 host) takes 0.2 s for
 the sans and 0.3 s for the serif. Parsing each file once makes opening a second size 3 times
 quicker on the host (4.8 → 1.6 µs for Go's fonts, which are compiled in; on the reader the read
-of the file is saved too). Times on the reader (first CJK page, a vertical page turn) are still
-to measure: the reader under remote control was not reachable from the build machine (T050). On the finished branch (T101, 2026-11-02) the stripped app is 45,088,928 bytes, from
+of the file is saved too). On the finished branch (T101, 2026-11-02) the stripped app is 45,088,928 bytes, from
 16,056,480 before this feature: 27.5 MB of CJK fonts and 1.2 MB of AVIF decoder, against the
 plan's estimate of 16 MB for the fonts.
+
+**On the reader (T050, 2026-11-02).** Natsume Sōseki's *Kusamakura* (vertical, 15 chapters):
+unpacking Noto Serif CJK JP takes 6.3 s on the B288, not the second expected, and the first page
+shows 6.6 s after the tap, with nothing on the panel meanwhile; it happens once per install.
+Vertical page turns then take 0.11 to 0.43 s, 0.94 s for a turn that lays out a new chapter of 41
+pages (SC-005: under 2 s). Gibran's *The Broken Wings* (Arabic): opened in 0.1 s, turns in 0.11 s,
+as horizontal books do. Contrary to the facts above, `/ebrmain/fonts` on this firmware holds
+`NotoSansCJK-Regular.ttc` and `NotoSerifCJK-Regular.ttc`, beside `NotoSansArabicUI`, Hebrew,
+Devanagari and other Noto fonts: the compiled-in fonts and their unpacking could give way to the
+firmware's, when present.
 
 **Alternatives.** Separate font files copied by `deploy.sh`: users install the app by copying
 one file, and a missing font would fail silently. Japan-only subsets: fail FR-005 for Korean and
@@ -214,8 +223,10 @@ on the calling goroutine recovered, a `decode avif` span. One gap against the pl
 of its own (`av1/frame.go`, even for one tile), so a panic there cannot be recovered. Fuzzing
 stands in: `FuzzDecodeAVIF` ran 18.6 M inputs in 3 minutes on the host without a failure. A
 full page (1404x1872, noisy, quality 70) decodes in 0.14 s on the host
-(`BenchmarkDecodeAVIF`, 21.9 MB allocated). `pub-cmt-avif` passes. The reader's timing of a
-full-page AVIF is still to measure: the reader was not reachable over Wi-Fi when this was done.
+(`BenchmarkDecodeAVIF`, 21.9 MB allocated). `pub-cmt-avif` passes. On the reader (T091,
+2026-11-02), the page of a full-page AVIF (1404x1872, quality 70, noise, 1.05 MB) draws in 5.75 s:
+under the page's 10 s, so the image shows, not its fallback; preloading the next page hides it
+when the reader reads it at a normal pace.
 gav1d's tests carry no 10-bit file we may copy and its encoder writes 8 bits only, so the tests
 cover 8-bit 4:2:0 color, monochrome and alpha; 10-bit goes through `toGray`'s generic path.
 
