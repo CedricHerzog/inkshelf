@@ -677,3 +677,12 @@ Then:          T074 → T075 → T076, T077 → T078–T084
 - One change per commit with a short imperative message; `make verify` before each.
 - Every changed shot is opened and looked at before `make baseline`.
 - Nothing in a book runs or is fetched at any step; a task that would need it is wrong.
+
+## Phase 10: Convergence
+
+- [X] T103 CRITICAL: Bring the learn chapter's font fallback widget in line with the code: `docs/src/components/fonts/FontFallback.tsx` (and `docs/src/lib/fontFallback`) list the fallbacks as `fonts.OpenFallbacks` opens them (DejaVu Sans, the firmware's Noto Sans Arabic UI, the CJK font, Go's), and the hint of "One line, several fonts" in `docs/learn/books/fonts.mdx` no longer says only the app's own CJK font has Kanji and Hangul (the firmware's comes first); run `make docs-build` per Constitution VII (contradicts)
+- [ ] T104 Time on the reader the heaviest pages of the W3C suite's books and a hostile-input set (deep nesting, huge CSS, large SVG and MathML, a 30-megapixel image): each page appears within 10 seconds and the app keeps responding; record the times in research.md R8 and docs/reference/epub-conformance.md per SC-006 (missing)
+- [ ] T105 Compare on the reader the page-turn time of a horizontal book (a novel of the Calibre library) with the build before this feature and with this one (`go run ./cmd/readerctl log`), and record both in research.md R6: no slower, per SC-005 (partial)
+- [ ] T106 Time on the reader a page of formulas and a full-page JPEG XL decode, record them in research.md and docs/reference/epub-conformance.md ("Still to measure there"), and check both against the 10-second limit per FR-014a and SC-005 (partial)
+- [X] T107 Add `BenchmarkLabel` to `internal/typesetting/layout/bench_test.go` (an Arabic, a Japanese and a mixed title, `for b.Loop()`, `b.ReportAllocs()`), as `layout.Label` now runs on every interface draw of such a title, per Constitution IV (partial)
+- [X] T108 Record in plan.md the decisions taken after the plan: the firmware's CJK collections read first with the compiled-in fonts as fallback, the firmware's Noto Sans Arabic UI as a fallback that shapes Arabic (copied into `emulator/fonts`), interface titles set by `layout.Label`, and `make reader-remote`; per plan: R6 decision and spec Assumptions (unrequested)

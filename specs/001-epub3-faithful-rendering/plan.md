@@ -196,6 +196,25 @@ The phases follow the spec's priorities. Each phase ends with `make verify` and 
 8. **Close**: run the conformance suite and the 60-book library, update the docs, run the
    reader checks.
 
+## Decisions after the plan (2026-11-02)
+
+The reader checks of the close found what the plan had assumed wrong, and the owner decided:
+
+- **CJK fonts: the firmware's first.** The firmware does have Noto Sans and Serif CJK, as
+  collections in `/ebrmain/fonts` (research R6). The app reads their Japanese font
+  (`parseCollectionFace`) and keeps its own compiled-in fonts as the fallback, for a firmware
+  without them and for the emulator: 0.1 s on the reader instead of 6.3 s.
+- **Arabic: a font that joins it.** The firmware's Liberation Sans has Arabic letters without
+  the rules that join them. A letter of a joining script now goes to a fallback that has both
+  (`Font.ShapesScriptOf`), and the firmware's Noto Sans Arabic UI joins the fallbacks; the
+  emulator keeps a copy of it in `emulator/fonts`, as of the firmware's other fonts.
+- **Interface titles.** The spec's assumption that the lists show the server's metadata holds;
+  what changed is how a title is drawn: one with characters the interface font lacks, or right
+  to left, or shaped, is set as a line of a book (`layout.Label`), so that Arabic and Japanese
+  titles no longer show apart or as boxes.
+- **Tooling.** `make reader-remote` turns remote control on over USB (`deploy.sh --remote`), and
+  `emulator/scripts/reader/spreads.txt` checks spreads on the reader.
+
 ## Complexity Tracking
 
 No principle is broken; nothing to justify.
