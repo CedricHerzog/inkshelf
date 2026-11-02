@@ -18,6 +18,16 @@ import (
 // Before changing it, run the benchmark, and check the inlining (go build -gcflags=-m) and
 // the assembly (-gcflags=-S) with GOOS=linux GOARCH=arm; then compare after.
 
+// copyStraight copies rect of a landscape canvas into the framebuffer memory framebuffer, whose
+// rows are framebufferStride bytes, as it is: the landscape canvas has the framebuffer's own
+// orientation, so a row of one is a row of the other, copied whole.
+func copyStraight(framebuffer []byte, framebufferStride int, canvas *image.Gray, rect image.Rectangle) {
+	rect = rect.Intersect(canvas.Rect)
+	for row := rect.Min.Y; row < rect.Max.Y; row++ {
+		copy(framebuffer[row*framebufferStride+rect.Min.X:][:rect.Dx()], canvas.Pix[canvas.PixOffset(rect.Min.X, row):])
+	}
+}
+
 // framebufferRect returns the framebuffer rectangle that holds screen rectangle rect.
 func framebufferRect(rect image.Rectangle, framebufferHeight int) image.Rectangle {
 	return image.Rect(rect.Min.Y, framebufferHeight-rect.Max.X, rect.Max.Y, framebufferHeight-rect.Min.X)

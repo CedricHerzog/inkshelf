@@ -47,17 +47,23 @@ added for this work (CSS colors and gradients, the SVG cascade, MathML, JPEG XL 
 | MathML | 1 | 1 | 0 | 0 | |
 | Navigation | 9 | 9 | 0 | 0 | |
 | Structural semantics (footnotes) | 2 | 2 | 0 | 0 | |
-| Fixed layout | 29 | 24 | 0 | 5 | No synthetic spreads on a portrait panel; one test is EPUBCheck's. |
+| Fixed layout | 29 | 27 | 0 | 2 | A page of flowing text is not set in a spread (only image pages of a reflowable book pair); one test is EPUBCheck's. |
 | Reflowable layout (`rendition:flow`, roll) | 8 | 5 | 0 | 3 | Scrolled flows are shown paged, and `align-x-center` doesn't apply to paged e-ink. |
 | Scripting | 16 | 1 | 0 | 15 | No scripts; a scripted document's manifest fallback is shown. |
 | Media overlays | 21 | 1 | 0 | 20 | No audio; overlays are ignored, as required. |
-| **Total** | **179** | **118** | **3** | **58** | |
+| **Total** | **179** | **121** | **3** | **55** | |
 
-Of the 121 tests in scope, 118 pass (97%). The runs before this one gave 113, 109 and 101. The
+Of the 124 tests in scope, 121 pass (97%). The runs before this one gave 118, 113, 109 and 101. The
 verdict of each test, and why, is in `cmd/epubtests/judgments.tsv`. Of the three that fail, two
 are the deliberate departures and one is AVIF.
 
 ## Done since the previous run
+
+- **Spreads** (`epub.Book.Spreads`, the device's landscape): two pages of a fixed-layout book
+  that EPUB 3.3 pairs show side by side in landscape, drawn at download as one image; a centred
+  page, a page meant for portrait, and the first page stand alone (`lay-pp-page-spread-left`,
+  `-right`, `-combined`, which were out of scope on a portrait panel). Two image pages of a
+  reflowable book pinned left and right read as one spread too.
 
 - **Vertical writing** (`layout`, `vertical.go`): `writing-mode` `vertical-rl` and `vertical-lr`
   laid out in columns with the horizontal line breaker, turned onto the page; ideographs upright

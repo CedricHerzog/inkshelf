@@ -35,6 +35,10 @@ type Book struct {
 	// Location is where a Reflowable book is read: Page only approximates it, as its pages are
 	// laid out while reading. nil at the start.
 	Location *Location `json:"location,omitempty"`
+	// Spreads are the pages, counted from 1, that start a spread: page n and n+1 show side by
+	// side in landscape, from spread-n.pg4 (Store.LoadSpread). Spreads do not overlap. Empty for
+	// a book without spreads, and for every book downloaded before them, which reads in portrait.
+	Spreads []int `json:"spreads,omitempty"`
 }
 
 // Location is a position in a Reflowable book: the first rune of the page shown.

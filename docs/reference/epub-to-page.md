@@ -53,7 +53,8 @@ document* (the `.opf` file), which has three parts that matter:
   when two pages may show side by side (`rendition:spread`) and the orientation its pages are
   meant for (`rendition:orientation`). An `itemref` of the spine may override them for its own
   item, and place its page on one side of a spread (`page-spread-left`, `-right`, `-center`).
-  `container.Rendition` holds them; unknown values are ignored, as EPUB 3.3 asks;
+  `container.Rendition` holds them; unknown values are ignored, as EPUB 3.3 asks. Two
+  consecutive pages make a spread by EPUB 3.3's rules (`Book.Spreads`, below);
 - the **manifest**: every file of the book, by id, with its media type. An item the app cannot
   show (a scripted page, an AVIF image) may name a *fallback* item to show instead;
 - the **spine**: the reading order. Its *linear* items are the chapters; the others (notes,
@@ -204,6 +205,35 @@ no sense, so these chapters take another route:
 - In a *mixed* book, a fixed-layout chapter's document is one image block whose path is
   `rendered-page:` followed by the item's path. `Book.Resource` recognizes the prefix and draws
   the page as a PNG at 1404×1872 when the image loader asks for it.
+
+## Spreads
+
+A print book opens on two pages, and some pictures cross the gutter between them. The reader
+shows such a pair, a *spread*, side by side in landscape, each page in its half of 1872×1404,
+set against the gutter.
+
+- **Fixed-layout books** (`Book.Spreads`, [spreads.go](../../internal/ebook/epub/spreads.go)):
+  as in print, the first page is alone, on the side opposite the binding (the right of a book read
+  from left to right), and the pages after it alternate sides. `page-spread-left` and `-right`
+  pin a page's side, and the next pages alternate from it. A page stands alone, and the next one
+  starts a new spread, when it is centred (`page-spread-center`), meant for portrait
+  (`rendition:orientation`), not pre-paginated, or where `rendition:spread` is `none`
+  (`landscape`, `both` and `auto` all pair, as spreads show in landscape). Two pages pair when
+  the first is on the side reading starts from and the second on the other. At download,
+  [shelf](../../internal/shelf/prepare_fixed_layout.go) draws each pair again as one landscape
+  image, `spread-NNNN.pg4`, and lists their first pages in `book.json`'s `spreads`
+  ([on-disk-formats.md](on-disk-formats.md#a-downloaded-book)).
+- **Reflowable books** (`BuildIndex`): two consecutive chapters that are each one image and
+  nothing else, pinned to opposite sides, the first on the side reading starts from, are an
+  image spread, recorded in the index's `spreads`. Anything else is not a spread: an image
+  beside text stays a page of its own. `reading.TextBook` reads the pair as one page at the first
+  chapter's start, drawn from `book.epub` when it shows (`drawSpread`); a turn forward goes past
+  both chapters, and a location in the second shows the spread.
+
+The reader screen sets the device to landscape for a spread and back to portrait for any other
+page ([eink-and-firmware.md](eink-and-firmware.md#landscape)). The position saved and synced is
+the spread's first page; a position on its second page (from the server, or an older version)
+shows the spread. A book downloaded before spreads has none and reads as before.
 
 ## Rolls and scrolled flows
 

@@ -98,6 +98,15 @@ Only the main thread starts goroutines, through the state:
 `Close` cancels `app.Ctx` and waits for every goroutine started this way, so none outlives the
 app.
 
+### The orientation
+
+The reader screen draws a two-page spread in landscape. It switches the device's orientation
+(`pocketbook.SetOrientation`) in `DrawAndRefreshLocked`, on the main thread with the state's
+mutex held, before drawing the page: landscape for a spread, portrait for anything else. `Draw`
+sets portrait before every other screen. No new lock: only the main thread draws, so only it
+switches. When the app goes to the background, the event loop sets portrait itself, and the
+reader sets landscape again when it draws once back.
+
 ### The element workers
 
 A page of a book may hold an image, an SVG or a formula that takes far longer to prepare than

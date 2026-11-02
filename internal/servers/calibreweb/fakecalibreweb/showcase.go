@@ -15,6 +15,8 @@ type showcaseChapter struct {
 	// body's class.
 	language, direction, bodyClass string
 	body                           string
+	// properties are its itemref's, such as page-spread-left.
+	properties string
 }
 
 // showcaseChapters are the chapters of the showcase EPUB: Arabic, Hebrew, text in both
@@ -127,6 +129,10 @@ func chaptersOPF(item book, chapters []showcaseChapter, language string, imagePa
 	var manifest, spine strings.Builder
 	for index, chapter := range chapters {
 		fmt.Fprintf(&manifest, "    <item id=\"chapter%d\" href=\"%s\" media-type=\"application/xhtml+xml\"/>\n", index+1, chapter.file)
+		if chapter.properties != "" {
+			fmt.Fprintf(&spine, "    <itemref idref=\"chapter%d\" properties=\"%s\"/>\n", index+1, chapter.properties)
+			continue
+		}
 		fmt.Fprintf(&spine, "    <itemref idref=\"chapter%d\"/>\n", index+1)
 	}
 	for index, imagePath := range imagePaths {

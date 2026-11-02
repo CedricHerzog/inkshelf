@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -51,7 +52,7 @@ func TestDownloadFetchesEachPage(t *testing.T) {
 
 func TestDownloadSavesBook(t *testing.T) {
 	_, store := downloadTestBook(t)
-	if got := store.Books(); len(got) != 1 || got[0] != testBook {
+	if got := store.Books(); len(got) != 1 || !reflect.DeepEqual(got[0], testBook) {
 		t.Fatalf("List = %+v, want the book downloaded", got)
 	}
 }

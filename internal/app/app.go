@@ -158,8 +158,9 @@ func (app *application) Draw() {
 		return
 	}
 	// The panel no longer shows the book's page: the reader refreshes it whole when it comes
-	// back.
+	// back. Only the reader draws in landscape, for a spread.
 	app.Reader.Shown = state.Shown{}
+	pocketbook.SetOrientation(pocketbook.Portrait)
 	pocketbook.ClearScreen()
 	screen.DrawLocked()
 	widgets.Show(dark, fullRefresh, pocketbook.GC16, pocketbook.Screen())

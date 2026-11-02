@@ -2,6 +2,7 @@ package fakecalibreweb
 
 import (
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/CedricHerzog/inkshelf/internal/servers"
@@ -22,13 +23,14 @@ func TestDownloadFixedLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	saved, ok := store.Book(book.ID)
-	if !ok || saved.Pages != 3 || saved.Format != servers.ComicArchive || saved.Direction != servers.LeftToRight {
-		t.Fatalf("saved %+v, %v; want 3 pages of a comic, left to right", saved, ok)
+	if !ok || saved.Pages != 7 || saved.Format != servers.ComicArchive || saved.Direction != servers.LeftToRight ||
+		!slices.Equal(saved.Spreads, []int{2, 6}) {
+		t.Fatalf("saved %+v, %v; want 7 pages of a comic, left to right, spreads at pages 2 and 6", saved, ok)
 	}
 	if _, err := os.Stat(store.EPUBPath(book.ID)); !os.IsNotExist(err) {
 		t.Errorf("the EPUB was kept: %v", err)
 	}
-	for index := range 3 {
+	for index := range 7 {
 		page, err := store.LoadPage(book.ID, index+1)
 		if err != nil {
 			t.Fatal(err)

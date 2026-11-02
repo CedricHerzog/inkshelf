@@ -15,9 +15,10 @@ import (
 
 // downloadFixedLayout turns a fixed-layout EPUB (opened, at book's EPUBPath) into page images,
 // as a comic: each chapter drawn whole by epub.RenderPage (a roll's strip, cut a screen high),
-// then prepared for the screen. The
-// pages already on disk (from an interrupted download) are kept. book.json is saved as a
-// ComicArchive's, and the EPUB, which only takes space now, is removed.
+// then prepared for the screen. Each pair of pages the book shows side by side (epub.Spreads) is
+// also drawn as one landscape image. The pages already on disk (from an interrupted download)
+// are kept. book.json is saved as a ComicArchive's, and the EPUB, which only takes space now, is
+// removed.
 func (store Store) downloadFixedLayout(ctx context.Context, opened *epub.Book, book Book, size image.Point, reports *reporter) error {
 	span := timing.Start(ctx, "draw fixed-layout pages")
 	book.Format, book.Pages = servers.ComicArchive, opened.PageCount(size)
@@ -30,6 +31,9 @@ func (store Store) downloadFixedLayout(ctx context.Context, opened *epub.Book, b
 		}
 	}
 	err := store.renderPages(ctx, opened, book, size, reports)
+	if err == nil && !opened.Roll() {
+		book.Spreads, err = store.renderSpreads(ctx, opened, book.ID, opened.Spreads(), size)
+	}
 	duration := span.End()
 	if err != nil {
 		return err
@@ -76,6 +80,38 @@ func (store Store) renderPages(ctx context.Context, opened *epub.Book, book Book
 	}
 	workers.Wait()
 	return context.Cause(ctx)
+}
+
+// renderSpreads draws each of spreads as one landscape image, for a screen of size in portrait,
+// unless it is on disk already, and returns the page numbers they start at.
+func (store Store) renderSpreads(ctx context.Context, opened *epub.Book, bookID string, spreads []epub.Spread, size image.Point) ([]int, error) {
+	var firstPages []int
+	for _, spread := range spreads {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		first := spread.First + 1
+		if _, err := os.Stat(store.spreadPath(bookID, first)); err != nil {
+			if err := store.renderSpread(opened, bookID, spread, size); err != nil {
+				return nil, fmt.Errorf("spread of page %d: %w", first, err)
+			}
+		}
+		firstPages = append(firstPages, first)
+	}
+	return firstPages, nil
+}
+
+// renderSpread draws the two pages of spread side by side on the landscape screen (the portrait
+// screen of size turned), and writes them prepared for the screen.
+func (store Store) renderSpread(opened *epub.Book, bookID string, spread epub.Spread, size image.Point) error {
+	landscape := image.Pt(size.Y, size.X)
+	elements := store.Elements
+	elements.Book = bookID
+	drawn, err := opened.RenderSpread(spread, landscape, elements)
+	if err != nil {
+		return err
+	}
+	return writeFileAtomic(store.spreadPath(bookID, spread.First+1), pageimage.PrepareDecoded(drawn, landscape.X, landscape.Y))
 }
 
 // renderPage draws page number of a fixed-layout book and writes it prepared for a screen of

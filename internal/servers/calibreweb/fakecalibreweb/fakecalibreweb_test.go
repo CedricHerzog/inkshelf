@@ -41,7 +41,7 @@ func TestSeries(t *testing.T) {
 	if want := []string{"Les Étoiles", "Ruines", "No series"}; !slices.Equal(got, want) {
 		t.Fatalf("series %q, want %q", got, want)
 	}
-	if allSeries[0].SortTitle != "Etoiles" || allSeries[0].Books != 3 || allSeries[2].Books != 4 {
+	if allSeries[0].SortTitle != "Etoiles" || allSeries[0].Books != 3 || allSeries[2].Books != 5 {
 		t.Errorf("series %+v", allSeries)
 	}
 	if !allSeries[0].Modified.Equal(day(8, 20)) {
@@ -62,7 +62,7 @@ func TestBooks(t *testing.T) {
 	}{
 		{"1", []string{"Les Étoiles, Tome 1", "Les Étoiles, Tome 2", "Les Étoiles, Tome 3"}, []float64{1, 2, 3}, servers.Reflowable},
 		{"2", []string{"Ruines, Tome 1", "Ruines, Tome 3"}, []float64{1, 3}, servers.ComicArchive},
-		{"no-series", []string{"Contes courts", "Le voyage illustré", "World scripts", "Written down"}, []float64{1, 2, 3, 4}, servers.Reflowable},
+		{"no-series", []string{"Contes courts", "Le voyage illustré", "World scripts", "Written down", "Zoé et le phare"}, []float64{1, 2, 3, 4, 5}, servers.Reflowable},
 	}
 	for _, test := range tests {
 		books, err := server.Books(t.Context(), test.seriesID)

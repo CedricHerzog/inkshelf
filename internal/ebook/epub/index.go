@@ -10,12 +10,13 @@ import (
 	"github.com/CedricHerzog/inkshelf/internal/ebook/epub/container"
 	"github.com/CedricHerzog/inkshelf/internal/timing"
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
+	"github.com/CedricHerzog/inkshelf/internal/web/mathml"
 )
 
 // IndexVersion is the version of the parser that builds an Index. Offsets in a chapter depend
 // on the parser: an index of another version is built again. Version 8 finds the page
-// progression of vertical books.
-const IndexVersion = 8
+// progression of vertical books, version 9 the image spreads.
+const IndexVersion = 9
 
 // Index is what the reader needs of a book before laying out its chapters: their lengths, for
 // the progress, the table of contents and the navigation document's other lists. It is saved
@@ -36,6 +37,9 @@ type Index struct {
 	PageList []TOCEntry `json:"pageList,omitempty"`
 	// Landmarks is the navigation document's landmarks (the cover, the start of the text…).
 	Landmarks []TOCEntry `json:"landmarks,omitempty"`
+	// Spreads are the pairs of chapters that are each one image, pinned to the left and the
+	// right page: a picture across two pages, shown whole in landscape.
+	Spreads []Spread `json:"spreads,omitempty"`
 }
 
 // RightToLeft reports whether the book's pages turn from right to left: as its
@@ -71,6 +75,7 @@ func BuildIndex(book *Book) (Index, error) {
 		Chapters: make([]ChapterIndex, book.Chapters()),
 	}
 	ids := make([]map[string]int, book.Chapters())
+	sides := make([]string, book.Chapters()) // of the chapters that are one image pinned to a side
 	var firstErr error
 	parsed := 0
 	textFound := false // a chapter with text was read: the first gives the page progression
@@ -89,6 +94,10 @@ func BuildIndex(book *Book) (Index, error) {
 				index.PageProgression = "rtl"
 			}
 		}
+		if side := book.RenditionOf(book.ChapterItem(chapter)).PageSpread; isLoneImage(doc) &&
+			(side == container.PageSpreadLeft || side == container.PageSpreadRight) {
+			sides[chapter] = side
+		}
 		index.Chapters[chapter].Chars = doc.Chars
 		index.Chapters[chapter].Title = firstHeading(doc)
 		index.Total += doc.Chars
@@ -97,6 +106,11 @@ func BuildIndex(book *Book) (Index, error) {
 	if parsed == 0 {
 		return Index{}, fmt.Errorf("no chapter could be read: %w", firstErr)
 	}
+	startSide := container.PageSpreadLeft
+	if index.RightToLeft() {
+		startSide = container.PageSpreadRight
+	}
+	index.Spreads = pairSides(sides, startSide)
 	navigation, err := book.Navigation()
 	if err != nil {
 		log.Printf("epub: table of contents: %v", err) // the book reads without one
@@ -133,6 +147,12 @@ func entriesOf(book *Book, links []container.Link, ids []map[string]int) []TOCEn
 		found = append(found, TOCEntry{Title: link.Title, Level: link.Level, Chapter: chapter, Offset: offset, Type: link.Kind})
 	}
 	return found
+}
+
+// isLoneImage reports whether doc is one image and nothing else: an image spine item, or a
+// page that wraps one picture.
+func isLoneImage(doc *document.Document) bool {
+	return len(doc.Blocks) == 1 && doc.Blocks[0].Kind == document.Image && !mathml.Is(doc.Blocks[0].Image)
 }
 
 // holdsText reports whether doc has a paragraph or a heading: a chapter of text, not a cover

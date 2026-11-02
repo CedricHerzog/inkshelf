@@ -69,7 +69,7 @@ func (reader *readerFirmware) openFramebuffer() (framebufferWidth int, err error
 }
 
 // flush is what Refresh and FlashRefresh do on the reader: it copies rect of canvas into the
-// framebuffer, turning it, then asks the driver to refresh that area of the panel. It logs how
+// framebuffer, turning a portrait canvas, then asks the driver to refresh that area of the panel. It logs how
 // long each step took, as page turns are timed from the log.
 func (reader *readerFirmware) flush(canvas *image.Gray, rect image.Rectangle, waveform Waveform, full bool) {
 	if rect.Empty() {
@@ -80,13 +80,21 @@ func (reader *readerFirmware) flush(canvas *image.Gray, rect image.Rectangle, wa
 		return
 	}
 	defer timing.Start(context.Background(), "refresh").End()
+	landscape := isLandscape(canvas.Rect.Size())
 	panelRect := framebufferRect(rect, reader.framebufferHeight)
+	if landscape {
+		panelRect = rect
+	}
 	start := time.Now()
 	wait := timing.Start(context.Background(), "wait for the panel")
 	reader.waitForOverlappingRefresh(panelRect)
 	wait.End()
 	copyStart := time.Now()
-	copyRotated(reader.framebuffer, reader.framebufferStride, reader.framebufferHeight, canvas, rect)
+	if landscape {
+		copyStraight(reader.framebuffer, reader.framebufferStride, canvas, rect)
+	} else {
+		copyRotated(reader.framebuffer, reader.framebufferStride, reader.framebufferHeight, canvas, rect)
+	}
 	sendStart := time.Now()
 	reader.marker++
 	update := mxcfbUpdate(panelRect, waveform, full, reader.marker)

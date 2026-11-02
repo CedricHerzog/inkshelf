@@ -165,6 +165,7 @@ func (remote *RemoteControl) flush(canvas *image.Gray, rect image.Rectangle, wav
 		return
 	}
 	remote.mu.Lock()
+	remote.panel = followingPanel(remote.panel, canvas)
 	copyToPanel(remote.panel, canvas, rect, waveform)
 	remote.lastRefresh = time.Now()
 	remote.mu.Unlock()

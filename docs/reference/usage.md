@@ -185,7 +185,7 @@ the server says otherwise. Each page is drawn at the size its viewport gives (el
 in the screen and clipped to it: a page that is one image shows it whole; otherwise the
 backgrounds (colors, gradients, images, tiled patterns), the images and the text that `position: absolute`
 places (in px, %, em), and the rest of the text laid out from the top, vertically if its body is.
-Floats, flexbox, grids and transforms are left out, and two-page spreads show one page at a time. In an EPUB that is
+Floats, flexbox, grids and transforms are left out. Two pages the book pairs (a spread) show side by side, the reader turning to landscape for them and back to portrait for single pages; a book downloaded before spreads keeps showing one page at a time. In an EPUB that is
 reflowable but for some pages (often its cover), each such page is drawn the same way, as an
 image filling a page of the text. A roll of pictures (`rendition:layout` roll, as webtoons are)
 is drawn at download time too, as one strip as wide as the screen cut into pages, and read as a

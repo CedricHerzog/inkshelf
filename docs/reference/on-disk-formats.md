@@ -26,6 +26,7 @@ guard it (see the end of this page).
         └── books/<book id>/
             ├── book.json                the book and its progress, written last
             ├── 0001.pg4, 0002.pg4 …     a book of pages
+            ├── spread-0002.pg4 …        the spreads of a fixed-layout EPUB, in landscape
             ├── book.epub, index.json, cover.pg4    a Reflowable EPUB
             └── book.cbz, book.epub.part …          only while downloading
 ```
@@ -68,7 +69,11 @@ cover older than its series is fetched again.
 `book.json` is `shelf.Book` ([shelf/book.go](../../internal/shelf/book.go)): ids, titles, `pages`,
 `format`, `number`, `direction`, and the progress: `page`, `completed`, `dirty` (the Go field is
 `Unsynced`), `remove` (`PendingRemoval`), `readAt`, and for an EPUB `location`
-(`{"chapter", "offset"}`, see [progress-sync.md](progress-sync.md)).
+(`{"chapter", "offset"}`, see [progress-sync.md](progress-sync.md)). A fixed-layout EPUB with
+two-page spreads also has `spreads`: the pages, counted from 1, that start one (`[2, 4]`). Each
+number n has its `spread-%04d.pg4` on disk, written before `book.json`; n + 1 is a page of the
+book, and spreads do not overlap. The field is left out when empty: a book downloaded before
+spreads reads in portrait, one page at a time, and an older version ignores the field.
 
 **book.json is written last.** A folder without it is an interrupted download, and the next
 `Download` resumes it, skipping pages already on disk. Every file is written to a temporary file
@@ -79,7 +84,7 @@ What else the folder holds depends on `format` (the integer values of `servers.F
 | `format` | What | Files |
 |---|---|---|
 | 0, `PageImages` | Komga pages, Mealie recipes | `0001.pg4` …; books from old versions have `0001.png` …, still read |
-| 1, `ComicArchive` | a CBZ, or a fixed-layout EPUB drawn at download | `0001.pg4` …; `book.cbz` or `book.epub` only until the pages are made, then deleted |
+| 1, `ComicArchive` | a CBZ, or a fixed-layout EPUB drawn at download | `0001.pg4` …; for a fixed-layout EPUB, `spread-0002.pg4` … (1872×1404, the two pages side by side); `book.cbz` or `book.epub` only until the pages are made, then deleted |
 | 2, `Reflowable` | an EPUB laid out while reading | `book.epub`; `index.json`; `cover.pg4` |
 
 A CBZ or an EPUB is fetched to `book.cbz.part` or `book.epub.part`, renamed once complete.
@@ -102,9 +107,11 @@ Bump `IndexVersion` when a change to [ebook/epub](../../internal/ebook/epub) cha
 chapter has, or what else the index says. Note that the reading positions saved in `book.json` are
 rune offsets too: a change that moves offsets moves the readers' places in their books a little.
 Version 8 (from 7) gives a vertical-rl book without a `page-progression-direction` the right to left
-page progression; its rune counts are those of version 7, so saved positions keep their place. The
-golden `testdata/golden/index.json` is version 8, and `index-7.json` checks that an older index is
-built again.
+page progression; its rune counts are those of version 7, so saved positions keep their place.
+Version 9 adds `spreads`, the image spreads of a reflowable book (`{"first", "left", "right"}`,
+chapter indexes), left out when empty; rune counts do not change. The golden
+`testdata/golden/index.json` is version 9, and `index-7.json` and `index-8.json` check that an older
+index is built again.
 
 ## fonts
 

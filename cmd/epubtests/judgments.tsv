@@ -48,7 +48,7 @@ lay-fxl-xhtml-icb_multi_declarations	Fixed layout	deprecated	deprecated by the s
 lay-fxl-xhtml-icb_repeated-in-meta	Fixed layout	deprecated	deprecated by the suite
 lay-fxl-xhtml-icb_units	Fixed layout	deprecated	deprecated by the suite
 lay-page-layout-both	Fixed layout	pass	
-lay-page-layout-both-spread	Fixed layout	out-of-scope	no synthetic spreads on a portrait panel
+lay-page-layout-both-spread	Fixed layout	out-of-scope	a page of flowing text in a synthetic spread: only image pages of a reflowable book pair
 lay-pkg-flow-paginated	Reflowable layout	pass	
 lay-pkg-flow-scrolled-continuous	Reflowable layout	out-of-scope	scrolled flows and align-x-center don't apply to paged e-ink
 lay-pkg-flow-scrolled-doc	Reflowable layout	out-of-scope	scrolled flows and align-x-center don't apply to paged e-ink
@@ -60,9 +60,9 @@ lay-pp-layout-default	Fixed layout	pass
 lay-pp-layout-duplication	Fixed layout	out-of-scope	a test of EPUBCheck
 lay-pp-layout-pre-paginated	Fixed layout	pass	
 lay-pp-layout-pre-paginated-spreads	Fixed layout	pass	no gap, as no synthetic spread is made
-lay-pp-page-spread-combined	Fixed layout	out-of-scope	no synthetic spreads on a portrait panel
-lay-pp-page-spread-left	Fixed layout	out-of-scope	no synthetic spreads on a portrait panel
-lay-pp-page-spread-right	Fixed layout	out-of-scope	no synthetic spreads on a portrait panel
+lay-pp-page-spread-combined	Fixed layout	pass	pages pinned left and right show side by side in landscape
+lay-pp-page-spread-left	Fixed layout	pass	the page pinned left shows on the left of the spread
+lay-pp-page-spread-right	Fixed layout	pass	the first page, pinned right, stands alone; the next two pair
 lay-pp-spine-overrides_behave-as-global	Fixed layout	pass	
 lay-pp-spine-overrides_behave-as-global-bis	Fixed layout	pass	
 lay-pp-spine-overrides_image-only-pp	Fixed layout	pass	

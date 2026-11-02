@@ -181,6 +181,12 @@ number N is over".
 - **Rotated rectangles.** The panel is mounted turned a quarter, so the rectangle sent to the
   driver is the app's rectangle rotated into framebuffer coordinates (`framebufferRect`). The
   overlap test is done on those, which gives the same answer.
+- **Landscape for two pages.** The framebuffer is in fact landscape, 1872×1404: the portrait
+  screen every app uses is turned to fit it. To show two pages of a book side by side (a
+  spread), Inkshelf draws into a landscape canvas of its own, copied row for row with no turn at
+  all (`copyStraight`), and flashes the whole panel at each change of orientation
+  (`pocketbook.SetOrientation`). Before going to the background, the app goes back to portrait,
+  the shape the firmware and the other apps expect.
 - **The last few refreshes are remembered.** `flush` keeps the last four: a refresh lasts under
   a second, and the app sends at most two at a time (the toolbar's two strips in dark mode).
   With three refreshes A, B, C where B does not overlap A but C does, C waits for A. Before it
@@ -209,6 +215,7 @@ number N is over".
   {path: 'internal/device/pocketbook/eink_refresh.go', symbol: 'mxcfbUpdate', what: 'Encodes the request for the panel: rectangle, waveform, mode, marker, temperature.'},
   {path: 'internal/device/pocketbook/framebuffer_linux_arm.go', symbol: 'flush', what: 'On the reader: wait if needed, copy and rotate, send the ioctl, log the times.'},
   {path: 'internal/device/pocketbook/framebuffer_linux_arm.go', symbol: 'waitForOverlappingRefresh', what: 'Waits only for the running refreshes that overlap the new one.'},
+  {path: 'internal/device/pocketbook/orientation.go', symbol: 'SetOrientation', what: 'Portrait, or a landscape canvas of the app\'s own for spreads; the next refresh flashes.'},
   {path: 'internal/device/pocketbook/emulated_firmware.go', symbol: 'refreshTime', what: 'The measured refresh times, used by the emulator.'},
   {path: 'internal/app/openbook/openbook.go', symbol: 'fullRefreshDue', what: 'Every 5th turn of a comic, every 6th of a text (textFullEvery in text.go), flashes.'},
   {path: 'internal/app/screens/reader/reader.go', symbol: 'pageWaveform, refreshAreaLocked', what: 'GL16 for page turns, and the smallest area to refresh.'},

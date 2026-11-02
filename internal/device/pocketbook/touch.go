@@ -29,19 +29,27 @@ type PointerEvent struct {
 	State PointerState
 }
 
-// touchPoint converts a touch's raw coordinates, as the touch panel reports them, to the
-// screen's. The touch panel is mounted turned, like the display: its x runs up the portrait
-// screen and its y to the right. This was measured on an InkPad 3, which has no tsc.dat
-// calibration file for the firmware to apply. A raw value out of range is clamped to the
-// screen's edge.
+// touchPoint converts a touch's raw coordinates, as the touch panel reports them, to those of
+// a screen of screenSize, portrait or landscape. The touch panel is mounted turned, like the
+// display: its x runs up the portrait screen and its y to the right. This was measured on an
+// InkPad 3, which has no tsc.dat calibration file for the firmware to apply. The landscape
+// screen is the framebuffer as it is (copyStraight), whose column is the portrait screen's row
+// and whose row runs against the portrait screen's columns. A raw value out of range is
+// clamped to the screen's edge.
 func touchPoint(rawX, rawY int32, screenSize image.Point) image.Point {
 	x, y := int(rawY), screenSize.Y-1-int(rawX)
+	if isLandscape(screenSize) {
+		x, y = screenSize.X-1-int(rawX), screenSize.Y-1-int(rawY)
+	}
 	return image.Pt(min(max(x, 0), screenSize.X-1), min(max(y, 0), screenSize.Y-1))
 }
 
 // rawTouch is the inverse of touchPoint: it returns the raw coordinates of a screen point, for
 // the emulator to send touches as the reader does.
 func rawTouch(point, screenSize image.Point) (rawX, rawY int32) {
+	if isLandscape(screenSize) {
+		return int32(screenSize.X - 1 - point.X), int32(screenSize.Y - 1 - point.Y)
+	}
 	return int32(screenSize.Y - 1 - point.Y), int32(point.X)
 }
 

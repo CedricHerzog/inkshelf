@@ -35,14 +35,20 @@ func (waveform Waveform) String() string {
 // and the ghosts of earlier pages are gone.
 func FlashRefresh() {
 	if current != nil {
+		current.flashNext = false
 		current.firmware.flush(current.canvas, current.canvas.Rect, GC16, true)
 	}
 }
 
 // Refresh shows rect of the canvas on the panel with waveform, without a flash: only the
-// pixels that changed are driven.
+// pixels that changed are driven. The first refresh after the orientation changed flashes the
+// whole panel instead, which still shows the other orientation.
 func Refresh(rect image.Rectangle, waveform Waveform) {
-	if current != nil {
+	switch {
+	case current == nil:
+	case current.flashNext:
+		FlashRefresh()
+	default:
 		current.firmware.flush(current.canvas, rect.Intersect(current.canvas.Rect), waveform, false)
 	}
 }

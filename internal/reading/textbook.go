@@ -73,9 +73,12 @@ func (text *TextBook) firstChapter() int {
 	return 0
 }
 
-// GoTo shows the page of location.
+// GoTo shows the page of location: a spread if the location is in one.
 func (text *TextBook) GoTo(location shelf.Location) error {
 	chapter := min(max(location.Chapter, 0), len(text.Index.Chapters)-1)
+	if spread, ok := text.spreadOf(chapter); ok {
+		chapter, location.Offset = spread.First, 0
+	}
 	pages, err := text.renderer.pages(chapter)
 	if err != nil {
 		return err
@@ -113,16 +116,22 @@ func (text *TextBook) Close() {
 }
 
 // Next returns the page after at, and false if at is the last page of the book. It lays out
-// the next chapter if needed. It may be called without the app's mutex.
+// the next chapter if needed. After a spread comes the chapter after both of its chapters. It
+// may be called without the app's mutex.
 func (text *TextBook) Next(at PagePosition) (PagePosition, bool, error) {
-	pages, err := text.renderer.pages(at.Chapter)
-	if err != nil {
-		return PagePosition{}, false, err
+	last := at.Chapter
+	if spread, ok := text.spreadOf(at.Chapter); ok {
+		last = secondChapter(spread)
+	} else {
+		pages, err := text.renderer.pages(at.Chapter)
+		if err != nil {
+			return PagePosition{}, false, err
+		}
+		if at.Page+1 < len(pages) {
+			return PagePosition{Chapter: at.Chapter, Page: at.Page + 1}, true, nil
+		}
 	}
-	if at.Page+1 < len(pages) {
-		return PagePosition{Chapter: at.Chapter, Page: at.Page + 1}, true, nil
-	}
-	for chapter := at.Chapter + 1; chapter < len(text.Index.Chapters); chapter++ {
+	for chapter := last + 1; chapter < len(text.Index.Chapters); chapter++ {
 		if text.Index.Chapters[chapter].Chars > 0 {
 			return PagePosition{Chapter: chapter, Page: 0}, true, nil
 		}
@@ -131,15 +140,21 @@ func (text *TextBook) Next(at PagePosition) (PagePosition, bool, error) {
 }
 
 // Previous returns the page before at, and false if at is the first page of the book. It lays
-// out the previous chapter if needed, to find its last page. It may be called without the
-// app's mutex.
+// out the previous chapter if needed, to find its last page; a spread is its first chapter's
+// start. It may be called without the app's mutex.
 func (text *TextBook) Previous(at PagePosition) (PagePosition, bool, error) {
-	if at.Page > 0 {
+	first := at.Chapter
+	if spread, ok := text.spreadOf(at.Chapter); ok {
+		first = spread.First
+	} else if at.Page > 0 {
 		return PagePosition{Chapter: at.Chapter, Page: at.Page - 1}, true, nil
 	}
-	for chapter := at.Chapter - 1; chapter >= 0; chapter-- {
+	for chapter := first - 1; chapter >= 0; chapter-- {
 		if text.Index.Chapters[chapter].Chars == 0 {
 			continue
+		}
+		if spread, ok := text.spreadOf(chapter); ok {
+			return PagePosition{Chapter: spread.First}, true, nil
 		}
 		pages, err := text.renderer.pages(chapter)
 		if err != nil {
@@ -236,9 +251,13 @@ func (text *TextBook) Page(at PagePosition) (layout.Page, error) {
 // Drawn returns page at if it was drawn and kept, else nil.
 func (text *TextBook) Drawn(at PagePosition) *image.Gray { return text.drawn[at] }
 
-// Draw draws page at on a white canvas of the page's size. It may be called without the app's
-// mutex: it keeps nothing, KeepDrawn does.
+// Draw draws page at on a white canvas of the page's size, or a spread on one of the screen
+// turned to landscape. It may be called without the app's mutex: it keeps nothing, KeepDrawn
+// does.
 func (text *TextBook) Draw(at PagePosition) (*image.Gray, error) {
+	if spread, ok := text.spreadOf(at.Chapter); ok {
+		return text.renderer.drawSpread(spread)
+	}
 	return text.renderer.draw(at)
 }
 

@@ -12,18 +12,29 @@ import (
 var fixedPageSize = image.Pt(1200, 1800)
 
 // makeFixedLayoutEPUB returns the EPUB of a fixed-layout book (rendition:layout
-// pre-paginated) of 3 pages: a page that is one image, a page of text placed with position:
-// absolute over a background image that its stylesheet names, and a page that is an SVG.
+// pre-paginated, rendition:spread auto) of 7 pages, read from left to right:
+//  1. one image, alone on the right, as a book's first page;
+//  2. text placed with position: absolute over a background image that its stylesheet names,
+//     pinned to the left, and
+//  3. an SVG, pinned to the right: the first spread;
+//  4. a page centred, alone (page-spread-center);
+//  5. a page meant for portrait (rendition:orientation-portrait), alone;
+//  6. squared paper tiled by its body's background, the initial containing block's grid, and
+//  7. an image: the second spread, by alternation.
 func makeFixedLayoutEPUB(item book) ([]byte, error) {
-	picture := image.NewRGBA(image.Rectangle{Max: fixedPageSize})
-	draw.Draw(picture, picture.Bounds(), image.White, image.Point{}, draw.Src)
-	frame := image.Rect(80, 80, 1120, 1720)
-	draw.Draw(picture, frame, image.Black, image.Point{}, draw.Src)
-	draw.Draw(picture, frame.Inset(16), image.NewUniform(color.Gray{Y: 170}), image.Point{}, draw.Src)
-	if err := drawLines(picture, frame, 96, []string{item.Title, "Page 1"}); err != nil {
+	page1, err := framedPage(170, item.Title, "Page 1")
+	if err != nil {
 		return nil, err
 	}
-	page1, err := encodeJPEG(picture)
+	page4, err := framedPage(220, "Page 4", "centred, alone")
+	if err != nil {
+		return nil, err
+	}
+	page5, err := framedPage(140, "Page 5", "for portrait")
+	if err != nil {
+		return nil, err
+	}
+	page7, err := framedPage(190, "Page 7", "beside the grid")
 	if err != nil {
 		return nil, err
 	}
@@ -51,8 +62,29 @@ func makeFixedLayoutEPUB(item book) ([]byte, error) {
 <div class="caption"><p>Le train partit à l'aube. Par la fenêtre, les champs défilaient, puis les collines, puis la mer.</p>
 <p class="second">Personne ne savait où il allait s'arrêter.</p></div>`)),
 		"OEBPS/images/page3.svg": []byte(fixedLayoutSVG),
+		"OEBPS/images/page4.jpg": page4,
+		"OEBPS/images/page5.jpg": page5,
+		"OEBPS/images/page7.jpg": page7,
+		"OEBPS/text/page4.xhtml": []byte(fixedLayoutPage("Page 4", "", `<img src="../images/page4.jpg" alt="Page 4" style="width: 1200px; height: 1800px"/>`)),
+		"OEBPS/text/page5.xhtml": []byte(fixedLayoutPage("Page 5", "", `<img src="../images/page5.jpg" alt="Page 5" style="width: 1200px; height: 1800px"/>`)),
+		"OEBPS/text/page6.xhtml": []byte(fixedLayoutPage("Page 6", "grid", `<h1 class="title">Squared paper</h1>`)),
+		"OEBPS/text/page7.xhtml": []byte(fixedLayoutPage("Page 7", "", `<img src="../images/page7.jpg" alt="Page 7" style="width: 1200px; height: 1800px"/>`)),
 	}
 	return zipFiles([]storedFile{{"mimetype", []byte("application/epub+zip")}}, files)
+}
+
+// framedPage returns a page that is one image: a black frame around gray, with lines of text,
+// as a JPEG.
+func framedPage(gray uint8, lines ...string) ([]byte, error) {
+	picture := image.NewRGBA(image.Rectangle{Max: fixedPageSize})
+	draw.Draw(picture, picture.Bounds(), image.White, image.Point{}, draw.Src)
+	frame := image.Rect(80, 80, 1120, 1720)
+	draw.Draw(picture, frame, image.Black, image.Point{}, draw.Src)
+	draw.Draw(picture, frame.Inset(16), image.NewUniform(color.Gray{Y: gray}), image.Point{}, draw.Src)
+	if err := drawLines(picture, frame, 96, lines); err != nil {
+		return nil, err
+	}
+	return encodeJPEG(picture)
 }
 
 // fixedLayoutPage returns a page of the fixed-layout EPUB: its viewport, its stylesheet, and
@@ -77,6 +109,8 @@ func fixedLayoutPage(title, bodyClass, body string) string {
 // under its caption, and its positioned title and caption.
 const fixedLayoutCSS = `body { margin: 0; width: 1200px; height: 1800px; }
 body.text { background-image: url(../images/background.jpg); }
+body.grid { background: repeating-linear-gradient(transparent 0 58px, #888 58px 60px),
+  repeating-linear-gradient(90deg, transparent 0 58px, #888 58px 60px) 0 0 / 120px 120px, white; }
 .band { position: absolute; left: 0; top: 0; width: 1200px; height: 120px; background: linear-gradient(to right, #fff, #444 70%, black); }
 .panel { position: absolute; left: 110px; top: 1100px; width: 980px; height: 540px; background-color: rgba(255, 255, 255, 0.75); }
 .title { position: absolute; left: 100px; top: 150px; width: 1000px; margin: 0; font-size: 96px; text-align: center; }
@@ -129,11 +163,22 @@ func fixedLayoutOPF(item book) string {
     <item id="page1" href="text/page1.xhtml" media-type="application/xhtml+xml"/>
     <item id="page2" href="text/page2.xhtml" media-type="application/xhtml+xml"/>
     <item id="page3" href="images/page3.svg" media-type="image/svg+xml"/>
+    <item id="page4-image" href="images/page4.jpg" media-type="image/jpeg"/>
+    <item id="page5-image" href="images/page5.jpg" media-type="image/jpeg"/>
+    <item id="page7-image" href="images/page7.jpg" media-type="image/jpeg"/>
+    <item id="page4" href="text/page4.xhtml" media-type="application/xhtml+xml"/>
+    <item id="page5" href="text/page5.xhtml" media-type="application/xhtml+xml"/>
+    <item id="page6" href="text/page6.xhtml" media-type="application/xhtml+xml"/>
+    <item id="page7" href="text/page7.xhtml" media-type="application/xhtml+xml"/>
   </manifest>
   <spine page-progression-direction="ltr">
     <itemref idref="page1"/>
-    <itemref idref="page2"/>
-    <itemref idref="page3"/>
+    <itemref idref="page2" properties="page-spread-left"/>
+    <itemref idref="page3" properties="page-spread-right"/>
+    <itemref idref="page4" properties="page-spread-center"/>
+    <itemref idref="page5" properties="rendition:orientation-portrait"/>
+    <itemref idref="page6"/>
+    <itemref idref="page7"/>
   </spine>
 </package>
 `, item.ID, html.EscapeString(item.Title), html.EscapeString(item.Author))
@@ -148,6 +193,10 @@ const fixedLayoutNav = `<?xml version="1.0" encoding="UTF-8"?>
     <li><a href="text/page1.xhtml">Page 1</a></li>
     <li><a href="text/page2.xhtml">Page 2</a></li>
     <li><a href="images/page3.svg">Page 3</a></li>
+    <li><a href="text/page4.xhtml">Page 4</a></li>
+    <li><a href="text/page5.xhtml">Page 5</a></li>
+    <li><a href="text/page6.xhtml">Page 6</a></li>
+    <li><a href="text/page7.xhtml">Page 7</a></li>
   </ol></nav>
 </body>
 </html>

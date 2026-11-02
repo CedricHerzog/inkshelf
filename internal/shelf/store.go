@@ -47,6 +47,11 @@ func (store Store) pagePath(id string, number int, extension string) string {
 	return filepath.Join(store.bookDir(id), fmt.Sprintf("%04d%s", number, extension))
 }
 
+// spreadPath returns the path of the spread of book id that starts at page number.
+func (store Store) spreadPath(id string, number int) string {
+	return filepath.Join(store.bookDir(id), fmt.Sprintf("spread-%04d%s", number, pg4Extension))
+}
+
 // pageOnDisk reports whether page number of book id is already on disk: from an interrupted
 // download, or from an older version.
 func (store Store) pageOnDisk(id string, number int) bool {
@@ -124,6 +129,16 @@ func (store Store) Size(id string) int64 {
 		}
 	}
 	return size
+}
+
+// LoadSpread returns the spread of book id that starts at page first, decoded: 1872x1404 on an
+// InkPad 3, in landscape.
+func (store Store) LoadSpread(id string, first int) (*image.Gray, error) {
+	data, err := os.ReadFile(store.spreadPath(id, first))
+	if err != nil {
+		return nil, err
+	}
+	return pageimage.Unpack(data)
 }
 
 // LoadPage reads a page written by Download, or by an older version.

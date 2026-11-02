@@ -67,6 +67,22 @@ stores. `copyRotated` (`framebuffer_copy.go`) therefore works in 32-pixel tiles 
 and writes whole 32-bit words. It takes about 22 ms per page turn, against 48 ms byte by byte.
 It is a hot path: see [image-pipeline.md](image-pipeline.md#hot-paths).
 
+### Landscape
+
+A two-page spread shows in landscape. The app does not turn the framebuffer (`rotate` through
+`FBIOPUT_VSCREENINFO`: the firmware and the B288's driver may not follow it). It draws instead
+into a canvas of its own, 1872×1404, the framebuffer's own shape, which `copyStraight` copies
+row for row with no rotation. `pocketbook.SetOrientation` switches between the firmware's
+portrait canvas and this one, on the main thread only; `ScreenSize`, `Screen` and `Canvas` follow
+it, and the next refresh flashes the whole panel, which still shows the other orientation. The
+firmware's shared canvas stays portrait, so its task thumbnail shows the last portrait screen,
+and the event loop sets portrait again when the app goes to the background.
+
+The landscape screen is the framebuffer as it is: landscape pixel (x, y) is framebuffer column
+x, row y, which is portrait pixel (1403 − y, x). That is the reader turned a quarter
+anticlockwise from portrait. Whether that is the grip readers expect has still to be checked on
+the reader (tasks T068); the direction is set in `copyStraight` and `touchPoint` alone.
+
 ### Dark mode
 
 The firmware's dark mode (6.8 and later) shows its screens white on black. The app draws black
@@ -169,7 +185,8 @@ Other goroutines (downloads, cover loading) never call the app. They call `Repai
 ### Touch coordinates
 
 The touch panel is also mounted turned. Raw touches are converted by `touchPoint`: screen
-x = raw y, screen y = 1871 − raw x. The InkPad 3 has no `tsc.dat` calibration file, so this
+x = raw y, screen y = 1871 − raw x; in landscape, x = 1871 − raw x, y = 1403 − raw y, the
+framebuffer pixel under the finger. The InkPad 3 has no `tsc.dat` calibration file, so this
 fixed mapping is all there is.
 
 ## From a touch to a refreshed panel

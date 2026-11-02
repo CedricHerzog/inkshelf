@@ -189,6 +189,9 @@ func (fake *server) download(writer http.ResponseWriter, request *http.Request) 
 		if item.Vertical {
 			generate = makeVerticalEPUB
 		}
+		if item.Spread {
+			generate = makeSpreadEPUB
+		}
 	case "cbz":
 		generate = makeCBZ
 	default:

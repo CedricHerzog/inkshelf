@@ -105,6 +105,7 @@ Each script needs the fake servers it was written for. `shots-all` passes them f
 | `mealie.txt` | `-fake-type mealie` |
 | `calibreweb-comics.txt`, `calibreweb-epub.txt`, `calibreweb-fxl.txt`, `calibreweb-links.txt`, `calibreweb-mathml.txt`, `calibreweb-showcase.txt`, `calibreweb-toc.txt`, `calibreweb-vertical.txt` | `-fake-type calibreweb` |
 | `calibreweb-slow.txt` | `-fake-type calibreweb -element-limit 10ms` |
+| `calibreweb-spread.txt` | `-fake-type calibreweb` |
 
 For example: `make shots SCRIPT=emulator/scripts/calibreweb-epub.txt EMUFLAGS="-fake-type calibreweb"`.
 
@@ -125,6 +126,9 @@ For the default 1404x1872 screen (an InkPad 3). The scripts in `emulator/scripts
 their comments repeat them; sizes come from the constants of [app/widgets](../../internal/app/widgets)
 and of each screen's package, scaled by `widgets.Px`.
 
+- **A spread** turns the screen to landscape, 1872x1404: shots and the web view take that size,
+  and a script's points are checked against it once the app settles. Its right third starts at
+  x 1248, its middle is around (936, 700), and the toolbar's Back stays at (150, 84).
 - **Lists and contents**: header Back at (150, 84); footer at y 1790: its left third is
   ‹ Prev, its right third Next ›, and its middle the page number, which opens the A–Z jump on
   the series list.

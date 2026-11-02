@@ -27,8 +27,9 @@ const requestTimeout = 30 * time.Second
 // eventLoop turns the firmware's messages into calls to the app. Run calls poll every
 // pollInterval, on the goroutine that calls the app.
 type eventLoop struct {
-	app        App
-	firmware   firmware
+	app      App
+	firmware firmware
+	// screenSize is the screen's size in portrait.
 	screenSize image.Point
 	// visible is true while the app is in the foreground and may refresh the panel.
 	visible bool
@@ -149,7 +150,10 @@ func (loop *eventLoop) followForeground() (visible bool) {
 		log.Printf("visible %v (%s)", visible, loop.firmware.describe())
 	}
 	if !visible {
-		// Buttons and touches released in the background are never seen: forget them.
+		// Buttons and touches released in the background are never seen: forget them. The
+		// next app, and the firmware's task thumbnail, expect a portrait screen; the app draws
+		// again when it comes back, in landscape again if it wants.
+		SetOrientation(Portrait)
 		loop.visible = false
 		loop.held = false
 		loop.touch.active = false
@@ -231,7 +235,7 @@ func (loop *eventLoop) handleHardwareEvent(event hardwareEvent, now time.Time) {
 			// A second finger: the app only follows the first.
 			return
 		}
-		loop.handleTouch(event.kind, touchPoint(event.keyOrRawX, event.rawY, loop.screenSize), now)
+		loop.handleTouch(event.kind, touchPoint(event.keyOrRawX, event.rawY, oriented(loop.screenSize)), now)
 	}
 	// The firmware's own key repeats (eventKeyRepeat) and multitouch syncs are ignored, as
 	// libinkview ignores them.

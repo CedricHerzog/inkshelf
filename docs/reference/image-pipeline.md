@@ -117,6 +117,16 @@ the canvas with `pocketbook.DrawImage` and refreshes the panel (see
 [eink-and-firmware.md](eink-and-firmware.md)). The app also decodes the next and previous
 pages ahead of time, so most turns only draw.
 
+## Spreads
+
+The two pages of a fixed-layout spread are drawn again at download as one image: each page
+rendered to fit 936×1404, half of the landscape screen, set against the gutter on a white
+1872×1404 canvas, then prepared as any page (`pageimage.PrepareDecoded`) into `spread-NNNN.pg4`
+(`renderSpread` in [shelf/prepare_fixed_layout.go](../../internal/shelf/prepare_fixed_layout.go)).
+Halving the two portrait `.pg4` pages instead would fit and dither each page twice; the EPUB is
+deleted after download, so this is the last chance to draw them at their size. Drawing a spread
+costs about as much as drawing its two pages (`BenchmarkRenderSpread`).
+
 ## Images inside EPUBs
 
 Images in EPUB text are not prepared at download time: their size depends on the layout.

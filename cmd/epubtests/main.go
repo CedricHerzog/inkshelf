@@ -184,6 +184,22 @@ func drawFixedLayout(book *epub.Book, outDir string, pages int) error {
 			return err
 		}
 	}
+	if !book.Roll() {
+		// The pairs shown side by side in landscape, as the download draws them.
+		landscape := image.Pt(screenSize.Y, screenSize.X)
+		for _, spread := range book.Spreads() {
+			fmt.Fprintf(&words, "spread of pages %d and %d: page %d on the left, page %d on the right\n",
+				spread.First+1, spread.First+2, spread.Left+1, spread.Right+1)
+			drawn, err := book.RenderSpread(spread, landscape, layout.Elements{})
+			if err != nil {
+				fmt.Fprintf(&words, "spread %d: error: %v\n", spread.First+1, err)
+				continue
+			}
+			if err := writePNG(filepath.Join(outDir, fmt.Sprintf("spread-%d.png", spread.First+1)), drawn); err != nil {
+				return err
+			}
+		}
+	}
 	return os.WriteFile(filepath.Join(outDir, "words.txt"), []byte(words.String()), 0o644)
 }
 

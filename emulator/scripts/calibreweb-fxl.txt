@@ -1,22 +1,31 @@
-# A fixed-layout EPUB from the fake Calibre-Web, downloaded as page images and read as a comic:
+# A fixed-layout EPUB from the fake Calibre-Web, downloaded as page images and read as a comic,
+# its spreads side by side in landscape:
 #   make shots SCRIPT=emulator/scripts/calibreweb-fxl.txt EMUFLAGS="-fake-type calibreweb"
 # The series list's rows, 282 px high from y 292, are centred at y 433, 715, 997: Les Étoiles
 # (EPUB), Ruines (CBZ), No series. On the books screen of No series: Contes courts, then Le
-# voyage illustré, then World scripts.
+# voyage illustré, then World scripts. In portrait the right third, past x 936, turns forward;
+# in landscape (1872x1404) past x 1248, and the middle is around (936, 700).
 
 tap 700 997                 # No series
 shot 01-no-series           # Le voyage illustré: an EPUB, its pages unknown
-tap 700 715                 # download it: the EPUB, then its pages drawn
+tap 700 715                 # download it: the EPUB, then its pages and spreads drawn
 idle 60s
-shot 02-downloaded          # 3 pages, and first: downloaded books come first
-tap 700 433                 # read it: page 1, one image
+shot 02-downloaded          # 7 pages, and first: downloaded books come first
+tap 700 433                 # read it: page 1, one image, alone in portrait as a book's first page
 shot 03-page-1
 tap 1200 900                # right third: next page (left to right)
-shot 04-page-2              # text placed over a background image, a gradient band, a translucent panel
+shot 04-spread-2-3          # landscape: page 2 (text over a background, a gradient band, a translucent panel) on the left, page 3 (an SVG) on the right, against the gutter
+tap 1700 700                # right third of the landscape screen
+shot 05-page-4              # back to portrait: a centred page stands alone
 tap 1200 900
-shot 05-page-3              # an SVG: its <style>, a pattern as gray, its <text>
-key prev                    # back to page 2
+shot 06-page-5              # a page meant for portrait, alone
+tap 1200 900
+shot 07-spread-6-7          # landscape: squared paper tiled over the whole page, beside page 7
+tap 936 700                 # the toolbar, over the spread
+shot 08-toolbar             # 6 / 7, the bars across the landscape screen
+tap 936 700                 # outside the buttons: the toolbar hides
+key prev                    # back past the spread's two pages
+shot 09-back                # page 5, in portrait again
 tap 700 900                 # toolbar
-shot 06-toolbar             # 2 / 3, left to right as the EPUB says
 tap 150 84                  # ‹ Back: its last page was reached, so the end panel asks to delete it
-shot 07-end-panel
+shot 10-end-panel

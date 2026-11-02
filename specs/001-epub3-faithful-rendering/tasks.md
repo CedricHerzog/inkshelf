@@ -389,7 +389,7 @@ A book folder saved before the change reads in portrait.
 
 ### Tests for User Story 3
 
-- [ ] T061 [P] [US3] Pairing tests in `internal/ebook/epub/spreads_test.go`, following data-model.md's Spread rules:
+- [X] T061 [P] [US3] Pairing tests in `internal/ebook/epub/spreads_test.go`, following data-model.md's Spread rules:
   - "pair only where the effective `Spread` is not `none`";
   - "a pinned side is honored";
   - "unmarked items alternate, the first one alone";
@@ -397,11 +397,11 @@ A book folder saved before the change reads in portrait.
   - "two items pinned to the same side are not paired";
   - right-to-left books put `Left` second.
   - For reflowable books: "both items are image-only and pinned to opposite sides, the first on the side reading starts from; anything else is not a spread".
-- [ ] T062 [P] [US3] Golden tests in `internal/shelf/golden_test.go`:
+- [X] T062 [P] [US3] Golden tests in `internal/shelf/golden_test.go`:
   - a new `internal/shelf/testdata/golden/books/fxl-9/book.json` with `"spreads": [2, 4]` reads and saves byte for byte;
   - the existing komga-42 and epub-7 files pass unchanged.
   - Move `internal/shelf/testdata/golden/index.json` up one version (8 to 9 if US2 shipped first) with `spreads` (`{"first": n, "left": n, "right": n}`), and keep the previous version's file as a test that it is rebuilt.
-- [ ] T063 [P] [US3] Device tests in `internal/device/pocketbook/framebuffer_copy_test.go` and `internal/device/pocketbook/touch_test.go`:
+- [X] T063 [P] [US3] Device tests in `internal/device/pocketbook/framebuffer_copy_test.go` and `internal/device/pocketbook/touch_test.go`:
   - `copyStraight` copies a 1872x1404 canvas row for row;
   - `BenchmarkCopyStraight`;
   - in landscape, `touchPoint` maps raw touches without the quarter turn, and `rawTouch` is its inverse;
@@ -409,19 +409,19 @@ A book folder saved before the change reads in portrait.
 
 ### Implementation for User Story 3
 
-- [ ] T064 [US3] Add orientation to `internal/device/pocketbook/canvas.go`, following contracts/device-orientation.md:
+- [X] T064 [US3] Add orientation to `internal/device/pocketbook/canvas.go`, following contracts/device-orientation.md:
   - `Orientation` (Portrait, Landscape), `SetOrientation`, `Orientation()`.
   - In landscape, an app-owned 1872x1404 canvas; `ScreenSize()` and `Screen()` return the current one.
   - "Only the main thread changes it".
   - Setting the current orientation does nothing.
   - The next refresh is a flash refresh.
-- [ ] T065 [US3] Copy and touch in landscape:
+- [X] T065 [US3] Copy and touch in landscape:
   - `internal/device/pocketbook/framebuffer_copy.go`: `copyStraight`, a row copy with no rotation. Leave `copyRotated` untouched.
   - `internal/device/pocketbook/framebuffer_linux_arm.go` `flush`: pick the copy by orientation.
   - `internal/device/pocketbook/touch.go`: map touches by orientation.
   - `internal/device/pocketbook/event_loop.go`: use the current screen size instead of the one captured at start.
-- [ ] T066 [US3] Return to portrait before the app goes to the background, so the firmware's task thumbnail and the next app see a portrait screen. Code: `internal/device/pocketbook/system_events.go` / `firmware_linux_arm.go` (the firmware's shared canvas stays portrait).
-- [ ] T067 [US3] Emulator in landscape:
+- [X] T066 [US3] Return to portrait before the app goes to the background, so the firmware's task thumbnail and the next app see a portrait screen. Code: `internal/device/pocketbook/system_events.go` / `firmware_linux_arm.go` (the firmware's shared canvas stays portrait).
+- [X] T067 [US3] Emulator in landscape:
   - `internal/device/pocketbook/emulated_firmware.go`: panel and canvas follow the orientation.
   - `cmd/emulator/script.go` and `cmd/emulator/server.go`: shots and the web view take the current size.
   - `internal/device/pocketbook/script/run.go`: check script points against the current size.
@@ -430,43 +430,43 @@ A book folder saved before the change reads in portrait.
   - Run `make reader-deploy` and `make reader-shots`, and look at the panel.
   - If the image is upside down for the intended grip, fix the direction in `copyStraight` and `touch.go`.
   - Write the direction and its reason in docs/reference/eink-and-firmware.md, then delete the probe.
-- [ ] T069 [US3] Compute spreads in a new `internal/ebook/epub/spreads.go`: `Spreads(book) []Spread`, with `Spread{First, Left, Right}` as spine indexes, for fixed-layout books per T061's rules.
-- [ ] T070 [US3] Draw spreads at download in `internal/shelf/prepare_fixed_layout.go`:
+- [X] T069 [US3] Compute spreads in a new `internal/ebook/epub/spreads.go`: `Spreads(book) []Spread`, with `Spread{First, Left, Right}` as spine indexes, for fixed-layout books per T061's rules.
+- [X] T070 [US3] Draw spreads at download in `internal/shelf/prepare_fixed_layout.go`:
   - For each spread, render both pages with `Book.RenderPage` fitted into 936x1404 each and place them against the gutter on a 1872x1404 canvas (left page on the left).
   - Pack it with `pageimage.PrepareDecoded` into `spread-%04d.pg4`, numbered by the spread's first page in reading order.
   - Write the files before `book.json`, wrapped in a `timing.Start("render spread")` span.
   - Benchmark the composition in `internal/shelf/prepare_fixed_layout_test.go`.
-- [ ] T071 [US3] Record and load spreads:
+- [X] T071 [US3] Record and load spreads:
   - Add `Spreads []int` with the JSON tag `spreads,omitempty` to `shelf.Book` in `internal/shelf/book.go`. Rule: "every number n has `spread-%04d.pg4` for n on disk and n+1 ≤ Pages; spreads do not overlap".
   - Add `Store.LoadSpread(book, first)` to `internal/shelf/store.go`.
   - Document the new fields and files in docs/reference/on-disk-formats.md.
-- [ ] T072 [US3] Find reflowable image spreads:
+- [X] T072 [US3] Find reflowable image spreads:
   - Bump `epub.IndexVersion` by one (8 to 9 if US2 shipped first) in `internal/ebook/epub/index.go` and add `Spreads` (JSON tag `spreads,omitempty`) to `Index`.
   - In `BuildIndex`, find pairs of consecutive spine items that each hold one image and nothing else visible (an `image/*` item, or an XHTML wrapper whose document is one `document.Image` block), pinned left and right per T061's rules.
-- [ ] T073 [US3] Read reflowable image spreads:
+- [X] T073 [US3] Read reflowable image spreads:
   - In `internal/reading/textbook.go` and `internal/reading/renderer.go`, a page turn that reaches the first item of an index spread yields one spread page: both images decoded from `book.epub`, fitted into 936x1404 halves of 1872x1404, under the renderer lock.
   - The position is the first item's chapter at offset 0.
   - Moving forward goes past both items.
-- [ ] T074 [US3] Make page turns spread-aware in `internal/app/openbook/openbook.go` (`TurnPage`) and `internal/app/openbook/pages.go` (`CurrentPageLocked`, preloader):
+- [X] T074 [US3] Make page turns spread-aware in `internal/app/openbook/openbook.go` (`TurnPage`) and `internal/app/openbook/pages.go` (`CurrentPageLocked`, preloader):
   - On a page book with `Spreads`, the page in a spread loads `LoadSpread`.
   - Forward and back move past both pages.
   - "a position on the second page (from the server, or from an older version) is shown as that spread".
   - The saved and synced `Page` is the spread's first page.
   - A book without `Spreads` behaves as today (FR-015).
-- [ ] T075 [US3] Switch orientation in the reader screen, `internal/app/screens/reader/reader.go` (`DrawAndRefreshLocked`, `centered`, `drawPage`, tap zones):
+- [X] T075 [US3] Switch orientation in the reader screen, `internal/app/screens/reader/reader.go` (`DrawAndRefreshLocked`, `centered`, `drawPage`, tap zones):
   - Call `pocketbook.SetOrientation(Landscape)` before drawing a spread and `Portrait` before a single page, on the main thread with the state's mutex held.
   - Centre the image in the current screen size.
   - Compute tap and swipe zones from the current size.
-- [ ] T076 [US3] Toolbar, menus, popups and the end panel in landscape: `internal/app/screens/reader/popup.go`, `internal/app/screens/reader/endpanel.go`, `internal/app/screens/reader/deletequestion.go`. Replace sizes that assume portrait height (e.g. `bottom-Px(250)`) with the current screen size, so gestures and menus work in both orientations.
-- [ ] T077 [US3] Set portrait before drawing any screen other than the reader, in `internal/app/app.go` (`Draw`), so the library, lists and settings always draw in portrait
-- [ ] T078 [US3] Spreads in the fake fixed-layout book, `internal/servers/calibreweb/fakecalibreweb/fixedlayout.go`:
+- [X] T076 [US3] Toolbar, menus, popups and the end panel in landscape: `internal/app/screens/reader/popup.go`, `internal/app/screens/reader/endpanel.go`, `internal/app/screens/reader/deletequestion.go`. Replace sizes that assume portrait height (e.g. `bottom-Px(250)`) with the current screen size, so gestures and menus work in both orientations.
+- [X] T077 [US3] Set portrait before drawing any screen other than the reader, in `internal/app/app.go` (`Draw`), so the library, lists and settings always draw in portrait
+- [X] T078 [US3] Spreads in the fake fixed-layout book, `internal/servers/calibreweb/fakecalibreweb/fixedlayout.go`:
   - `rendition:spread` auto;
   - pages marked `page-spread-left`/`right`;
   - one `page-spread-center`;
   - one item with `rendition:orientation` portrait;
   - a tiled-grid background (ICB grid).
-- [ ] T079 [US3] Add a reflowable book to `internal/servers/calibreweb/fakecalibreweb/epub.go` with two image-only spine items pinned left and right between text chapters
-- [ ] T080 [US3] Extend `emulator/scripts/calibreweb-fxl.txt`:
+- [X] T079 [US3] Add a reflowable book to `internal/servers/calibreweb/fakecalibreweb/epub.go` with two image-only spine items pinned left and right between text chapters
+- [X] T080 [US3] Extend `emulator/scripts/calibreweb-fxl.txt`:
   - download the book;
   - `shot` the cover (portrait);
   - turn and `shot` each spread (1872x1404);
@@ -474,14 +474,14 @@ A book folder saved before the change reads in portrait.
   - open the menu over a spread and `shot`;
   - turn back and `shot`;
   - open the reflowable book's image spread and `shot`.
-- [ ] T081 [US3] Check that old books are kept: in `internal/shelf/download_test.go`, a book folder written without `spreads` (copy of a baseline-format folder in `internal/shelf/testdata/`) opens, reads page by page in portrait, and is never redrawn
+- [X] T081 [US3] Check that old books are kept: in `internal/shelf/download_test.go`, a book folder written without `spreads` (copy of a baseline-format folder in `internal/shelf/testdata/`) opens, reads page by page in portrait, and is never redrawn
 - [ ] T082 [US3] Add the reader script `emulator/scripts/reader/spreads.txt` (reads only; changes no server): open a fixed-layout book with spreads already on the reader, turn through two spreads and a single page, open the menu on a spread. Then:
   - `make reader-shots READER_SCRIPT=emulator/scripts/reader/spreads.txt`;
   - look at the ghosting at each orientation switch;
   - press the home button from a spread and check the task thumbnail is portrait;
   - read the log for the switch's refresh time.
   - Without remote control: `make deploy`, ask the user to go through the same steps, then read `applications/inkshelf.log` over USB.
-- [ ] T083 [US3] Update the docs this story makes wrong (constitution VII; T068 and T071 already cover eink-and-firmware.md and on-disk-formats.md):
+- [X] T083 [US3] Update the docs this story makes wrong (constitution VII; T068 and T071 already cover eink-and-firmware.md and on-disk-formats.md):
   - docs/reference/epub-to-page.md: rendition, spreads;
   - docs/reference/image-pipeline.md: spread images;
   - docs/reference/app-threading.md: the orientation switch;
