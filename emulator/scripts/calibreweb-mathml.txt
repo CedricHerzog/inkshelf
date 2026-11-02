@@ -14,7 +14,7 @@ shot 01-contents
 tap 700 1208                # Formules
 shot 02-formulas            # a fraction, scripts and a root in the text; the quadratic formula, a sum, a matrix; a box, bordered, on gray; the table, its grid
 tap 1200 900                # the next page, if the chapter has one
-shot 03-formulas-next       # the end of the table, then an AVIF image, decoded: it has no fallback
+shot 03-formulas-next       # the end of the table, then an AVIF image, not decoded: it has no fallback, so its alt text shows
 key prev
 tap 700 900                 # the toolbar
 tap 1060 84                 # A+: the formulas grow with the text; the table's rows go on the next page

@@ -59,7 +59,8 @@ written last. A book folder without `book.json` is an interrupted download: the 
 
 `DecodeGray` (`decode.go`) uses the standard library's JPEG and PNG decoders,
 `golang.org/x/image/webp`, `github.com/gen2brain/jxl` for JPEG XL, and
-`github.com/gen2brain/gav1d` (a port of dav1d) for AVIF, all pure Go. (The firmware's
+`github.com/gen2brain/gav1d` (a port of dav1d) for AVIF, all pure Go; AVIF is refused for now
+(below). (The firmware's
 libjpeg-turbo was 5–10× faster but needs cgo.)
 
 `toGray` has a fast path for each image type the decoders return. For a JPEG, the decoder
@@ -79,13 +80,15 @@ recovers the decoders' panics. That is why the app decodes images through `pagei
 rather than `image.Decode`.
 
 The JPEG XL decoder runs on one thread, so that a panic stays on the calling goroutine, where it
-is recovered. The AVIF decoder (`decodeAVIF`) cannot: gav1d decodes an image's tiles on
-goroutines of its own and offers no option to keep them on the caller, so a panic there would end
-the app. Its guards are the pixel cap, the frame size limit given to the decoder, the recovery of
-what panics on the caller (parsing the container), and fuzzing (`FuzzDecodeAVIF`). A full page
-of AVIF (1404x1872) takes about 0.14 s to decode on a computer (`BenchmarkDecodeAVIF`) and its
-page 5.75 s to draw on the reader, under the page's 10-second limit; each
-decode is a `decode avif` span in the log and the trace.
+is recovered. The AVIF decoder (`decodeAVIF`) cannot: gav1d decodes an image's frame and tiles
+on goroutines of its own whenever the reader has more than one core, and its `avif.Options`
+offers no way to keep them on the caller, so a panic there would end the app. Until it does,
+`Decode` refuses AVIF (`avifOnCaller` is false, `errAVIFOffCaller`) and the container leaves
+`image/avif` out of the images it can show, so that the book's manifest fallback is chosen, or
+the image's text alternative shown. `decodeAVIF` stays ready for then, behind a pixel cap, a frame
+size limit and fuzzing (`FuzzDecodeAVIF`): a full page of AVIF (1404x1872) took about 0.14 s to
+decode on a computer (`BenchmarkDecodeAVIF`) and its page 5.75 s to draw on the reader, as a
+`decode avif` span in the log and the trace.
 
 ### 2. Fit to the screen
 

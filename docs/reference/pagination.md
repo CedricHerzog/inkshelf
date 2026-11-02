@@ -239,8 +239,9 @@ elements 10 seconds in all (`PageBudget`), not each element 10 seconds.
   element left shows its fallback without a wait.
 - An element not ready in time shows its text alternative (`PlacedImage.Alt`, from the
   document's `Alt`) in its box, in the text's font, broken into lines between words and cut at
-  the box's edges (`drawAlt`); without one the box stays empty. An image that cannot be decoded
-  at all is left out, as before.
+  the box's edges (`drawAlt`); without one the box stays empty. So does an image whose format
+  the app refuses to decode (`pageimage.ErrRefused`: an AVIF, while its decoder cannot run on the
+  calling goroutine). An image that cannot be decoded at all is left out, as before.
 - A formula is laid out and drawn on the worker, on a white canvas of its own, then darkens the
   page under it: the worker never touches the page, which may have moved on.
 - A fixed-layout page drawn at download (`fixedlayout.Page.Render`) shares one budget across its

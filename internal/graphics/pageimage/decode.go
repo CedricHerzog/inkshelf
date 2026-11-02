@@ -46,6 +46,20 @@ const maxAVIFPixels = maxJXLPixels
 // errAVIFTooLarge is returned for an AVIF image larger than maxAVIFPixels.
 var errAVIFTooLarge = errors.New("avif: image too large")
 
+// avifOnCaller is set once gav1d can decode on the calling goroutine. It cannot yet: it decodes
+// a frame and its tiles on goroutines of its own whenever the reader has more than one core, and
+// a panic there on a crafted image would end the app, which no recover can stop. Until then an
+// AVIF is refused and the book's manifest fallback shows instead (the container no longer counts
+// AVIF as an image it can show), or the image's text alternative.
+const avifOnCaller = false
+
+// ErrRefused is the error, wrapped, of an image of a format the app can read but chooses not to
+// decode: its text alternative is shown in its place, as for one that is not ready in time.
+var ErrRefused = errors.New("image refused")
+
+// errAVIFOffCaller is returned for an AVIF image while avifOnCaller is not set.
+var errAVIFOffCaller = fmt.Errorf("%w: avif: its decoder would run off the calling goroutine", ErrRefused)
+
 // maxPixels is the largest image of another format decoded, in pixels (33.5 M, a double page
 // scanned at 400 dpi): decoded, it takes up to 4 bytes a pixel, and a header may ask for any
 // size, which a book could use to take the reader's memory.
@@ -54,7 +68,7 @@ const maxPixels = 1 << 25
 // errTooLarge is returned for an image larger than maxPixels.
 var errTooLarge = errors.New("image too large")
 
-// DecodeGray decodes a JPEG, PNG, WebP, JPEG XL or AVIF image to grayscale, what is transparent in
+// DecodeGray decodes a JPEG, PNG, WebP or JPEG XL image to grayscale, what is transparent in
 // it composited over white, the page.
 func DecodeGray(data []byte) (*image.Gray, error) {
 	img, err := Decode(data)
@@ -64,16 +78,19 @@ func DecodeGray(data []byte) (*image.Gray, error) {
 	return toGray(img), nil
 }
 
-// Decode decodes an image of any registered format, a JPEG XL one through decodeJXL and an AVIF
-// one through decodeAVIF. It is what decodes the images of books and servers: the decoders that
-// image.Decode picks for those have no size cap of ours, and a panic in their goroutines could
-// not be recovered. An image whose header
-// gives more than maxPixels is not decoded, and a decoder's panic is returned as an error.
+// Decode decodes an image of any registered format, a JPEG XL one through decodeJXL, and refuses
+// an AVIF one until avifOnCaller is set. It is what decodes the images of books and servers: the
+// decoders that image.Decode picks for those have no size cap of ours, and a panic in their
+// goroutines could not be recovered. An image whose header gives more than maxPixels is not
+// decoded, and a decoder's panic is returned as an error.
 func Decode(data []byte) (img image.Image, err error) {
 	switch {
 	case isJXL(data):
 		return decodeJXL(data)
 	case isAVIF(data):
+		if !avifOnCaller {
+			return nil, errAVIFOffCaller
+		}
 		return decodeAVIF(data)
 	}
 	defer recoverError(&err)
@@ -126,8 +143,9 @@ func isAVIF(data []byte) bool {
 
 // decodeAVIF decodes an AVIF image whose header gives at most maxAVIFPixels, its frame limited
 // to the same, a panic on the calling goroutine returned as an error. gav1d decodes an image's
-// tiles on goroutines of its own and offers no way to keep them on the caller, so a panic there
-// is not recovered: fuzzing (FuzzDecodeAVIF) is what guards against it. It gives *image.NRGBA,
+// frame and tiles on goroutines of its own and offers no way to keep them on the caller, so a
+// panic there is not recovered: Decode calls it only once avifOnCaller is set, and fuzzing
+// (FuzzDecodeAVIF) keeps it ready for then. It gives *image.NRGBA,
 // or *image.NRGBA64 above 8 bits, which goes through img.At.
 func decodeAVIF(data []byte) (img image.Image, err error) {
 	span := timing.Start(context.Background(), "decode avif")

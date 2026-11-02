@@ -163,7 +163,7 @@ pkg-unique-id_duplicate	Package metadata	pass
 pkg-version-backward	Package metadata	pass	
 pss-support	Structural semantics	pass	
 pss-support_ignore-title	Structural semantics	pass	
-pub-cmt-avif	Core media types	pass	decoded by gen2brain/gav1d, behind a pixel cap
+pub-cmt-avif	Core media types	fail	not decoded: gen2brain/gav1d decodes off the calling goroutine, where a panic cannot be recovered; the manifest fallback or the alt text shows (FR-008's recorded gap)
 pub-cmt-gif	Core media types	pass	
 pub-cmt-jpeg	Core media types	pass	
 pub-cmt-jxl	Core media types	pass	

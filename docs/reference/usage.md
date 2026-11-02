@@ -168,7 +168,8 @@ styles and their text, their strokes as thick as the drawing says. Borders and b
 paragraphs and boxes (colors, images, gradients, tiled patterns) are drawn in grays, and
 colored text as its gray, kept legible: light text is darkened, but on a dark box. Emphasis
 marks (dots, circles, sesames, triangles) are drawn above or under each character. Images may
-be JPEG, PNG, GIF, WebP, JPEG XL, AVIF or SVG. A page waits 10 seconds in all for its pictures
+be JPEG, PNG, GIF, WebP, JPEG XL or SVG; an AVIF picture shows the book's replacement picture,
+or its description, as its decoder is not yet safe to run on the reader. A page waits 10 seconds in all for its pictures
 and formulas: one not ready by then shows its description (the book's `alt` text) in its place,
 and is not waited for again until the app restarts. A picture across two pages of the book (two
 pages of one image, pinned left and right) shows whole, in landscape. Nothing in a book runs or

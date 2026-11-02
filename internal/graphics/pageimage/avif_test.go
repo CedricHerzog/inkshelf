@@ -111,10 +111,11 @@ func TestDecodeGrayAVIF(t *testing.T) {
 			if !isAVIF(test.data) {
 				t.Fatal("not recognized as AVIF")
 			}
-			gray, err := DecodeGray(test.data)
+			decoded, err := decodeAVIF(test.data)
 			if err != nil {
 				t.Fatal(err)
 			}
+			gray := toGray(decoded)
 			if got := gray.Bounds().Size(); got != test.size {
 				t.Fatalf("size %v, want %v", got, test.size)
 			}
@@ -131,10 +132,21 @@ func TestDecodeGrayAVIF(t *testing.T) {
 	}
 }
 
+// Decode refuses an AVIF while its decoder would run off the calling goroutine, where a panic
+// would end the app: the book's fallback shows instead.
+func TestDecodeRefusesAVIF(t *testing.T) {
+	if avifOnCaller {
+		t.Skip("AVIF is decoded on the caller")
+	}
+	if _, err := DecodeGray(encodeAVIF(t, colorPage(), 90)); !errors.Is(err, errAVIFOffCaller) {
+		t.Fatalf("error %v, want %v", err, errAVIFOffCaller)
+	}
+}
+
 // An AVIF whose header gives more than maxAVIFPixels is refused before any decoding.
 func TestDecodeAVIFTooLarge(t *testing.T) {
 	data := withSize(t, encodeAVIF(t, grayRamp(), 60), 5000, 4000)
-	if _, err := DecodeGray(data); !errors.Is(err, errAVIFTooLarge) {
+	if _, err := decodeAVIF(data); !errors.Is(err, errAVIFTooLarge) {
 		t.Fatalf("error %v, want %v", err, errAVIFTooLarge)
 	}
 }
@@ -148,8 +160,8 @@ func FuzzDecodeAVIF(f *testing.F) {
 		if config, err := DecodeConfig(bytes.NewReader(data)); err == nil && int64(config.Width)*int64(config.Height) > maxAVIFPixels {
 			return // not decoded: refused from its header
 		}
-		gray, err := DecodeGray(data)
-		if err == nil && gray == nil {
+		decoded, err := decodeAVIF(data)
+		if err == nil && decoded == nil {
 			t.Fatal("no image and no error")
 		}
 	})
@@ -174,7 +186,7 @@ func BenchmarkDecodeAVIF(b *testing.B) {
 	data := encodeAVIF(b, page, 70)
 	b.ReportAllocs()
 	for b.Loop() {
-		if _, err := DecodeGray(data); err != nil {
+		if _, err := decodeAVIF(data); err != nil {
 			b.Fatal(err)
 		}
 	}

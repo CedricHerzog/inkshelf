@@ -40,7 +40,7 @@ through `pageimage.Decode`) have limits on their input and fuzz tests.
 | Internationalization | 9 | 2 | 0 | 7 | Titles shown are the server's. Text in the book is laid out bidirectionally now. |
 | Spine | 10 | 10 | 0 | 0 | |
 | Manifest fallbacks | 5 | 5 | 0 | 0 | |
-| Core media types | 10 | 7 | 0 | 3 | Audio is out of scope. |
+| Core media types | 10 | 6 | 1 | 3 | AVIF is not decoded while its decoder cannot run on the calling goroutine; audio is out of scope. |
 | XHTML and resources | 12 | 9 | 1 | 2 | Malformed XML is read leniently, not refused (kept: real books have broken markup); no browser for web links. |
 | Fonts (`@font-face`, obfuscation) | 6 | 6 | 0 | 0 | |
 | CSS (`-epub-` properties) | 10 | 10 | 0 | 0 | |
@@ -52,11 +52,11 @@ through `pageimage.Decode`) have limits on their input and fuzz tests.
 | Reflowable layout (`rendition:flow`, roll) | 8 | 5 | 0 | 3 | Scrolled flows are shown paged, and `align-x-center` doesn't apply to paged e-ink. |
 | Scripting | 16 | 1 | 0 | 15 | No scripts; a scripted document's manifest fallback is shown. |
 | Media overlays | 21 | 1 | 0 | 20 | No audio; overlays are ignored, as required. |
-| **Total** | **179** | **122** | **2** | **55** | |
+| **Total** | **179** | **121** | **3** | **55** | |
 
-Of the 124 tests in scope, 122 pass (98%). The runs before this one gave 118, 113, 109 and 101.
-The verdict of each test, and why, is in `cmd/epubtests/judgments.tsv`. The two that fail are
-the deliberate departures.
+Of the 124 tests in scope, 121 pass (98%). The runs before this one gave 122, 118, 113, 109 and
+101. The verdict of each test, and why, is in `cmd/epubtests/judgments.tsv`. Two that fail are
+the deliberate departures; the third is AVIF, turned off since the run before (see below).
 
 Of the 55 out of scope, 43 need scripts, the network, a browser or audio. The other 12 are: 7
 titles and creators that the app's lists show from the server, 3 scrolled flows and
@@ -71,9 +71,12 @@ book pair).
   page, a page meant for portrait, and the first page stand alone (`lay-pp-page-spread-left`,
   `-right`, `-combined`, which were out of scope on a portrait panel). Two image pages of a
   reflowable book pinned left and right read as one spread too.
-- **AVIF** (`pageimage.decodeAVIF`): decoded by `gen2brain/gav1d`, a pure-Go port of dav1d,
-  behind a pixel cap and a frame size limit, its panics on the calling goroutine recovered
-  (`pub-cmt-avif`). AVIF is a core media type now: the fallback chain stops at it.
+- **AVIF** (`pageimage.decodeAVIF`): `gen2brain/gav1d`, a pure-Go port of dav1d, decodes it
+  behind a pixel cap and a frame size limit, but on goroutines of its own whenever the reader has
+  more than one core, where a panic on a crafted image would end the app. So AVIF is turned off
+  (`avifOnCaller`) until gav1d can decode on the caller: the fallback chain goes past it to the
+  book's fallback, else the image's `alt` text shows. `pub-cmt-avif` fails again, the gap FR-008
+  allows.
 - **Vertical writing** (`layout`, `vertical.go`): `writing-mode` `vertical-rl` and `vertical-lr`
   laid out in columns with the horizontal line breaker, turned onto the page; ideographs upright
   and shaped top to bottom (vertical forms of brackets and the long vowel), Latin turned, as
@@ -109,10 +112,13 @@ book pair).
    megabyte each, a megabyte per book, 10,000 rules), so a stylesheet of 20,000 rules lays out in
    0.80 s, against 6.56 s. Otherwise: the firmware's CJK fonts read in 0.08 to 0.1 s, so a vertical book opens in 0.9 s;
    vertical page turns 0.11 to 0.94 s; horizontal ones 111 ms, as before this work (112 ms); a
-   page of formulas 177 ms; a full-page AVIF 5.75 s and a full-page JPEG XL 6.97 s, both under
-   the limit.
-2. AVIF's decoder runs an image's tiles on goroutines of its own, where a panic cannot be
-   recovered: an option of gav1d to decode on the caller would close that.
+   page of formulas 177 ms; a full-page JPEG XL 6.97 s, under the limit (a full-page AVIF took
+   5.75 s while it was decoded).
+2. AVIF is not decoded: gav1d runs an image's frame and tiles on goroutines of its own, where a
+   panic cannot be recovered. Its `av1.Decoder` has `Threads` and `FrameThreads`, which would
+   keep them on the caller, but its `avif.Options` does not pass them on. Once a release does,
+   set them to 1 in `decodeAVIF` and `avifOnCaller`, and put `image/avif` back among the
+   container's `imageTypes`.
 3. Vertical text lays a formula out across.
 
 ## Whole books

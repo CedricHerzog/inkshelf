@@ -2,12 +2,15 @@ package layout
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"image"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/CedricHerzog/inkshelf/internal/deadline"
+	"github.com/CedricHerzog/inkshelf/internal/graphics/pageimage"
 	"github.com/CedricHerzog/inkshelf/internal/web/mathml"
 	"github.com/CedricHerzog/inkshelf/internal/web/webimage"
 )
@@ -98,6 +101,25 @@ func TestDrawShowsAltTextOfSlowImage(t *testing.T) {
 	}
 	if inkedPixels(canvas, box) != inked {
 		t.Errorf("drawing again: %d inked pixels, want %d", inkedPixels(canvas, box), inked)
+	}
+}
+
+// An image whose format the app refuses to decode (an AVIF, today) shows its text alternative;
+// one that is broken is left out.
+func TestDrawShowsAltTextOfRefusedImage(t *testing.T) {
+	faces := newTestFaces(t)
+	refused, broken := image.Rect(50, 50, 450, 180), image.Rect(50, 220, 450, 350)
+	page := Page{Images: []PlacedImage{altImage("plate.avif", refused, "A lighthouse"), altImage("broken.png", broken, "A rock")}}
+	images := func(path string, size image.Point) (*image.Gray, error) {
+		if path == "plate.avif" {
+			return nil, fmt.Errorf("load %s: %w", path, pageimage.ErrRefused)
+		}
+		return nil, errors.New("png: invalid format")
+	}
+	canvas, _ := timedDraw(t, page, faces, images, Elements{})
+	if inkedPixels(canvas, refused) == 0 || inkedPixels(canvas, broken) != 0 {
+		t.Errorf("%d inked pixels for the refused image, %d for the broken one; want its text, then nothing",
+			inkedPixels(canvas, refused), inkedPixels(canvas, broken))
 	}
 }
 

@@ -414,7 +414,8 @@ func TestFallbacks(t *testing.T) {
 	}
 }
 
-// A JPEG XL image and an AVIF one are shown, not their fallbacks, and sized from their headers.
+// A JPEG XL image is shown, not its fallback; an AVIF one gives way to its fallback while its
+// decoder cannot run on the calling goroutine. Both are sized from their headers.
 func TestJXLAndAVIFImages(t *testing.T) {
 	jxl, err := os.ReadFile("../../graphics/pageimage/testdata/page.jxl") // 64×48
 	if err != nil {
@@ -442,7 +443,7 @@ func TestJXLAndAVIFImages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"Text", "[image OEBPS/photo.jxl]", "[image OEBPS/figure.avif]"}
+	want := []string{"Text", "[image OEBPS/photo.jxl]", "[image OEBPS/figure.png]"}
 	if got := texts(part); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("images %q, want %q", got, want)
 	}

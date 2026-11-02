@@ -167,8 +167,8 @@ go-text's pure-Go port of HarfBuzz, and only for text that needs it.
 The document stores an image by its path in the zip, or as a `data:` URI. At draw time,
 `webimage.NewLoader` reads the file and prepares it at the size the layout gave it:
 
-- a raster image (JPEG, PNG, GIF, BMP, WebP, JPEG XL, AVIF) through `pageimage.Prepare`, the same
-  stages as comic pages ([image-pipeline.md](image-pipeline.md));
+- a raster image (JPEG, PNG, GIF, BMP, WebP, JPEG XL; AVIF is refused for now, see
+  [image-pipeline.md](image-pipeline.md)) through `pageimage.Prepare`, the same stages as comic pages ([image-pipeline.md](image-pipeline.md));
 - an SVG through `svgimage.Rasterize`: it runs a small CSS cascade on the SVG, hands shapes to
   `github.com/srwiley/oksvg`, and draws the SVG's `<text>` with the book's `Faces` (through
   `Faces.SVGText`).

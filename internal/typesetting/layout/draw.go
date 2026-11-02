@@ -9,6 +9,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/CedricHerzog/inkshelf/internal/graphics/pageimage"
 	"github.com/CedricHerzog/inkshelf/internal/web/mathml"
 	"github.com/CedricHerzog/inkshelf/internal/web/webimage"
 )
@@ -26,7 +27,8 @@ var errNotReady = errors.New("not ready in time")
 // backgrounds (their images through images) and borders, underlines and strike-throughs, rules
 // in dark gray, images through images (one that cannot be loaded is left out), and the words in
 // their gray. Images and formulas are prepared through elements: one not ready within the page's
-// budget shows its text alternative in its box instead.
+// budget, or one whose format the app refuses to decode (pageimage.ErrRefused), shows its text
+// alternative in its box instead.
 func (page Page) Draw(dst *image.Gray, faces *Faces, images webimage.Loader, elements Elements) error {
 	elements = elements.Started()
 	drawBorderBoxes(dst, page.Boxes, func(path string, size image.Point) (Tile, error) {
@@ -46,7 +48,7 @@ func (page Page) Draw(dst *image.Gray, faces *Faces, images webimage.Loader, ele
 		}
 		picture, err := loadImage(elements, images, placed.Path, placed.Rect.Size())
 		if err != nil {
-			if errors.Is(err, errNotReady) {
+			if errors.Is(err, errNotReady) || errors.Is(err, pageimage.ErrRefused) {
 				log.Printf("layout: image %.80s: %v", placed.Path, err)
 				drawAlt(dst, faces, placed)
 			}
