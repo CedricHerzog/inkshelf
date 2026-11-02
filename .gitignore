@@ -15,3 +15,6 @@
 
 # Worktrees of Claude Code agents
 .claude/worktrees/
+
+# go build ./cmd/epubtests at the root
+/epubtests
