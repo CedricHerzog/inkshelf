@@ -56,6 +56,24 @@ func (parser *builder) addImage(source string, img *element, alt string) {
 	parser.addImageBlock(imagePath, widthPercent, alt)
 }
 
+// canShowImage reports whether the image at source (as addImage takes it) can be shown: a data:
+// URI, or a file the book holds whose header reads as an image. A remote image is never
+// fetched, so it cannot.
+func (parser *builder) canShowImage(source string) bool {
+	if source == "" {
+		return false
+	}
+	if uri.IsData(source) {
+		return true
+	}
+	imagePath := resolve(parser.chapterPath, source)
+	if fallback, ok := parser.book.SupportedImage(imagePath); ok {
+		imagePath = fallback
+	}
+	_, err := parser.book.ImageSize(imagePath)
+	return err == nil
+}
+
 // altText returns an image's text alternative as it is drawn: its spaces and line breaks
 // collapsed, as in the text around it.
 func altText(alt string) string { return strings.Join(strings.Fields(alt), " ") }

@@ -19,8 +19,9 @@ type showcaseChapter struct {
 
 // showcaseChapters are the chapters of the showcase EPUB: Arabic, Hebrew, text in both
 // directions, Chinese and Japanese lines and their punctuation, the emphasis marks and
-// underlines of CSS Text, backgrounds and SVG strokes, and what a book cannot do: run a script,
-// fetch from the web, or keep a page waiting for a slow image.
+// underlines of CSS Text, backgrounds and SVG strokes, what a book cannot do (run a script,
+// fetch from the web, keep a page waiting for a slow image), and audio and video, which never
+// play.
 var showcaseChapters = []showcaseChapter{
 	{file: "arabic.xhtml", title: "العربية", language: "ar", direction: "rtl", body: `<h1>العربية</h1>
 <p>مرحبا بكم في هذا الكتاب. تكتب اللغة العربية من اليمين إلى اليسار، وتتصل حروفها ببعضها البعض داخل الكلمة، فيتغير شكل الحرف بحسب موضعه في أولها أو وسطها أو آخرها.</p>
@@ -54,10 +55,19 @@ var showcaseChapters = []showcaseChapter{
 <p><img src="https://images.example.com/harbour.jpg" alt="A harbour at dusk, on the web"/></p>
 <p>A photograph of 30 megapixels follows, slow to decode. A page waits 10 seconds in all for its pictures; with a shorter wait, its description shows in its place.</p>
 <p><img src="large.jpg" alt="A large photograph of gray squares, too slow for this page" style="width: 40%"/></p>`},
+	{file: "media.xhtml", title: "Media", language: "en", body: `<h1>Media</h1>
+<p>Nothing plays. A video shows its poster, a still the book holds, and never its controls:</p>
+<div class="still"><video src="clip.mp4" poster="poster.jpg" controls="controls" style="width: 50%"><p>This fallback hides behind the poster.</p></video></div>
+<video src="clip.mp4" controls="controls"><source src="clip.webm" type="video/webm"/><p>A video without a poster shows its fallback content: this paragraph.</p></video>
+<audio src="song.mp3" controls="controls"><p>A song shows its fallback content too: this paragraph.</p></audio>
+<p>A book read aloud, with a media overlay, reads as its text alone.</p>`},
 }
 
-// largeImagePath is the showcase's large photograph, in the book.
-const largeImagePath = "large.jpg"
+// The showcase's images, in the book: the large photograph and the video's poster.
+const (
+	largeImagePath  = "large.jpg"
+	posterImagePath = "poster.jpg"
+)
 
 // showcaseCSS is the stylesheet of the showcase: prefixed properties among them.
 const showcaseCSS = `body { margin: 0; }
@@ -77,6 +87,7 @@ h1 { text-align: center; margin: 1em 0; }
   repeating-linear-gradient(90deg, transparent 0 38px, #999 38px 40px) 0 0 / 80px 80px, white; }
 .glow { padding: 2em 1em; margin: 1em 0; background: radial-gradient(circle at 30% 50%, white, #777); }
 .strokes { text-indent: 0; text-align: center; }
+.still { text-align: center; margin: 1em 0; }
 `
 
 // makeShowcaseEPUB returns the EPUB of the showcase book: a chapter per topic of
@@ -86,7 +97,11 @@ func makeShowcaseEPUB(item book) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return chaptersEPUB(item, showcaseChapters, showcaseCSS, "en", map[string][]byte{largeImagePath: large})
+	poster, err := drawPoster()
+	if err != nil {
+		return nil, err
+	}
+	return chaptersEPUB(item, showcaseChapters, showcaseCSS, "en", map[string][]byte{largeImagePath: large, posterImagePath: poster})
 }
 
 // chaptersEPUB returns the EPUB of a book of chapters styled by css, in language, with the JPEG

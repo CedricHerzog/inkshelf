@@ -855,3 +855,65 @@ func TestImageAlt(t *testing.T) {
 		t.Errorf("%d runes, want %d", doc.Chars, want)
 	}
 }
+
+// Audio and video never play: a video shows its poster when the book holds it, else its
+// fallback content, as does audio; their sources and tracks show nothing.
+func TestMediaElements(t *testing.T) {
+	book := openPackage(t, "", "", `
+<item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+<item id="poster" href="poster.png" media-type="image/png"/>
+<item id="movie" href="movie.mp4" media-type="video/mp4"/>
+<item id="song" href="song.mp3" media-type="audio/mpeg"/>`,
+		`><itemref idref="chapter"/>`,
+		map[string]string{
+			"OEBPS/poster.png": pngOf(t, image.Pt(400, 300)),
+			"OEBPS/movie.mp4":  "not a movie",
+			"OEBPS/song.mp3":   "not a song",
+			"OEBPS/chapter.xhtml": xhtml(`<video poster="poster.png" src="movie.mp4" controls="controls"><p>Poster fallback</p></video>
+<video poster="https://videos.example.com/still.png"><source src="movie.mp4" type="video/mp4"/><p>Remote poster fallback</p></video>
+<video poster="missing.png" src="movie.mp4"><p>Missing poster fallback</p></video>
+<video src="movie.mp4"><track kind="captions" src="captions.vtt"/><p>No poster fallback</p></video>
+<audio controls="controls"><source src="song.mp3" type="audio/mpeg"/><p>Audio fallback</p></audio>
+<audio src="song.mp3"/>
+<p>After</p>`),
+		})
+	doc, err := book.Chapter(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"[image OEBPS/poster.png]", "Remote poster fallback", "Missing poster fallback", "No poster fallback", "Audio fallback", "After"}
+	if got := texts(doc); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("blocks\n%q\nwant\n%q", got, want)
+	}
+}
+
+// A media overlay (read-aloud) is ignored: a book with one builds the same documents as without.
+func TestMediaOverlayIgnored(t *testing.T) {
+	chapter := xhtml(`<p id="s1">The first sentence.</p><p id="s2">The second one.</p>`)
+	smil := `<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops" version="3.0"><body><seq epub:textref="chapter.xhtml">
+<par id="p1"><text src="chapter.xhtml#s1"/><audio src="voice.mp3" clipBegin="0s" clipEnd="2s"/></par>
+<par id="p2"><text src="chapter.xhtml#s2"/><audio src="voice.mp3" clipBegin="2s" clipEnd="4s"/></par>
+</seq></body></smil>`
+	plain := openPackage(t, "", "", `<item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>`,
+		`><itemref idref="chapter"/>`, map[string]string{"OEBPS/chapter.xhtml": chapter})
+	overlaid := openPackage(t, "", `<meta property="media:duration">0:00:04</meta><meta property="media:active-class">-epub-media-overlay-active</meta>`, `
+<item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" media-overlay="overlay"/>
+<item id="overlay" href="chapter.smil" media-type="application/smil+xml"/>
+<item id="voice" href="voice.mp3" media-type="audio/mpeg"/>`,
+		`><itemref idref="chapter"/>`,
+		map[string]string{"OEBPS/chapter.xhtml": chapter, "OEBPS/chapter.smil": smil, "OEBPS/voice.mp3": "not a voice"})
+	if plain.Chapters() != overlaid.Chapters() {
+		t.Fatalf("%d chapters with the overlay, %d without", overlaid.Chapters(), plain.Chapters())
+	}
+	want, err := plain.Chapter(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := overlaid.Chapter(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(texts(got), "|") != strings.Join(texts(want), "|") || got.Chars != want.Chars {
+		t.Errorf("with the overlay %q (%d runes), want %q (%d runes)", texts(got), got.Chars, texts(want), want.Chars)
+	}
+}
