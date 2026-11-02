@@ -6,7 +6,7 @@ APP := build/inkshelf.app
 # The reader: InkPad 3 (B288, Cortex-A7), firmware 6.x.
 TARGET := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: cjk-fonts epub-tests build test lint deploy reader-deploy reader-shots reader-log reader-profile emu emu-fake shots shots-all shots-compare baseline verify bench bench-baseline \
+.PHONY: cjk-fonts epub-tests build test lint deploy reader-remote reader-deploy reader-shots reader-log reader-profile emu emu-fake shots shots-all shots-compare baseline verify bench bench-baseline \
 	bench-compare profile icons docs docs-build docs-shots clean
 
 # Release build: optimised and stripped.
@@ -30,6 +30,10 @@ deploy:
 READER_SCRIPT ?= emulator/scripts/reader/smoke.txt
 reader-deploy: build
 	go run ./cmd/readerctl deploy
+
+# Over USB once, to start: deploy, and turn remote control on with emulator/reader.json's token.
+reader-remote: build
+	./deploy.sh --remote
 
 reader-shots:
 	go run ./cmd/readerctl script $(READER_SCRIPT)

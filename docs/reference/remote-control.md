@@ -17,17 +17,21 @@ It is off unless a file on the reader turns it on.
 
 ## Turning it on
 
-1. Pick a token: any string of 16 characters or more (`openssl rand -hex 16`).
-2. Over USB, write it into `applications/inkshelf/remote`. Deploy the app as usual (`make
-   deploy`), then start it on the reader.
-3. On the computer, write `emulator/reader.json` (gitignored):
+1. Connect the reader over USB and choose "PC link". On the computer, run `make reader-remote`.
+   It builds and deploys the app as `make deploy` does, and writes the token of
+   `emulator/reader.json` (gitignored) into `applications/inkshelf/remote`. If that file has no
+   token, it makes one (`openssl rand -hex 16`) and writes the file with `READER-ADDRESS` in
+   place of the address.
+2. Start the app on the reader, on Wi-Fi.
+3. Put the reader's address in `emulator/reader.json`:
 
    ```json
    {"address": "192.168.1.42:8740", "token": "the same token"}
    ```
 
-   The log tells the address: `remote control on http://192.168.1.42:8740`. `READER` and
-   `READER_TOKEN` override the file.
+   The reader's Wi-Fi settings show the address, and the log too: `remote control on
+   http://192.168.1.42:8740`. It may change when the router gives the reader a new one. `READER`
+   and `READER_TOKEN` override the file.
 
 From then on, the reader needs no hands as long as the app stays in front:
 

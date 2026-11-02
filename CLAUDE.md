@@ -26,6 +26,7 @@ make test       # go test ./... on the host
 make lint       # golangci-lint (.golangci.yml) on the host and for the reader; brew install golangci-lint
 make verify     # build, make lint, go test, make shots-all, make shots-compare
 make deploy     # deploy.sh: copy the app and icons to a reader mounted over USB, then eject
+make reader-remote   # deploy.sh --remote: the same, and turn remote control on with emulator/reader.json's token
 make reader-deploy   # the same over Wi-Fi, to a reader under remote control (emulator/reader.json); then restarts the app
 make reader-shots READER_SCRIPT=emulator/scripts/reader/smoke.txt   # a script on the reader -> build/reader-shots/
 make reader-log # follow the reader's log (reader-profile: its profiles -> build/reader-profile/)
