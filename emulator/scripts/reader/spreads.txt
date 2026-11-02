@@ -1,0 +1,25 @@
+# Spreads on a real reader under remote control (make reader-shots READER_SCRIPT=...): the
+# orientation switch, its ghosting and its refresh time. Going to the background from a spread
+# is checked by hand (home works only in the emulator): press the home button on 05 and look at
+# the task thumbnail. It reads only, so it changes nothing on the servers. Start on the books screen
+# that lists the fake Calibre-Web's fixed-layout book, Le voyage illustré (7 pages, spreads 2-3
+# and 6-7, page 4 centred), downloaded, as the second row (y 715). Coordinates are those of
+# calibreweb-fxl.txt: in portrait the right third, past x 936, turns forward; in landscape
+# (1872x1404) past x 1248, and the middle is around (936, 700).
+
+tap 700 715                 # read it: page 1, alone in portrait
+shot 01-page-1
+tap 1200 900                # right third: next page
+shot 02-spread-2-3          # landscape: pages 2 and 3 against the gutter, page 2 on the left
+tap 1700 700                # right third of the landscape screen
+shot 03-page-4              # back to portrait: the centred page alone
+tap 1200 900
+shot 04-page-5
+tap 1200 900
+shot 05-spread-6-7          # landscape again
+tap 936 700                 # the toolbar, over the spread
+shot 06-toolbar
+tap 936 700                 # outside the buttons: the toolbar hides
+shot 07-spread-again        # the spread, in landscape
+key prev                    # back past the spread's two pages
+shot 08-back                # page 5, in portrait
