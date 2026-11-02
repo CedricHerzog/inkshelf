@@ -169,7 +169,7 @@ func (parser *builder) openTable(opened *element, declared map[string]string) {
 	if padding, err := strconv.Atoi(strings.TrimSpace(opened.attributes["cellpadding"])); err == nil {
 		current.cellPadding = max(padding, 0) * 100 / pixelsPerEm
 	}
-	current.frame = edgesOf(declared)
+	current.frame = edgesOf(declared, opened.style.writingMode)
 	if current.grid {
 		current.frame = document.AllEdges
 	}
@@ -181,7 +181,7 @@ func (parser *builder) startRow(current *tableBuilder, declared map[string]strin
 	parser.flush()
 	current.row++
 	current.rowOpen, current.column, current.lastCell = true, 0, nil
-	current.rowEdges = edgesOf(declared) & (document.EdgeTop | document.EdgeBottom)
+	current.rowEdges = edgesOf(declared, current.element.style.writingMode) & (document.EdgeTop | document.EdgeBottom)
 	for column, span := range current.spans {
 		current.spans[column] = max(span-1, 0)
 	}
@@ -227,7 +227,7 @@ func (parser *builder) openCell(current *tableBuilder, opened *element, declared
 	cell := &document.TableCell{
 		Table: table, Row: current.row - current.rowBase, Column: column, ColumnSpan: columns,
 		RowSpan:       min(max(spanOf(opened.attributes["rowspan"]), 1), document.MaxTableRowSpan),
-		VerticalAlign: verticalAlignOf(computed.verticalAlign), Borders: edgesOf(declared) | current.rowEdges,
+		VerticalAlign: verticalAlignOf(computed.verticalAlign), Borders: edgesOf(declared, computed.writingMode) | current.rowEdges,
 	}
 	current.padCell(cell, computed, declared)
 	if current.grid {
@@ -266,18 +266,18 @@ func (current *tableBuilder) nextFreeColumn() int {
 }
 
 // padCell gives a cell its padding: its CSS padding (computed with the margins, which a cell
-// has none of), else the table's cellpadding attribute.
+// has none of, and turned with them in vertical text), else the table's cellpadding attribute.
 func (current *tableBuilder) padCell(cell *document.TableCell, computed *style, declared map[string]string) {
 	for _, side := range []struct {
 		padding  *int
-		property string
+		side     string // its logical side, as the document model names it
 		computed int
 	}{
-		{&cell.PaddingTop, "padding-top", computed.marginTop}, {&cell.PaddingRight, "padding-right", computed.marginRight},
-		{&cell.PaddingBottom, "padding-bottom", computed.marginBottom}, {&cell.PaddingLeft, "padding-left", computed.marginLeft},
+		{&cell.PaddingTop, "top", computed.marginTop}, {&cell.PaddingRight, "right", computed.marginRight},
+		{&cell.PaddingBottom, "bottom", computed.marginBottom}, {&cell.PaddingLeft, "left", computed.marginLeft},
 	} {
 		*side.padding = max(side.computed, 0)
-		if _, ok := declared[side.property]; !ok && current.cellPadding >= 0 {
+		if _, ok := declared["padding-"+physicalSide(computed.writingMode, side.side)]; !ok && current.cellPadding >= 0 {
 			*side.padding = current.cellPadding
 		}
 	}
@@ -425,14 +425,16 @@ func (parser *builder) cellOpen(cell *document.TableCell) bool {
 	return slices.ContainsFunc(parser.tables, func(current *tableBuilder) bool { return current.cell == cell })
 }
 
-// edgesOf returns the sides that declared draws a border on.
-func edgesOf(declared map[string]string) document.Edges {
+// edgesOf returns the sides that declared draws a border on, named as the lines of mode go
+// (physicalSide).
+func edgesOf(declared map[string]string, mode document.WritingMode) document.Edges {
 	var edges document.Edges
 	for _, side := range []struct {
 		edge document.Edges
 		name string
 	}{{document.EdgeTop, "top"}, {document.EdgeRight, "right"}, {document.EdgeBottom, "bottom"}, {document.EdgeLeft, "left"}} {
-		if isVisibleBorder(declared["border-"+side.name+"-style"], declared["border-"+side.name+"-width"]) {
+		name := physicalSide(mode, side.name)
+		if isVisibleBorder(declared["border-"+name+"-style"], declared["border-"+name+"-width"]) {
 			edges |= side.edge
 		}
 	}

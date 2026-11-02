@@ -300,6 +300,35 @@ func TestVerticalBox(t *testing.T) {
 	}
 }
 
+// A table that stays vertical in a vertical chapter has its rows as columns, from the right:
+// a cell's top border, before it, is drawn down its right side, and its left one, at the start
+// of its lines, across its top.
+func TestVerticalTableBorders(t *testing.T) {
+	faces := newTestFaces(t)
+	doc := &document.Document{Language: "ja", WritingMode: document.VerticalRL}
+	table := &document.Table{Rows: 1, Columns: 1}
+	cell := &document.TableCell{Table: table, RowSpan: 1, ColumnSpan: 1, Borders: document.EdgeTop | document.EdgeLeft}
+	table.Cells = append(table.Cells, cell)
+	doc.Add(document.Block{Cell: cell, WritingMode: document.VerticalRL, Runs: []document.Run{{Text: "縦の表"}}})
+	pages, err := Paginate(doc, testSettings, faces, noImages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rules := pages[0].Rules
+	if len(rules) != 2 {
+		t.Fatalf("rules %v, want the cell's two sides", rules)
+	}
+	column := wordNamed(t, pages, "縦").X
+	var right, top bool
+	for _, rule := range rules {
+		right = right || rule.Dy() > rule.Dx() && rule.Min.X > column
+		top = top || rule.Dx() > rule.Dy() && rule.Max.Y <= wordNamed(t, pages, "縦").Top
+	}
+	if !right || !top {
+		t.Errorf("rules %v around a column at x %d: want one down its right, one across its top", rules, column)
+	}
+}
+
 // MathML lays a formula out across in any writing mode: in vertical text a formula stands
 // upright, as wide and high as across, an inline one centred on its column and taking its
 // height down it, a displayed one centred down the page between the columns.

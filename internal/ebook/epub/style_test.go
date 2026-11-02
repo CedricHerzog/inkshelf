@@ -638,3 +638,17 @@ span.left { text-emphasis: filled; text-emphasis-position: over left; text-decor
 		}
 	}
 }
+
+// A table that stays vertical in a vertical book turns its cells' sides as blocks do: in
+// vertical-rl a cell's border-right and padding-right are before it.
+func TestVerticalTableCellSides(t *testing.T) {
+	doc := styledChapter(t, `body { writing-mode: vertical-rl } td { border-right: 1px solid; border-top: 1px solid; padding: 0 1em 0 0 }`,
+		`<table><tr><td>縦</td></tr></table>`)
+	cell := doc.Blocks[0].Cell
+	if cell == nil {
+		t.Fatalf("blocks %+v, want a cell", doc.Blocks)
+	}
+	if cell.Borders != document.EdgeTop|document.EdgeLeft || cell.PaddingTop != 100 || cell.PaddingRight != 0 {
+		t.Errorf("cell borders %b, paddings top %d right %d; want before and at the start, 100 before", cell.Borders, cell.PaddingTop, cell.PaddingRight)
+	}
+}

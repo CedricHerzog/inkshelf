@@ -213,7 +213,9 @@ with the same line breaking, justification and pagination as horizontal text.
   `margin-left` the space after it, `margin-top` and `margin-bottom` the start and end of its
   columns; `vertical-lr` has the space before on the left. A border box is laid out with its
   sides logical too, and `pageTurner.box` puts them back where the book drew them: its border
-  before on the right of a `vertical-rl` page, on its first page only.
+  before on the right of a `vertical-rl` page, on its first page only. A table that stays
+  vertical reads its cells' borders and paddings the same way (`edgesOf`), and its grid's rules,
+  placed logically, are turned with the page.
 - **Formulas upright.** MathML Core's user-agent stylesheet sets `writing-mode: horizontal-tb
   !important` on every MathML element, so a formula is laid out across in any book. In vertical
   text it stands upright, as CSS places a box of the other direction: an inline one is an
