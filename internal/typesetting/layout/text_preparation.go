@@ -87,6 +87,19 @@ func (layout *paginator) makeFormats(block document.Block, size int, limit image
 			if run.Style&document.Small != 0 {
 				runSize = runSize * smallScale / 100
 			}
+			if layout.mode.Vertical() {
+				// MathML lays a formula out across in any writing mode: upright in its column, it
+				// is as long down the column as it is high, and as thick as it is wide, an inline
+				// image of those sizes (turnedSizer). It is centred on the column, as they are.
+				formula, mathSize, err := layout.faces.formula(run.Image, runSize, image.Pt(limit.Y, limit.X))
+				if err != nil {
+					log.Printf("layout: formula: %v", err)
+					break
+				}
+				formats[index].imageSize = image.Pt(formula.Ascent+formula.Descent, formula.Width)
+				formats[index].mathSize = mathSize
+				break
+			}
 			formula, mathSize, err := layout.faces.formula(run.Image, runSize, limit)
 			if err != nil {
 				log.Printf("layout: formula: %v", err)

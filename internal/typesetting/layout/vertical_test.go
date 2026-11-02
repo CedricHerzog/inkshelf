@@ -299,3 +299,47 @@ func TestVerticalBox(t *testing.T) {
 		}
 	}
 }
+
+// MathML lays a formula out across in any writing mode: in vertical text a formula stands
+// upright, as wide and high as across, an inline one centred on its column and taking its
+// height down it, a displayed one centred down the page between the columns.
+func TestVerticalFormulas(t *testing.T) {
+	fraction := formulaPath(t, `<math><mfrac><mn>1</mn><mn>6</mn></mfrac></math>`)
+	display := formulaPath(t, `<math display="block"><msup><mi>a</mi><mn>2</mn></msup><mo>+</mo><msup><mi>b</mi><mn>2</mn></msup><mo>=</mo><msup><mi>c</mi><mn>2</mn></msup></math>`)
+	doc := &document.Document{Language: "ja", WritingMode: document.VerticalRL}
+	doc.Add(document.Block{WritingMode: document.VerticalRL, Runs: []document.Run{{Text: "半分は"}, {Image: fraction}, {Text: "である。"}}})
+	doc.Add(document.Block{Kind: document.Image, Image: display, WritingMode: document.VerticalRL})
+	doc.Add(document.Block{WritingMode: document.VerticalRL, Runs: []document.Run{{Text: "次の段落。"}}})
+	faces := newTestFaces(t)
+	pages, err := Paginate(doc, testSettings, faces, noImages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 1 || len(pages[0].Images) != 2 {
+		t.Fatalf("pages %+v, want one with two formulas", pages)
+	}
+	page := pages[0]
+	for index, path := range []string{fraction, display} {
+		placed := page.Images[index]
+		formula, _, err := faces.formula(path, placed.MathSize, image.Pt(1<<20, 1<<20))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if placed.Rect.Dx() != formula.Width || placed.Rect.Dy() != formula.Ascent+formula.Descent {
+			t.Errorf("formula %d in %v, want it upright, %dx%d", index, placed.Rect, formula.Width, formula.Ascent+formula.Descent)
+		}
+	}
+	inline, block := page.Images[0], page.Images[1]
+	before, after := wordNamed(t, pages, "は"), wordNamed(t, pages, "で")
+	if centre := (inline.Rect.Min.X + inline.Rect.Max.X) / 2; centre-before.X > 1 || before.X-centre > 1 || inline.Rect.Max.Y > after.Top {
+		t.Errorf("inline formula at %v, its column at x %d, the text after from y %d: want it centred, before the text", inline.Rect, before.X, after.Top)
+	}
+	content := testSettings.content()
+	if top, bottom := block.Rect.Min.Y-content.Min.Y, content.Max.Y-block.Rect.Max.Y; top-bottom > 1 || bottom-top > 1 {
+		t.Errorf("displayed formula at %v, want it centred down the text %v", block.Rect, content)
+	}
+	next := wordNamed(t, pages, "次")
+	if block.Rect.Min.X >= before.X || block.Rect.Max.X <= next.X {
+		t.Errorf("displayed formula from x %d to %d, want it between the columns at %d and %d", block.Rect.Min.X, block.Rect.Max.X, before.X, next.X)
+	}
+}

@@ -341,22 +341,30 @@ func (layout *paginator) placeImage(block document.Block) {
 
 // placeFormula places a displayed formula, centred, on the current page if it fits, else on the
 // next. It is laid out at the text's size, smaller if it does not fit in the text's width and
-// the page.
+// the page. MathML lays a formula out across in any writing mode: in vertical text it stands
+// upright, as long down the line as it is high, and as thick across the lines as it is wide.
 func (layout *paginator) placeFormula(block document.Block) {
 	left, width := layout.textArea(block)
-	formula, size, err := layout.faces.formula(block.Image, layout.settings.FontSize, image.Pt(width, layout.pageHeight))
+	limit := image.Pt(width, layout.pageHeight)
+	if layout.mode.Vertical() {
+		limit = image.Pt(layout.pageHeight, width)
+	}
+	formula, size, err := layout.faces.formula(block.Image, layout.settings.FontSize, limit)
 	if err != nil {
 		log.Printf("layout: formula: %v", err)
 		return
 	}
-	height := formula.Ascent + formula.Descent
+	along, height := formula.Width, formula.Ascent+formula.Descent // in the layout's coordinates
+	if layout.mode.Vertical() {
+		along, height = height, along
+	}
 	if layout.borderHeight(block.BorderTop)+height > layout.roomLeft() && !layout.pageIsEmpty() {
 		layout.newPage(block.Start)
 	}
 	layout.placeBorder(block, false)
-	left += (width - formula.Width) / 2
+	left += (width - along) / 2
 	page := &layout.pages[len(layout.pages)-1]
-	page.Images = append(page.Images, PlacedImage{Path: block.Image, Rect: image.Rect(left, layout.y, left+formula.Width, layout.y+height), MathSize: size,
+	page.Images = append(page.Images, PlacedImage{Path: block.Image, Rect: image.Rect(left, layout.y, left+along, layout.y+height), MathSize: size,
 		Alt: block.Alt, altFormat: textFormat{family: mathFamily, size: layout.settings.FontSize}})
 	layout.y += height
 	layout.recordUnit(layout.y-height, block.Start)

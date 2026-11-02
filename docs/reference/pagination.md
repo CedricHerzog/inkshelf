@@ -214,8 +214,13 @@ with the same line breaking, justification and pagination as horizontal text.
   columns; `vertical-lr` has the space before on the left. A border box is laid out with its
   sides logical too, and `pageTurner.box` puts them back where the book drew them: its border
   before on the right of a `vertical-rl` page, on its first page only.
-- Not followed in vertical text: drop caps (merged into their paragraph). A formula is laid out
-  as across.
+- **Formulas upright.** MathML Core's user-agent stylesheet sets `writing-mode: horizontal-tb
+  !important` on every MathML element, so a formula is laid out across in any book. In vertical
+  text it stands upright, as CSS places a box of the other direction: an inline one is an
+  inline image as long down its column as the formula is high and as thick as it is wide,
+  centred on the column (`makeFormats`); a displayed one takes a band across the columns as wide
+  as it is, centred down the page (`placeFormula`).
+- Not followed in vertical text: drop caps (merged into their paragraph).
 
 `Settings.Horizontal` lays every document out across whatever its mode: a note's popup is a
 band across the page.

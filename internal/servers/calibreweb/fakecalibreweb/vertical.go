@@ -12,8 +12,9 @@ const sosekiOpening = `吾輩は猫である。名前はまだ無い。どこで
 const sosekiContinued = `掌の上で少し落ちついて書生の顔を見たのがいわゆる人間というものの見始であろう。この時妙なものだと思った感じが今でも残っている。第一毛をもって装飾されべきはずの顔がつるつるしてまるで薬缶だ。その後猫にもだいぶ逢ったがこんな片輪には一度も出会わした事がない。のみならず顔の真中があまりに突起している。そうしてその穴の中から時々ぷうぷうと煙を吹く。どうも咽せぽくて実に弱った。これが人間の飲む煙草というものである事はようやくこの頃知った。`
 
 // verticalChapters are the chapters of the vertical book: the vertical text, with a Latin word,
-// a year across its column, sesame marks, a horizontal table and a boxed note, then an Arabic
-// chapter, which keeps its horizontal lines.
+// a year across its column, sesame marks, a horizontal table, a boxed note and formulas, upright
+// as MathML has them in any writing mode, then an Arabic chapter, which keeps its horizontal
+// lines.
 var verticalChapters = []showcaseChapter{
 	{file: "tategaki.xhtml", title: "縦書き", language: "ja", bodyClass: "vrtl", body: `<h1>第一章　縦書き</h1>
 <p>` + sosekiOpening + `</p>
@@ -24,6 +25,8 @@ var verticalChapters = []showcaseChapter{
 </table>
 <p>` + sosekiContinued + `</p>
 <div class="note"><p>注：吾輩は名前のない猫である。</p></div>
+<p>三分の一の半分は<math xmlns="http://www.w3.org/1998/Math/MathML"><mfrac><mn>1</mn><mn>6</mn></mfrac></math>である。二乗の和は次の通り。</p>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><msup><mi>a</mi><mn>2</mn></msup><mo>+</mo><msup><mi>b</mi><mn>2</mn></msup><mo>=</mo><msup><mi>c</mi><mn>2</mn></msup></math>
 <p>` + sosekiOpening + `</p>
 <p>` + sosekiContinued + `</p>`},
 	{file: "arabic.xhtml", title: "العربية", language: "ar", direction: "rtl", body: `<h1>العربية</h1>

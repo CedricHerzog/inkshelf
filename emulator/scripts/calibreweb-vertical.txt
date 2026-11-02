@@ -12,7 +12,7 @@ idle 60s
 tap 700 433                 # read it: downloaded books come first
 shot 01-vertical            # columns from the right, a Latin word turned, 2026 in one cell, sesame marks and an underline to the right, a horizontal table as one box, no missing glyph
 tap 200 900                 # left third: the next page, as a vertical book's pages turn from right to left
-shot 02-next-page           # the text goes on from the right; a boxed note 1em after the column before it, its double rule (border-right) on its right, before it, its thin one (border-left) after it, its columns 2em down (margin-top)
+shot 02-next-page           # the text goes on from the right; a boxed note 1em after the column before it, its double rule (border-right) on its right, before it, its thin one (border-left) after it, its columns 2em down (margin-top); a fraction upright in its column, and a displayed formula upright between the columns, whole
 tap 1200 900                # right third: back to the first page
 shot 03-back
 tap 700 900                 # the toolbar

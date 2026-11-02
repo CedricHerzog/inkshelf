@@ -86,7 +86,8 @@ book pair).
   `-text-underline-position`, the vertical half of `-text-emphasis`). A block in the other
   direction (a horizontal table) is laid out apart, as one box. Margins, paddings and borders
   keep the sides CSS gives them: in `vertical-rl`, `margin-right` is the space before a block
-  and `margin-top` the start of its columns. A vertical-rl book without a page progression
+  and `margin-top` the start of its columns. A formula stands upright, as MathML lays it out
+  in any writing mode. A vertical-rl book without a page progression
   turns its pages from right to left.
 - **CJK fonts**: Noto Serif and Sans CJK JP ship in the program, compressed, as the firmware has
   no font for Chinese, Japanese or Korean.
@@ -119,7 +120,6 @@ book pair).
    keep them on the caller, but its `avif.Options` does not pass them on. Once a release does,
    set them to 1 in `decodeAVIF` and `avifOnCaller`, and put `image/avif` back among the
    container's `imageTypes`.
-3. Vertical text lays a formula out across.
 
 ## Whole books
 
