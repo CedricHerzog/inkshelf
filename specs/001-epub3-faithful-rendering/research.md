@@ -284,6 +284,14 @@ departure from SC-006 remains: the 10 seconds count from the draw, so a page who
 (1.42 s for the SVG, 6.56 s for the stylesheet) and whose element then reaches the limit appears
 after both, 11.45 s for the SVG page.
 
+**Closing it (T109, T110, 2026-11-02).** The reader's draw and `epub.Book.RenderPage` now start
+the page's budget before its layout. The stylesheet's 6.56 s were memory, not matching: one
+chapter allocated 212 MB, as the tokenizer grew its slice by copies over a megabyte of rules. The
+tokenizer now sizes it at once, a stylesheet is cut at 256 KB (the largest of 345 real ones is
+24 KB), a book parses 1 MB of linked sheets in all, and a cascade keeps 10,000 rules: the chapter
+builds in 22 ms with 28 MB on the host (65 ms, 212 MB before). The reader was unreachable when
+this was done; both pages remain to re-time there.
+
 **Alternatives.** Cooperative cancellation (a context checked inside decoders): third-party
 decoders (JPEG XL, AVIF, WebP) take none. Running each element on a fresh goroutine: breaks
 principle V and leaves no bound on abandoned work.

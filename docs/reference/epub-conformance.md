@@ -101,11 +101,11 @@ book pair).
 
 ## Remaining work, by value for reading books on this reader
 
-1. The 10 seconds of a page count from its draw: a page whose layout is slow and whose element
-   then reaches the limit appears after both. On the reader, a hostile SVG path of 200,000
-   segments takes 1.42 s to lay out and its page appears after 11.45 s; a stylesheet of 20,000
-   rules takes 6.56 s to lay out. Counting the limit from the start of the page's preparation, or
-   bounding a stylesheet's size, would close it. Measured on the reader on 2 November 2026,
+1. To re-time on the reader: a page's 10 seconds now count from the start of its layout, and
+   stylesheets are bounded (a quarter megabyte each, a megabyte per book, 10,000 rules). Before,
+   a hostile SVG page appeared after 11.45 s (1.42 s of layout, then its 10 s), and a stylesheet
+   of 20,000 rules took 6.56 s to lay out, 212 MB allocated; that chapter now builds in 22 ms
+   with 28 MB on the host, against 65 ms. Measured on the reader on 2 November 2026,
    otherwise: the firmware's CJK fonts read in 0.08 to 0.1 s, so a vertical book opens in 0.9 s;
    vertical page turns 0.11 to 0.94 s; horizontal ones 111 ms, as before this work (112 ms); a
    page of formulas 177 ms; a full-page AVIF 5.75 s and a full-page JPEG XL 6.97 s, both under
