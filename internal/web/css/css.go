@@ -31,22 +31,32 @@ type rule struct {
 	declarations []declaration
 }
 
+// The work a stylesheet may ask of the parser, against hostile books: past maxStylesheetBytes
+// a stylesheet is cut, a byte making half a token of 56 bytes, which the reader's memory makes
+// slow (a megabyte of rules took 6.5 s to parse there; the largest of 345 real stylesheets is
+// 24 KB); @media rules deeper than maxMediaDepth are dropped.
+const (
+	maxStylesheetBytes = 256 << 10
+	maxMediaDepth      = 16
+)
+
 // Parse parses the stylesheet css. The rules of @media rules that don't match media are
 // dropped, as are rules with no selector the package follows.
 func Parse(css string, media Media) *Stylesheet {
 	sheet := &Stylesheet{}
-	sheet.parseRules(tokenize(css), media)
+	sheet.parseRules(tokenize(css[:min(len(css), maxStylesheetBytes)]), media, 0)
 	return sheet
 }
 
-// parseRules parses the rules of tokens: a stylesheet, or the block of an @media rule.
-func (sheet *Stylesheet) parseRules(tokens []token, media Media) {
+// parseRules parses the rules of tokens: a stylesheet, or the block of an @media rule depth
+// @media rules deep.
+func (sheet *Stylesheet) parseRules(tokens []token, media Media, depth int) {
 	for index := 0; index < len(tokens); {
 		switch tokens[index].kind {
 		case whitespaceToken, cdoToken, cdcToken, semicolonToken:
 			index++
 		case atKeywordToken:
-			index = sheet.parseAtRule(tokens, index, media)
+			index = sheet.parseAtRule(tokens, index, media, depth)
 		default:
 			prelude, block, hasBlock, end := splitRule(tokens, index, false)
 			index = end
@@ -62,7 +72,7 @@ func (sheet *Stylesheet) parseRules(tokens []token, media Media) {
 
 // parseAtRule parses the at-rule at index and returns the index after it. @import, @media and
 // @font-face are followed; other at-rules (@page, @namespace, @supports…) are skipped.
-func (sheet *Stylesheet) parseAtRule(tokens []token, index int, media Media) int {
+func (sheet *Stylesheet) parseAtRule(tokens []token, index int, media Media, depth int) int {
 	name := strings.ToLower(tokens[index].value)
 	prelude, block, hasBlock, end := splitRule(tokens, index+1, true)
 	switch {
@@ -71,8 +81,8 @@ func (sheet *Stylesheet) parseAtRule(tokens []token, index int, media Media) int
 			sheet.Imports = append(sheet.Imports, address)
 		}
 	case name == "media" && hasBlock:
-		if media.matchList(prelude) {
-			sheet.parseRules(block, media)
+		if depth < maxMediaDepth && media.matchList(prelude) {
+			sheet.parseRules(block, media, depth+1)
 		}
 	case name == "font-face" && hasBlock:
 		sheet.FontFaces = append(sheet.FontFaces, fontFaceOf(parseDeclarations(block)))

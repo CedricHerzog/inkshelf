@@ -232,7 +232,7 @@ c</p><p hidden="">hidden too</p><p>He said <q>yes</q>.</p>`)
 		Start: blocks[5].Start, End: blocks[6].Start, Top: document.Border{Style: document.Solid, Width: 6},
 		Bottom: document.Border{Style: document.Dotted, Width: 13}, MarginTop: 100, MarginBottom: 100, LeftEdge: 100, RightEdge: 375,
 	}
-	if len(doc.Boxes) != 1 || doc.Boxes[0] != wantBox {
+	if len(doc.Boxes) != 1 || !reflect.DeepEqual(doc.Boxes[0], wantBox) {
 		t.Errorf("boxes %+v, want %+v", doc.Boxes, wantBox)
 	}
 	if hang := blocks[6]; hang.Left != 200 || hang.Indent != -200 {
@@ -558,5 +558,97 @@ func BenchmarkChapter(b *testing.B) {
 		if _, err := book.Chapter(0); err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+// CSS names a box's sides as they are on the screen, the document model as its lines go: in
+// vertical-rl, margin-right is the space before a block and margin-left the space after it, and
+// margin-top and margin-bottom are at the start and end of its lines; vertical-lr has the space
+// before on the left. Borders and paddings turn likewise, and text across keeps its sides.
+func TestVerticalBoxSides(t *testing.T) {
+	const css = `p { margin: 0.5em 2em 1em 3em } div { border-right: 2px solid; border-top: 4px double; padding: 0 1em 0 0 }`
+	for _, test := range []struct {
+		mode                      string
+		before, after             document.Hundredths
+		start, end                document.Hundredths
+		boxBefore                 document.BorderStyle
+		boxStart                  document.BorderStyle
+		paddingBefore, ruleBefore bool
+	}{
+		{"horizontal-tb", 50, 100, 300, 200, document.Double, document.NoBorder, false, false},
+		{"vertical-rl", 200, 300, 50, 100, document.Solid, document.Double, true, true},
+		{"vertical-lr", 300, 200, 50, 100, document.NoBorder, document.Double, false, false},
+	} {
+		doc := styledChapter(t, `body { writing-mode: `+test.mode+` } `+css+` section { border-right: 1px solid }`,
+			`<p>縦書き</p><div><h2>箱</h2></div><section></section><h3>線</h3>`)
+		if block := doc.Blocks[0]; block.MarginTop != test.before || block.MarginBottom != test.after || block.Left != test.start || block.Right != test.end {
+			t.Errorf("%s: margins before %d, after %d, start %d, end %d, want %d, %d, %d, %d", test.mode,
+				block.MarginTop, block.MarginBottom, block.Left, block.Right, test.before, test.after, test.start, test.end)
+		}
+		if len(doc.Boxes) != 1 {
+			t.Fatalf("%s: boxes %+v, want 1", test.mode, doc.Boxes)
+		}
+		box := doc.Boxes[0]
+		if box.Top.Style != test.boxBefore || box.Left.Style != test.boxStart || (box.PaddingTop == 100) != test.paddingBefore {
+			t.Errorf("%s: box before %v, at the start %v, padding before %d", test.mode, box.Top, box.Left, box.PaddingTop)
+		}
+		// An empty box's border before it is a rule before the next block.
+		if rule := doc.Blocks[2]; rule.BorderTop != test.ruleBefore {
+			t.Errorf("%s: an empty box's border-right is a rule before the next block: %t, want %t", test.mode, rule.BorderTop, test.ruleBefore)
+		}
+	}
+}
+
+// Vertical text is read from writing-mode, its -epub- and -webkit- forms and the values of SVG
+// 1.1, set on html in a stylesheet of the head as well as on the body; text-orientation,
+// text-combine-upright and the positions of marks and underlines go with it.
+func TestVerticalStyles(t *testing.T) {
+	for _, test := range []struct {
+		css  string
+		want document.WritingMode
+	}{
+		{"", document.HorizontalTB},
+		{"html { writing-mode: vertical-rl }", document.VerticalRL},
+		{"html { -epub-writing-mode: tb-rl }", document.VerticalRL},
+		{"body { -webkit-writing-mode: vertical-lr }", document.VerticalLR},
+		{"body { writing-mode: sideways-rl }", document.VerticalRL},
+		{"body { writing-mode: vertical-rl } p { writing-mode: horizontal-tb }", document.VerticalRL},
+	} {
+		doc := styledChapter(t, test.css+`
+span.up { -epub-text-orientation: upright } span.side { text-orientation: sideways-right }
+span.year { -epub-text-combine: horizontal } span.digits { -epub-text-combine-horizontal: digits 4 }
+span.left { text-emphasis: filled; text-emphasis-position: over left; text-decoration: underline; text-underline-position: left }`,
+			`<p>縦<span class="up">A</span><span class="side">B</span><span class="year">2026</span><span class="digits">12</span><span class="left">傍</span></p>
+<p><span class="year">10</span><span class="year">11</span></p>`)
+		if doc.WritingMode != test.want {
+			t.Errorf("%q: writing mode %d, want %d", test.css, doc.WritingMode, test.want)
+		}
+		runs := doc.Blocks[0].Runs
+		if len(runs) != 6 || runs[1].Orientation != document.OrientationUpright || runs[2].Orientation != document.OrientationSideways ||
+			runs[3].Combine != document.CombineAll || runs[4].Combine != 4 || !runs[5].Emphasis.Left || runs[5].Style&document.UnderlineLeft == 0 {
+			t.Errorf("%q: runs %+v", test.css, runs)
+		}
+		// Combined text is a cell per element, never joined.
+		if years := doc.Blocks[1].Runs; len(years) != 2 || years[0].Text != "10" {
+			t.Errorf("%q: combined runs %+v", test.css, years)
+		}
+		// A filled mark without a shape is a sesame in vertical text, a circle across.
+		if mark := runs[5].Emphasis.Mark; test.want.Vertical() && mark != '﹅' && !strings.Contains(test.css, "horizontal-tb") || !test.want.Vertical() && mark != '●' {
+			t.Errorf("%q: mark %c", test.css, mark)
+		}
+	}
+}
+
+// A table that stays vertical in a vertical book turns its cells' sides as blocks do: in
+// vertical-rl a cell's border-right and padding-right are before it.
+func TestVerticalTableCellSides(t *testing.T) {
+	doc := styledChapter(t, `body { writing-mode: vertical-rl } td { border-right: 1px solid; border-top: 1px solid; padding: 0 1em 0 0 }`,
+		`<table><tr><td>縦</td></tr></table>`)
+	cell := doc.Blocks[0].Cell
+	if cell == nil {
+		t.Fatalf("blocks %+v, want a cell", doc.Blocks)
+	}
+	if cell.Borders != document.EdgeTop|document.EdgeLeft || cell.PaddingTop != 100 || cell.PaddingRight != 0 {
+		t.Errorf("cell borders %b, paddings top %d right %d; want before and at the start, 100 before", cell.Borders, cell.PaddingTop, cell.PaddingRight)
 	}
 }

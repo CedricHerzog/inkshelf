@@ -88,7 +88,8 @@ Only the main thread starts goroutines, through the state:
 - `app.Go(name, task)` runs a one-off task: loading the session, a download, fetching a series'
   books. It counts as background work named `name` while it runs.
 - `app.GoLoop(task)` runs a goroutine that lives until the app closes, waiting to be woken: the
-  page preloader (`openbook.Preloader`) and the cover loader (`covers.Loader`).
+  page preloader (`openbook.Preloader`), the cover loader (`covers.Loader`) and the workers of
+  the two element pools (below).
 - A `state.Wakeup` wakes such a goroutine. `Wake` never blocks and holds one wake-up at most, so a
   busy goroutine runs once more, not once per call. Each wake-up counts as background work until
   the goroutine calls `Done`. Drawing the reader wakes the preloader; drawing a list wakes the
@@ -96,6 +97,44 @@ Only the main thread starts goroutines, through the state:
 
 `Close` cancels `app.Ctx` and waits for every goroutine started this way, so none outlives the
 app.
+
+### The orientation
+
+The reader screen draws a two-page spread in landscape. It switches the device's orientation
+(`pocketbook.SetOrientation`) in `DrawAndRefreshLocked`, on the main thread with the state's
+mutex held, before drawing the page: landscape for a spread, portrait for anything else. `Draw`
+sets portrait before every other screen. No new lock: only the main thread draws, so only it
+switches. When the app goes to the background, the event loop sets portrait itself, and the
+reader sets landscape again when it draws once back.
+
+### The element workers
+
+A page of a book may hold an image, an SVG or a formula that takes far longer to prepare than
+the rest: a 30-megapixel photograph, a crafted drawing. Nothing in decoding or layout can be
+stopped halfway, so the app bounds the wait instead of the work. A page waits 10 seconds in all
+(`layout.PageBudget`) for its elements; an element not ready by then shows its text
+alternative, and the page appears.
+
+The waiting goes through package [deadline](../../internal/deadline). `Init` makes two pools of
+long-lived workers, each started with `app.GoLoop`:
+
+- `app.ReadingPool`, 2 workers, for the pages read. `openbook.ReadingElements` hands it down
+  in `layout.Settings.Elements`.
+- `app.DownloadPool`, 1 worker, for the fixed-layout pages drawn at download
+  (`shelf.Store.Elements`, set by `downloadqueue`). A download never makes a page being read
+  wait for a worker.
+
+`layout.Page.Draw` gives each element to a worker and waits at most what is left of the page's
+budget (`layout.PrepareElement`). A worker never touches the state or the screen: it computes an
+image and hands it back, or it is given up and its late result dropped. An element given up is
+not prepared again until the app restarts, so the next page that shows it does not wait. When
+every worker is still busy with given-up work, a new element is given up at once.
+
+The wait happens under the renderer's lock (below), on the main thread or the preloader: a page
+being drawn holds it for 10 seconds at most. The workers never take it. They draw an SVG's text
+and a formula with fonts of their own, `layout.Faces`'s element faces, behind their own lock: a
+worker given up may still be drawing while the page goes on with its words, and a font's caches
+are not safe for concurrent use.
 
 The background work counter (`state.Work`) is never read by the app. The emulator reads it
 (`App.BackgroundWork`) so that a script's screenshot waits for the work the last tap started,
@@ -110,7 +149,11 @@ Three locks exist, always taken in this order, never the other way round:
 2. The state's mutex.
 3. The lock inside a `reading.TextBook` (its renderer), while it lays out or draws a page of an
    EPUB. Code holding the state's mutex may draw a page; the renderer never calls back into the
-   app.
+   app. Drawing waits for the element workers under it, but they never take it.
+
+Below them, the lock of a book's element faces (`layout.Faces`) is held while an SVG's text or
+a formula is drawn, on an element worker or on the goroutine that draws. Nothing is taken under
+it, so it joins no order.
 
 The preloader draws the next pages of an EPUB without the state's mutex (it takes only the
 renderer's), so a tap is never stuck behind a slow layout.

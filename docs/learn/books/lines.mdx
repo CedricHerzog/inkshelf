@@ -207,6 +207,21 @@ Only the order of the fragments changes. A Hebrew fragment is still drawn by the
 right edge (shaping does that), and the offsets of the runes keep their logical order, so a
 reading position means the same thing in any direction.
 
+## Top to bottom, in brief
+
+Chinese and Japanese books are often set in vertical lines: a line is a column that goes down,
+and the next column is to its left. Nothing new is needed to break those lines. A column is a
+line as long as the page is high, so Inkshelf lays the page out turned a quarter turn, with the
+same greedy breaking, justification and hyphenation, and turns the result back at the end.
+
+What changes is the characters. Ideographs and kana stand upright, one under the other, and
+are shaped top to bottom so that a bracket or the long vowel mark ー takes its vertical form.
+A Latin word lies on its side, drawn as a horizontal word turned clockwise. Unicode says which
+is which for every character (its `Vertical_Orientation`), and CSS's `text-orientation` can
+stand everything up or lay everything down. `splitFragments` ends a fragment where the
+orientation changes, as it does where the direction changes in bidirectional text, so a
+fragment is always drawn one way.
+
 ## How Inkshelf does it
 
 `layOutLines` (in `line_placement.go`) makes the lines of one block at one font size:
@@ -252,6 +267,7 @@ reading position means the same thing in any direction.
   {path: 'internal/typesetting/hyphen/hyphen.go', symbol: 'For, Points', what: 'The languages with patterns; the hyphenation points of a word.'},
   {path: 'internal/typesetting/hyphen/patterns.go', symbol: 'trie.match', what: 'The patterns, read on first use into a trie.'},
   {path: 'internal/typesetting/layout/bidi.go', symbol: 'bidiLevels, reorder', what: 'Bidirectional levels, and rule L2 on a line.'},
+  {path: 'internal/typesetting/layout/vertical.go', symbol: 'characterForm, verticalOrientationOf', what: 'Upright or sideways, character by character, in vertical text.'},
 ]} />
 
 The full story: <RefDoc file="pagination.md">Pagination: from blocks to pages</RefDoc>, sections

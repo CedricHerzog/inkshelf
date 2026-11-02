@@ -73,6 +73,7 @@ func (screen *Screen) DrawAndRefreshLocked(fullRefresh bool) {
 	app := screen.app
 	defer app.Reader.Turn.End()
 	if app.Reader.AtEnd {
+		pocketbook.SetOrientation(pocketbook.Portrait)
 		screen.drawEndLocked(fullRefresh)
 		return
 	}
@@ -87,6 +88,13 @@ func (screen *Screen) DrawAndRefreshLocked(fullRefresh bool) {
 		openbook.PrunePagesLocked(app)
 	}
 	app.PreloadWake.Wake() // to get the pages around this one ready
+	// A spread shows in landscape, every other page in portrait. The first refresh after a
+	// change flashes the whole panel.
+	orientation := pocketbook.Portrait
+	if app.Reader.PageErr == nil && openbook.ShowsSpreadLocked(app) {
+		orientation = pocketbook.Landscape
+	}
+	pocketbook.SetOrientation(orientation)
 
 	var pageRect image.Rectangle
 	if app.Reader.PageErr == nil {

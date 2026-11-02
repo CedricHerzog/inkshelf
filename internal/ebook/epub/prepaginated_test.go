@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
+	"github.com/CedricHerzog/inkshelf/internal/typesetting/layout"
 	"github.com/CedricHerzog/inkshelf/internal/web/css"
 )
 
@@ -65,7 +66,8 @@ func TestFixedPage(t *testing.T) {
 	if got := texts(flow.Content); strings.Join(got, "|") != "In the flow|Flow again" || flow.Rect != image.Rect(0, 0, 800, 1200) {
 		t.Errorf("flow %v in %v", got, flow.Rect)
 	}
-	if background.Background != "OEBPS/img/bg.png" || background.Rect != image.Rect(0, 0, 800, 1200) || background.Content != nil {
+	if len(background.Layers) != 1 || background.Layers[0].Image != "OEBPS/img/bg.png" || background.Layers[0].ImageSize != image.Pt(40, 60) ||
+		background.Rect != image.Rect(0, 0, 800, 1200) || background.Content != nil {
 		t.Errorf("background %+v", background)
 	}
 	if caption.Rect != image.Rect(80, 100, 380, 228) || strings.Join(texts(caption.Content), "|") != "Caption" {
@@ -99,16 +101,16 @@ p { background-color: red }
 		t.Fatalf("%d regions, want the flow, the body, the band and the dim box", len(page.Regions))
 	}
 	body, band, dim := page.Regions[1], page.Regions[2], page.Regions[3]
-	if body.Rect != image.Rect(0, 0, 600, 800) || body.Color != (css.Color{Gray: 128, Alpha: 255}) || body.Gradient != nil {
+	if body.Rect != image.Rect(0, 0, 600, 800) || body.Color != (css.Color{Gray: 128, Alpha: 255}) || len(body.Layers) != 0 {
 		t.Errorf("body %+v", body)
 	}
-	if band.Rect != image.Rect(0, 0, 600, 100) || band.Gradient == nil || band.Gradient.Angle != 90 || band.Color.Alpha != 0 {
+	if band.Rect != image.Rect(0, 0, 600, 100) || len(band.Layers) != 1 || band.Layers[0].Gradient.Angle != 90 || band.Color.Alpha != 0 {
 		t.Errorf("band %+v", band)
 	}
 	if dim.Color != css.Black {
 		t.Errorf("dim box %+v, want black", dim)
 	}
-	drawn, err := book.RenderPage(0, image.Pt(600, 800))
+	drawn, err := book.RenderPage(0, image.Pt(600, 800), layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,8 +119,8 @@ p { background-color: red }
 	}
 }
 
-// A grid of gradients tiled by background-size (W3C's lay-pp-xhtml-icb) keeps its color: one
-// gradient stretched over the page would hide it.
+// A grid of gradients tiled by background-size (W3C's lay-pp-xhtml-icb) is drawn as a grid:
+// lines 1 pixel thick every 50 pixels; a gradient tiled every 10 pixels makes stripes.
 func TestFixedPageTiledGradients(t *testing.T) {
 	files := map[string]string{
 		"OEBPS/page.xhtml": fixedXHTML(`<meta name="viewport" content="width=600, height=800"/><style>
@@ -133,17 +135,23 @@ html { background-color: white;
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, box := range page.Regions {
-		if box.Gradient != nil {
-			t.Errorf("box %v has a gradient, want its color only", box.Rect)
-		}
+	if html := page.Regions[1]; len(html.Layers) != 2 || html.Layers[0].Size.Width != (css.Length{Value: 50, Unit: "px"}) {
+		t.Errorf("the grid's layers %+v", html.Layers)
 	}
-	drawn, err := book.RenderPage(0, image.Pt(600, 800))
+	drawn, err := book.RenderPage(0, image.Pt(600, 800), layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gray := drawn.GrayAt(300, 400).Y; gray < 245 {
-		t.Errorf("the page is %d, want white", gray)
+	for _, test := range []struct {
+		point image.Point
+		dark  bool
+	}{
+		{image.Pt(300, 425), true}, {image.Pt(325, 400), true}, {image.Pt(325, 425), false}, {image.Pt(349, 449), false},
+		{image.Pt(50, 9), true}, {image.Pt(50, 10), false}, // the stripes: white to black every 10 pixels
+	} {
+		if dark := drawn.GrayAt(test.point.X, test.point.Y).Y < 128; dark != test.dark {
+			t.Errorf("gray at %v = %d, want dark %v", test.point, drawn.GrayAt(test.point.X, test.point.Y).Y, test.dark)
+		}
 	}
 }
 
@@ -164,7 +172,7 @@ func TestFixedPageSize(t *testing.T) {
 			t.Errorf("page %d is %v, want %v", index, page.Size, want)
 		}
 	}
-	drawn, err := book.RenderPage(1, image.Pt(100, 100))
+	drawn, err := book.RenderPage(1, image.Pt(100, 100), layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}

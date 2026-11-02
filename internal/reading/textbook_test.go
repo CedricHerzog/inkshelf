@@ -1,11 +1,14 @@
 package reading
 
 import (
+	"fmt"
 	"image"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/CedricHerzog/inkshelf/internal/ebook/epub"
+	"github.com/CedricHerzog/inkshelf/internal/ebook/epub/epubtest"
 	"github.com/CedricHerzog/inkshelf/internal/servers"
 	"github.com/CedricHerzog/inkshelf/internal/servers/calibreweb"
 	"github.com/CedricHerzog/inkshelf/internal/servers/calibreweb/fakecalibreweb"
@@ -206,5 +209,83 @@ func TestDrawnPages(t *testing.T) {
 	}
 	if _, err := text.Draw(at); err == nil {
 		t.Error("a closed book drew a page")
+	}
+}
+
+// japaneseBook returns the files of an EPUB of one chapter of Japanese paragraphs, its lines
+// vertical-rl if vertical, else horizontal.
+func japaneseBook(vertical bool) map[string]string {
+	css := ""
+	if vertical {
+		css = "body { writing-mode: vertical-rl }"
+	}
+	var body strings.Builder
+	for index := range 12 {
+		fmt.Fprintf(&body, "<p id=\"p%d\">第%d段落。吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。何でも薄暗いじめじめした所でニャーニャー泣いていた事だけは記憶している。</p>\n", index, index+1)
+	}
+	return map[string]string{
+		"META-INF/container.xml": `<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>`,
+		"OEBPS/content.opf": `<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>猫</dc:title><dc:language>ja</dc:language></metadata>
+  <manifest><item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/><item id="css" href="style.css" media-type="text/css"/></manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>`,
+		"OEBPS/style.css": css,
+		"OEBPS/c1.xhtml": `<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="ja"><head><title>猫</title><link rel="stylesheet" href="style.css"/></head>
+<body>` + body.String() + `</body></html>`,
+	}
+}
+
+// A chapter in vertical lines has the runes of the same chapter in horizontal ones, so that a
+// location saved in either reaches the same text in the other: vertical writing needs no new
+// IndexVersion.
+func TestVerticalKeepsLocations(t *testing.T) {
+	store := shelf.Store{Dir: t.TempDir()}
+	texts := map[bool]*TextBook{}
+	for _, vertical := range []bool{false, true} {
+		book := shelf.Book{ID: fmt.Sprint("vertical-", vertical), Format: servers.Reflowable}
+		data, err := os.ReadFile(epubtest.Write(t, japaneseBook(vertical)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(strings.TrimSuffix(store.EPUBPath(book.ID), "book.epub"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(store.EPUBPath(book.ID), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		text, err := Open(store, book, testSettings(24))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(text.Close)
+		texts[vertical] = text
+	}
+	horizontal, vertical := texts[false], texts[true]
+	if horizontal.Index.Total != vertical.Index.Total || horizontal.Index.Chapters[0].Chars != vertical.Index.Chapters[0].Chars {
+		t.Fatalf("%d runes across, %d down", horizontal.Index.Total, vertical.Index.Total)
+	}
+	if !vertical.Index.RightToLeft() || horizontal.Index.RightToLeft() {
+		t.Errorf("right to left: vertical %v, horizontal %v", vertical.Index.RightToLeft(), horizontal.Index.RightToLeft())
+	}
+	for _, offset := range []int{0, 300, 700, vertical.Index.Total - 1} {
+		location := shelf.Location{Chapter: 0, Offset: offset}
+		for direction, text := range texts {
+			if err := text.GoTo(location); err != nil {
+				t.Fatal(err)
+			}
+			page, err := text.Page(text.At())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if offset < page.Start || offset >= page.End {
+				t.Errorf("vertical %v: offset %d on the page of %d to %d", direction, offset, page.Start, page.End)
+			}
+		}
 	}
 }

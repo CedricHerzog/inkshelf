@@ -20,6 +20,7 @@ import (
 	"github.com/CedricHerzog/inkshelf/internal/servers/calibreweb/fakecalibreweb"
 	"github.com/CedricHerzog/inkshelf/internal/servers/registry"
 	"github.com/CedricHerzog/inkshelf/internal/shelf"
+	"github.com/CedricHerzog/inkshelf/internal/typesetting/layout"
 )
 
 // These benchmarks run the whole app on an emulated InkPad 3, its event loop included, against
@@ -309,7 +310,7 @@ func (setup *harness) forgetPreloaded(b *testing.B) {
 		}
 		location, err := reader.Text.Book.Location(reader.Text.Book.At())
 		if err == nil {
-			err = reader.Text.Book.Relayout(openbook.TextSettings(benchmarkTextSize), location)
+			err = reader.Text.Book.Relayout(openbook.TextSettings(benchmarkTextSize, layout.Elements{}), location)
 		}
 		relayoutErr = err
 		return false

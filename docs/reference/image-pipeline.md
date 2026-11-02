@@ -58,8 +58,10 @@ written last. A book folder without `book.json` is an interrupted download: the 
 ### 1. Decode to gray
 
 `DecodeGray` (`decode.go`) uses the standard library's JPEG and PNG decoders,
-`golang.org/x/image/webp`, and `github.com/gen2brain/jxl` for JPEG XL, all pure Go.
-(The firmware's libjpeg-turbo was 5–10× faster but needs cgo.)
+`golang.org/x/image/webp`, `github.com/gen2brain/jxl` for JPEG XL, and
+`github.com/gen2brain/gav1d` (a port of dav1d) for AVIF, all pure Go; AVIF is refused for now
+(below). (The firmware's
+libjpeg-turbo was 5–10× faster but needs cgo.)
 
 `toGray` has a fast path for each image type the decoders return. For a JPEG, the decoder
 already stores brightness (the Y plane of YCbCr) separately from color: that plane *is* the
@@ -69,9 +71,24 @@ Transparent pixels are often stored black. Shown as is, a transparent PNG would 
 black page, so transparency is composited over white, the paper. A row is first converted as if
 opaque, and converted again only if one of its pixels is not.
 
-A JPEG XL image's header can ask for any size, so one above `maxJXLPixels` (8.4 Mpx) is
-refused before decoding, and the decoder's panics are recovered. That is why the app decodes
-images through `pageimage.Decode` rather than `image.Decode`.
+An image's header can ask for any size, and a book or a server could use that to take the
+reader's memory. So `pageimage.Decode` reads the header first and refuses an image above its
+cap before decoding: `maxJXLPixels` (8.4 Mpx) for JPEG XL, whose decoder works in float32 planes,
+`maxAVIFPixels` (the same) for AVIF, whose AV1 decoder keeps reference planes of 16-bit samples,
+and `maxPixels` (33.5 Mpx, a double page scanned at 400 dpi) for the other formats. It also
+recovers the decoders' panics. That is why the app decodes images through `pageimage.Decode`
+rather than `image.Decode`.
+
+The JPEG XL decoder runs on one thread, so that a panic stays on the calling goroutine, where it
+is recovered. The AVIF decoder (`decodeAVIF`) cannot: gav1d decodes an image's frame and tiles
+on goroutines of its own whenever the reader has more than one core, and its `avif.Options`
+offers no way to keep them on the caller, so a panic there would end the app. Until it does,
+`Decode` refuses AVIF (`avifOnCaller` is false, `errAVIFOffCaller`) and the container leaves
+`image/avif` out of the images it can show, so that the book's manifest fallback is chosen, or
+the image's text alternative shown. `decodeAVIF` stays ready for then, behind a pixel cap, a frame
+size limit and fuzzing (`FuzzDecodeAVIF`): a full page of AVIF (1404x1872) took about 0.14 s to
+decode on a computer (`BenchmarkDecodeAVIF`) and its page 5.75 s to draw on the reader, as a
+`decode avif` span in the log and the trace.
 
 ### 2. Fit to the screen
 
@@ -113,6 +130,16 @@ At a page turn, `Store.LoadPage` reads `NNNN.pg4` and `pageimage.Unpack` expands
 the canvas with `pocketbook.DrawImage` and refreshes the panel (see
 [eink-and-firmware.md](eink-and-firmware.md)). The app also decodes the next and previous
 pages ahead of time, so most turns only draw.
+
+## Spreads
+
+The two pages of a fixed-layout spread are drawn again at download as one image: each page
+rendered to fit 936×1404, half of the landscape screen, set against the gutter on a white
+1872×1404 canvas, then prepared as any page (`pageimage.PrepareDecoded`) into `spread-NNNN.pg4`
+(`renderSpread` in [shelf/prepare_fixed_layout.go](../../internal/shelf/prepare_fixed_layout.go)).
+Halving the two portrait `.pg4` pages instead would fit and dither each page twice; the EPUB is
+deleted after download, so this is the last chance to draw them at their size. Drawing a spread
+costs about as much as drawing its two pages (`BenchmarkRenderSpread`).
 
 ## Images inside EPUBs
 

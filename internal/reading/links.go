@@ -30,6 +30,8 @@ func (popup PopupPage) settings(book layout.Settings) layout.Settings {
 	book.Height = popup.Height
 	book.Margins.Min.Y, book.Margins.Max.Y = popup.MarginTop, popup.MarginBottom
 	book.HideFootnotes = false
+	// A popup is a band across the page: a note of a vertical book is read across it too.
+	book.Horizontal = true
 	return book
 }
 
@@ -143,5 +145,5 @@ func (text *TextBook) DrawPopupPage(page layout.Page, height int) (*image.Gray, 
 	if renderer.book == nil {
 		return nil, errClosed
 	}
-	return renderer.drawLocked(page, height)
+	return renderer.drawLocked(page, height, renderer.settings.Elements)
 }

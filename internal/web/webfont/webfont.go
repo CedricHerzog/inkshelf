@@ -20,6 +20,13 @@ var ErrCollection = errors.New("webfont: font collections are not supported")
 // ErrUnknownFormat is the error of data that is not a font ToSFNT knows.
 var ErrUnknownFormat = errors.New("webfont: unknown font format")
 
+// maxSFNTBytes is the largest font decoded from WOFF or WOFF2, in bytes: a compressed font
+// announces its size, and a crafted one could announce gigabytes. A whole CJK font is 25 MB.
+const maxSFNTBytes = 64 << 20
+
+// errTooLarge is the error of a WOFF or WOFF2 font larger than maxSFNTBytes decoded.
+var errTooLarge = errors.New("webfont: font too large")
+
 // ToSFNT returns font data as TrueType or OpenType data: TrueType and OpenType data as is, WOFF
 // and WOFF2 decoded. It never modifies data.
 func ToSFNT(data []byte) ([]byte, error) {
@@ -37,6 +44,10 @@ func ToSFNT(data []byte) ([]byte, error) {
 		// WOFF2's Brotli and table transforms (glyf, loca, hmtx) are tdewolff/font's.
 		if len(data) >= 8 && string(data[4:8]) == "ttcf" {
 			return nil, ErrCollection
+		}
+		// totalSfntSize, the size of the font decoded, in the header.
+		if len(data) >= 20 && binary.BigEndian.Uint32(data[16:]) > maxSFNTBytes {
+			return nil, errTooLarge
 		}
 		decoded, err := font.ParseWOFF2(data)
 		if err != nil {
@@ -75,6 +86,7 @@ func decodeWOFF(data []byte) ([]byte, error) {
 		return nil, errors.New("webfont: WOFF: truncated table directory")
 	}
 	tables := make([]sfntTable, tableCount)
+	var total uint64 // the bytes of the tables decoded, as announced
 	for index := range tableCount {
 		entry := data[woffHeaderSize+index*woffEntrySize:][:woffEntrySize]
 		table := &tables[index]
@@ -83,6 +95,9 @@ func decodeWOFF(data []byte) ([]byte, error) {
 		// In uint64: an int is 32 bits on the reader.
 		offset, storedLength := uint64(binary.BigEndian.Uint32(entry[4:])), uint64(binary.BigEndian.Uint32(entry[8:]))
 		length := uint64(binary.BigEndian.Uint32(entry[12:]))
+		if total += length; total > maxSFNTBytes {
+			return nil, errTooLarge
+		}
 		if offset+storedLength > uint64(len(data)) {
 			return nil, fmt.Errorf("webfont: WOFF: table %q past the end", table.tag)
 		}

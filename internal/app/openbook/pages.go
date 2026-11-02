@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/CedricHerzog/inkshelf/internal/app/state"
+	"github.com/CedricHerzog/inkshelf/internal/shelf"
 	"github.com/CedricHerzog/inkshelf/internal/timing"
 )
 
@@ -41,16 +42,17 @@ func preload(app *state.State) {
 		return
 	}
 	// The next page first: it is the likely turn.
-	for _, pageNumber := range []int{book.Page + 1, book.Page - 1} {
+	for _, pageNumber := range []int{nextPosition(book, book.Page), previousPosition(book, book.Page)} {
 		if pageNumber >= 1 && pageNumber <= book.Pages {
-			preloadPage(app, book.ID, pageNumber)
+			preloadPage(app, book, pageNumber)
 		}
 	}
 }
 
-// preloadPage decodes page pageNumber of book bookID, unless it is decoded already, or the book
-// closed or the reader turned away from it meanwhile.
-func preloadPage(app *state.State, bookID string, pageNumber int) {
+// preloadPage decodes position pageNumber of book (a page, or a spread), unless it is decoded
+// already, or the book closed or the reader turned away from it meanwhile.
+func preloadPage(app *state.State, book shelf.Book, pageNumber int) {
+	bookID := book.ID
 	app.Lock()
 	wanted := app.Reader.Pages != nil && app.Reader.OpenBook.ID == bookID && app.Reader.Pages[pageNumber] == nil
 	app.Unlock()
@@ -58,7 +60,7 @@ func preloadPage(app *state.State, bookID string, pageNumber int) {
 		return
 	}
 	span := timing.Start(context.Background(), "preload page")
-	pageImage, err := app.Store.LoadPage(bookID, pageNumber)
+	pageImage, err := loadShown(app.Store, book, pageNumber)
 	duration := span.End()
 	if err != nil {
 		return // the page shows the error if it is turned to
@@ -66,10 +68,16 @@ func preloadPage(app *state.State, bookID string, pageNumber int) {
 	log.Printf("preload page %d: %v", pageNumber, duration)
 	app.Lock()
 	defer app.Unlock()
-	current := app.Reader.OpenBook.Page
-	if app.Reader.Pages != nil && app.Reader.OpenBook.ID == bookID && pageNumber >= current-1 && pageNumber <= current+1 {
+	if app.Reader.Pages != nil && app.Reader.OpenBook.ID == bookID && nearLocked(app, pageNumber) {
 		app.Reader.Pages[pageNumber] = pageImage
 	}
+}
+
+// nearLocked reports whether position pageNumber of the open book is the one shown or one a
+// turn leads to.
+func nearLocked(app *state.State, pageNumber int) bool {
+	book := app.Reader.OpenBook
+	return pageNumber == book.Page || pageNumber == nextPosition(book, book.Page) || pageNumber == previousPosition(book, book.Page)
 }
 
 // CurrentPageLocked returns the image of the page shown, and how long it took to load it if
@@ -82,7 +90,7 @@ func CurrentPageLocked(app *state.State) (*image.Gray, time.Duration) {
 	}
 	// Not preloaded: the book just opened, or the reader turns pages faster than the preloader.
 	span := timing.Start(app.Reader.Turn.Context(), "load page")
-	pageImage, app.Reader.PageErr = app.Store.LoadPage(app.Reader.OpenBook.ID, pageNumber)
+	pageImage, app.Reader.PageErr = loadShown(app.Store, app.Reader.OpenBook, pageNumber)
 	loadTime := span.End()
 	if pageImage != nil {
 		app.Reader.Pages[pageNumber] = pageImage
@@ -92,9 +100,8 @@ func CurrentPageLocked(app *state.State) (*image.Gray, time.Duration) {
 
 // PrunePagesLocked drops the decoded pages other than the one shown and its neighbours.
 func PrunePagesLocked(app *state.State) {
-	current := app.Reader.OpenBook.Page
 	for pageNumber := range app.Reader.Pages {
-		if pageNumber < current-1 || pageNumber > current+1 {
+		if !nearLocked(app, pageNumber) {
 			delete(app.Reader.Pages, pageNumber)
 		}
 	}

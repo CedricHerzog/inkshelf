@@ -16,6 +16,7 @@ var ErrDRM = container.ErrDRM
 const (
 	Reflowable   = container.Reflowable
 	PrePaginated = container.PrePaginated
+	Roll         = container.Roll
 )
 
 // Book is an open EPUB: its container, and the documents built from its chapters. Its methods
@@ -27,6 +28,9 @@ type Book struct {
 	// Both are "path#fragment".
 	callsOnce sync.Once
 	calls     map[string][]string
+	// strips are a roll's strip laid out, by screen width (roll.go).
+	stripsLock sync.Mutex
+	strips     map[int]rollStrip
 }
 
 // Open opens the EPUB at filePath.

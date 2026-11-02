@@ -21,10 +21,20 @@
 //     reader can show them in a popup rather than in the text.
 //
 // A pre-paginated (fixed-layout) chapter is a page designed at a fixed size, not text that
-// flows: its elements become the regions of a fixedlayout.Page, which RenderPage draws.
+// flows: its elements become the regions of a fixedlayout.Page, which RenderPage draws. The
+// package document's rendition properties (container.Rendition) say how the book is laid out,
+// whether it flows or scrolls, and which pages pair: Spreads pairs fixed-layout pages as a print
+// book opens on two of them, and RenderSpread draws a pair side by side. A roll is a strip of
+// pictures cut into screen-high pages.
+//
+// Nothing a book carries is run or fetched. Scripts are not read, a scripted chapter shows its
+// manifest fallback, and a URL with a scheme names a file the book does not hold: a missing
+// image or font.
 //
 // BuildIndex measures every chapter once, at download time, so that the reader knows the
-// book's length and where its table of contents leads without laying it all out.
+// book's length and where its table of contents leads without laying it all out. It also finds
+// the page progression of a vertical book, and the image spreads of a reflowable one: two
+// chapters that are each one image, pinned to opposite sides.
 //
 // Positions in a document are rune offsets, an image counting as one rune. They never depend on
 // the font or the page size, which is why a reading position survives a change of font size.

@@ -81,12 +81,12 @@ func RunEmulated(app App, emulator *Emulator) error {
 // goroutines, every signal and, through the event loop, every firmware message, until the app
 // exits.
 func run(app App, readerOrEmulator firmware, canvas *image.Gray) error {
-	current = &device{canvas: canvas, firmware: readerOrEmulator}
+	current = &device{canvas: canvas, portrait: canvas, firmware: readerOrEmulator}
 	followDarkMode()
 	loop := &eventLoop{
 		app:        app,
-		firmware:   readerOrEmulator,
 		screenSize: canvas.Rect.Size(),
+		firmware:   readerOrEmulator,
 		visible:    readerOrEmulator.visible(),
 		pid:        os.Getpid(),
 	}

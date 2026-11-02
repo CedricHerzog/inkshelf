@@ -22,6 +22,16 @@ func (parser *builder) runOf(opened *element) document.Run {
 		FontScale:     percentOf(computed.fontSize, blockSize),
 		LetterSpacing: computed.letterSpacing * 100 / computed.fontSize,
 		Emphasis:      computed.emphasis,
+		Orientation:   computed.textOrientation, Combine: computed.textCombine,
+	}
+	if computed.writingMode.Vertical() && computed.emphasisShapeless {
+		// A filled or open mark without a shape is a sesame in vertical text.
+		switch run.Emphasis.Mark {
+		case emphasisMarks["circle"][0]:
+			run.Emphasis.Mark = emphasisMarks["sesame"][0]
+		case emphasisMarks["circle"][1]:
+			run.Emphasis.Mark = emphasisMarks["sesame"][1]
+		}
 	}
 	if opened.block == nil {
 		run.Shift = opened.parent.run.Shift + computed.raise*100/blockSize
@@ -39,6 +49,7 @@ func (parser *builder) runOf(opened *element) document.Run {
 		{document.Bold, computed.bold}, {document.Italic, computed.italic}, {document.SmallCaps, computed.smallCaps},
 		{document.Underline, computed.underline}, {document.Strike, computed.strike},
 		{document.UnderlineUnder, computed.underline && computed.underlineUnder},
+		{document.UnderlineLeft, computed.underline && computed.underlineLeft},
 		// A superscript or a subscript is smaller, unless its CSS makes it so already.
 		{document.Small, computed.script && computed.fontSize >= opened.parent.style.fontSize},
 	} {
@@ -174,10 +185,11 @@ func spaceStyleShows(space, other document.Run) bool {
 	return space.Isolate != other.Isolate || space.Link != other.Link || space.Style&strokes != other.Style&strokes
 }
 
-// sameStyle reports whether two runs of text are drawn alike, and can be one.
+// sameStyle reports whether two runs of text are drawn alike, and can be one. Combined text is
+// never joined: each element of it takes a cell of its own ("10", "11", "12" in three cells).
 func sameStyle(first, second document.Run) bool {
 	first.Text, second.Text = "", ""
-	return first == second && first.Image == ""
+	return first == second && first.Image == "" && first.Combine == document.CombineNone
 }
 
 // flush adds the text built so far as a block, or as an image block if it is a lone image.
@@ -188,7 +200,7 @@ func (parser *builder) flush() {
 	runs := parser.runs
 	parser.runs, parser.pendingRunes, parser.spaceNeeded, parser.lastRune = nil, 0, false, 0
 	if len(runs) == 1 && runs[0].Image != "" && !mathml.Is(runs[0].Image) {
-		parser.addImageBlock(runs[0].Image, 0)
+		parser.addImageBlock(runs[0].Image, 0, runs[0].Alt)
 		return
 	}
 	blockElement := parser.blockElement()

@@ -41,7 +41,8 @@ func (layout *paginator) prepareText(block document.Block, size int) (preparedTe
 	if !found.Scanned {
 		found = document.ScanScripts(block.Runs)
 	}
-	text := blockText{start: block.Start, breaks: breakOpportunities(block, found.Wide), shaped: found.Shaped, doc: layout.doc}
+	text := blockText{start: block.Start, breaks: breakOpportunities(block, found.Wide), shaped: found.Shaped, doc: layout.doc,
+		vertical: layout.mode.Vertical()}
 	var rightToLeft bool
 	text.levels, rightToLeft = bidiLevels(block, found.RightToLeft)
 	block.Direction = document.LeftToRight
@@ -74,12 +75,30 @@ func (layout *paginator) makeFormats(block document.Block, size int, limit image
 		}
 		formats[index] = runFormat{
 			family: run.Family, style: run.Style, size: runSize, spacing: run.LetterSpacing * runSize / 100,
-			font: font, shift: run.Shift * size / 100, link: run.Link, gray: run.Gray, image: run.Image,
+			font: font, shift: run.Shift * size / 100, link: run.Link, gray: run.Gray, image: run.Image, alt: run.Alt,
+		}
+		if layout.mode.Vertical() {
+			// Vertical text is underlined on its right, unless the book says left: over the
+			// logical line in vertical-rl, whose lines stack from the right.
+			formats[index].underlineOver = (run.Style&document.UnderlineLeft != 0) != (layout.mode == document.VerticalRL)
 		}
 		switch {
 		case mathml.Is(run.Image):
 			if run.Style&document.Small != 0 {
 				runSize = runSize * smallScale / 100
+			}
+			if layout.mode.Vertical() {
+				// MathML lays a formula out across in any writing mode: upright in its column, it
+				// is as long down the column as it is high, and as thick as it is wide, an inline
+				// image of those sizes (turnedSizer). It is centred on the column, as they are.
+				formula, mathSize, err := layout.faces.formula(run.Image, runSize, image.Pt(limit.Y, limit.X))
+				if err != nil {
+					log.Printf("layout: formula: %v", err)
+					break
+				}
+				formats[index].imageSize = image.Pt(formula.Ascent+formula.Descent, formula.Width)
+				formats[index].mathSize = mathSize
+				break
 			}
 			formula, mathSize, err := layout.faces.formula(run.Image, runSize, limit)
 			if err != nil {
@@ -92,20 +111,17 @@ func (layout *paginator) makeFormats(block document.Block, size int, limit image
 			formats[index].imageSize = layout.inlineImageSize(run, runSize, limit)
 		}
 		if run.Emphasis.Mark != 0 {
-			markSize := max(font.Size()*emphasisScale/100, 1)
-			markFont, err := layout.faces.Font(0, markSize)
+			emphasis := run.Emphasis
+			if layout.mode.Vertical() {
+				// Marks go to the right of vertical text, unless the book says left: above the
+				// logical line in vertical-rl, under it in vertical-lr.
+				emphasis.Under = emphasis.Left == (layout.mode == document.VerticalRL)
+			}
+			marks, err := layout.emphasisMarksOf(emphasis, font.Size())
 			if err != nil {
 				return nil, err
 			}
-			emphasis := run.Emphasis
-			if !layout.faces.canDraw(markFont, emphasis.Mark) {
-				// Few fonts have the sesame mark: a dot stands for any mark that no font draws.
-				emphasis.Mark = '•'
-				if run.Emphasis.Mark == '﹆' {
-					emphasis.Mark = '◦'
-				}
-			}
-			formats[index].marks = &emphasisMarks{Emphasis: emphasis, format: &runFormat{size: markSize, font: markFont}}
+			formats[index].marks = marks
 		}
 		formats[index].space = formats[index].width(layout.faces, " ")
 		pointers[index] = &formats[index]
@@ -133,10 +149,45 @@ func (layout *paginator) inlineImageSize(run document.Run, size int, limit image
 // emphasisScale is the size of emphasis marks, in percent of their text's size.
 const emphasisScale = 50
 
-// emphasisMarks are the marks a run puts on its characters, and the format they are drawn in.
+// emphasisMarks are the marks a run puts on its characters: a shape for a keyword mark, else
+// a character drawn in format.
 type emphasisMarks struct {
 	document.Emphasis
-	format *runFormat
+	shape  markShape
+	size   int
+	format *runFormat // nil for a shape
+}
+
+// above returns how far marks above text rise over its ascent: a shape's square, or a
+// character's ascent.
+func (marks *emphasisMarks) above() int {
+	if marks.format == nil {
+		return marks.size
+	}
+	return marks.format.font.Ascent()
+}
+
+// emphasisMarksOf returns the marks of emphasis on text of size: half its size, a shape for a
+// keyword mark, else its character in the reader's font, or a dot if no font has it.
+func (layout *paginator) emphasisMarksOf(emphasis document.Emphasis, size int) (*emphasisMarks, error) {
+	marks := &emphasisMarks{Emphasis: emphasis, size: max(size*emphasisScale/100, 1)}
+	if shape, isKeyword := keywordMarks[emphasis.Mark]; isKeyword {
+		marks.shape = shape
+		return marks, nil
+	}
+	markFont, err := layout.faces.Font(0, marks.size)
+	if err != nil {
+		return nil, err
+	}
+	if !layout.faces.canDraw(markFont, emphasis.Mark) {
+		marks.shape = keywordMarks['•']
+		return marks, nil
+	}
+	marks.format = &runFormat{size: marks.size, font: markFont}
+	if layout.mode.Vertical() {
+		marks.format.vertical, marks.format.shaping = Upright, &Shaping{}
+	}
+	return marks, nil
 }
 
 // runFormat is everything about a run that its fragments need to be measured, placed and drawn.
@@ -148,6 +199,7 @@ type runFormat struct {
 	link      string
 	gray      uint8
 	image     string // the path of an inline image, "" for text
+	alt       string // the inline image's text alternative
 	imageSize image.Point
 	// imageDescent is how far the image goes under the baseline. Only a formula does, as it has
 	// a baseline of its own; mathSize is the font size it is laid out at.
@@ -155,8 +207,32 @@ type runFormat struct {
 	marks                  *emphasisMarks // nil for a run without emphasis marks
 	space                  int            // the width of a space, measured once for every gap
 	// shapedFormats are the variants of the format for shaped text, left to right then right to
-	// left, made when a fragment first needs one.
-	shapedFormats *[2]*runFormat
+	// left, made when a fragment first needs one; verticalFormats those for vertical text, by
+	// VerticalText from Upright.
+	shapedFormats   *[2]*runFormat
+	verticalFormats *[3]*runFormat
+	// underlineOver draws the underline over the line rather than under it: the right of vertical
+	// text.
+	underlineOver bool
+}
+
+// verticalFormat returns the variant of the format for vertical text drawn as form, in a
+// language: upright text is shaped top to bottom.
+func (format *runFormat) verticalFormat(form VerticalText, language string) *runFormat {
+	if format.verticalFormats == nil {
+		format.verticalFormats = &[3]*runFormat{}
+	}
+	slot := &format.verticalFormats[form-Upright]
+	if *slot == nil {
+		variant := *format
+		variant.vertical = form
+		variant.shapedFormats, variant.verticalFormats = nil, nil
+		if form == Upright {
+			variant.shaping = &Shaping{Language: language}
+		}
+		*slot = &variant
+	}
+	return *slot
 }
 
 // shapedFormat returns the variant of the format for text shaped in a direction and a language.
@@ -180,7 +256,7 @@ func (format *runFormat) shapedFormat(rightToLeft bool, language string) *runFor
 // width returns the width of text in the format. Text that its font covers, unshaped and without
 // small capitals, is measured by the font directly, which is much quicker than through Faces.
 func (format *runFormat) width(faces *Faces, text string) int {
-	if format.style&document.SmallCaps != 0 || format.shaping != nil {
+	if format.style&document.SmallCaps != 0 || format.shaping != nil || format.vertical == Combined {
 		return faces.width(format.textFormat, text)
 	}
 	width, covers := format.font.Measure(text)
@@ -203,6 +279,8 @@ type blockText struct {
 	levels []int8
 	shaped bool
 	doc    *document.Document // for the languages of runs
+	// vertical is set for vertical text, whose characters are drawn upright or sideways.
+	vertical bool
 }
 
 // languageOf returns the language tag of run, which shaping needs.

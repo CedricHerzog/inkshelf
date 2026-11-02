@@ -65,6 +65,9 @@ func (font *Font) glyph(character rune) glyph {
 		for row := range rect.Dy() {
 			copy(rasterized.mask.Pix[row*rasterized.mask.Stride:][:rect.Dx()], source.Pix[source.PixOffset(maskPoint.X, maskPoint.Y+row):])
 		}
+		if font.embolden > 0 {
+			rasterized.mask = embolden(rasterized.mask, font.embolden)
+		}
 	}
 	font.glyphs[character] = rasterized
 	return rasterized
@@ -111,6 +114,9 @@ func (font *Font) glyphMask(index sfnt.GlyphIndex) glyph {
 		rect := image.Rect(bounds.Min.X.Floor(), bounds.Min.Y.Floor(), bounds.Max.X.Ceil(), bounds.Max.Y.Ceil())
 		if !rect.Empty() {
 			rasterized = glyph{mask: font.rasterize(segments, rect), offset: rect.Min}
+			if font.embolden > 0 {
+				rasterized.mask = embolden(rasterized.mask, font.embolden)
+			}
 		}
 	}
 	font.masks[index] = rasterized
@@ -147,4 +153,22 @@ func (font *Font) rasterize(segments sfnt.Segments, rect image.Rectangle) *image
 	mask := image.NewAlpha(image.Rectangle{Max: rect.Size()})
 	rasterizer.Draw(mask, mask.Bounds(), image.Opaque, image.Point{})
 	return mask
+}
+
+// embolden returns mask widened by pixels to the right, each pixel as covered as the most
+// covered of the pixels pixels to its left: the strokes thicken, as a synthesized bold's do,
+// while the glyph keeps its place and its advance.
+func embolden(mask *image.Alpha, pixels int) *image.Alpha {
+	width, height := mask.Rect.Dx(), mask.Rect.Dy()
+	bolder := image.NewAlpha(image.Rect(0, 0, width+pixels, height))
+	for row := range height {
+		source := mask.Pix[row*mask.Stride:][:width]
+		target := bolder.Pix[row*bolder.Stride:][:width+pixels]
+		for column, alpha := range source {
+			for shift := range pixels + 1 {
+				target[column+shift] = max(target[column+shift], alpha)
+			}
+		}
+	}
+	return bolder
 }

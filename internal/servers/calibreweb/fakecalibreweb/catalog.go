@@ -18,8 +18,10 @@ type book struct {
 	Chapters int
 	// FixedLayout makes the EPUB a fixed-layout one, of 3 pages (makeFixedLayoutEPUB).
 	FixedLayout bool
-	// Showcase makes the EPUB the showcase of scripts and CSS Text (makeShowcaseEPUB).
-	Showcase bool
+	// Showcase makes the EPUB the showcase of scripts and CSS Text (makeShowcaseEPUB), Vertical
+	// the book of vertical Japanese (makeVerticalEPUB), and Spread a book with a picture across
+	// two pages (makeSpreadEPUB).
+	Showcase, Vertical, Spread bool
 	// SeriesIndex is the book's place in its series, as Calibre keeps it.
 	SeriesIndex float64
 }
@@ -47,6 +49,8 @@ var books = []book{
 	{ID: 12, Title: "Les Étoiles, Tome 2", Author: "Marc Leroy", Formats: []string{"epub", "kepub"}, Updated: day(8, 10), Chapters: 3, SeriesIndex: 2},
 	{ID: 11, Title: "Les Étoiles, Tome 1", Author: "Marc Leroy", Formats: []string{"epub", "kepub"}, Updated: day(8, 1), Chapters: 3, SeriesIndex: 1},
 	{ID: 51, Title: "World scripts", Author: "Anne Martin", Formats: []string{"epub"}, Updated: day(7, 1), Showcase: true},
+	{ID: 52, Title: "Written down", Author: "Anne Martin", Formats: []string{"epub"}, Updated: day(6, 1), Vertical: true},
+	{ID: 53, Title: "Zoé et le phare", Author: "Anne Martin", Formats: []string{"epub"}, Updated: day(5, 1), Spread: true},
 }
 
 // allSeries are the series of the fake library. Ruines lacks its second book.

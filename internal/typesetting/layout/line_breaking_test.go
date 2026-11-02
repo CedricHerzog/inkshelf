@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
@@ -186,5 +187,41 @@ func TestHyphenatedWord(t *testing.T) {
 	}
 	if !broken {
 		t.Error("no line broke after the hyphen")
+	}
+}
+
+// A word of 100,000 letters with no break, as a hostile book may hold, is cut into lines in
+// moments, not minutes: each line as wide as fits and no wider, every letter on one of them.
+func TestLongWordCutInTime(t *testing.T) {
+	faces := newTestFaces(t)
+	half := strings.Repeat("a", 50000)
+	block := document.Block{Runs: []document.Run{{Text: half}, {Text: half, Style: document.Italic}}}
+	start := time.Now()
+	pages, err := Paginate(oneBlock(block), leftSettings, faces, noImages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Errorf("laid out in %v, want well under 5 s", elapsed)
+	}
+	room := leftSettings.Width - leftSettings.Margins.Min.X - leftSettings.Margins.Max.X
+	next := 0
+	for _, page := range pages {
+		for _, line := range page.Lines {
+			if line.Start != next {
+				t.Fatalf("a line starts at %d, want %d", line.Start, next)
+			}
+			next = line.End
+			width := 0
+			for _, word := range line.Words {
+				width += faces.width(word.format(), word.Text)
+			}
+			if width > room {
+				t.Fatalf("the line from %d is %d wide, more than the %d of the page", line.Start, width, room)
+			}
+		}
+	}
+	if next != 100000 {
+		t.Errorf("the lines end at %d, want 100000", next)
 	}
 }

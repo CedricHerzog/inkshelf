@@ -2,10 +2,12 @@ package fonts
 
 import (
 	"bytes"
+	"slices"
 	"sync"
 
 	"github.com/go-text/typesetting/di"
 	textfont "github.com/go-text/typesetting/font"
+	"github.com/go-text/typesetting/font/opentype"
 	"github.com/go-text/typesetting/language"
 	"github.com/go-text/typesetting/shaping"
 	"golang.org/x/image/font/sfnt"
@@ -39,15 +41,40 @@ type shapingFont struct {
 	once   sync.Once
 	parsed *textfont.Font
 	err    error
+	// scripts are the scripts that the font's substitution rules (GSUB) are written for.
+	scripts []opentype.Tag
 }
+
+// joiningScripts are the scripts whose letters take their form from their neighbours, by their
+// OpenType tag. A font that has their letters but no rules for them is shaped with the shaper's
+// own presentation forms, which a font made for other scripts may draw badly: the firmware's
+// Liberation Sans joins Arabic letters with glyphs whose dots fall beside their place.
+var joiningScripts = map[language.Script]opentype.Tag{
+	language.Arabic: opentype.MustNewTag("arab"),
+	language.Syriac: opentype.MustNewTag("syrc"),
+}
+
+// firstJoiningCharacter is the first character of the joining scripts' blocks (Arabic's): text
+// before it needs no look-up of its script.
+const firstJoiningCharacter = 0x0600
 
 // textFont returns the font parsed for the shaper.
 func (file *File) textFont() (*textfont.Font, error) {
 	file.shaping.once.Do(func() {
 		var face *textfont.Face
-		face, file.shaping.err = textfont.ParseTTF(bytes.NewReader(file.data))
+		if !file.collection {
+			face, file.shaping.err = textfont.ParseTTF(bytes.NewReader(file.data))
+		} else {
+			var faces []*textfont.Face
+			if faces, file.shaping.err = textfont.ParseTTC(bytes.NewReader(file.data)); file.shaping.err == nil {
+				face = faces[file.face]
+			}
+		}
 		if file.shaping.err == nil {
 			file.shaping.parsed = face.Font
+			for _, script := range face.GSUB.Scripts {
+				file.shaping.scripts = append(file.shaping.scripts, script.Tag)
+			}
 		}
 	})
 	return file.shaping.parsed, file.shaping.err
@@ -71,16 +98,52 @@ func (font *Font) Shape(text string, rightToLeft bool, languageTag string) []Gly
 	return glyphs
 }
 
-// shape shapes text, as Shape does, without the cache.
-func (font *Font) shape(text string, rightToLeft bool, tag string) []Glyph {
-	runes := []rune(text)
+// ShapesScriptOf reports whether the font has rules to shape character's script, or the script
+// needs none: a fallback that has them draws a joining script better.
+func (font *Font) ShapesScriptOf(character rune) bool {
+	if character < firstJoiningCharacter {
+		return true
+	}
+	tag, joining := joiningScripts[language.LookupScript(character)]
+	if !joining {
+		return true
+	}
+	if _, err := font.file.textFont(); err != nil {
+		return false
+	}
+	return slices.Contains(font.file.shaping.scripts, tag)
+}
+
+// ShapesScriptsOf reports whether the font has rules to shape the scripts of all of text's
+// characters, as ShapesScriptOf.
+func (font *Font) ShapesScriptsOf(text string) bool {
+	for _, character := range text {
+		if !font.ShapesScriptOf(character) {
+			return false
+		}
+	}
+	return true
+}
+
+// canShape makes the font's shaper on first use, and reports whether it could: a font that the
+// shaper cannot read is drawn a glyph per character.
+func (font *Font) canShape() bool {
 	if font.textFace == nil {
 		parsed, err := font.file.textFont()
 		if err != nil {
-			return font.unshaped(runes, rightToLeft)
+			return false
 		}
 		font.textFace = textfont.NewFace(parsed)
 		font.shaper = &shaping.HarfbuzzShaper{}
+	}
+	return true
+}
+
+// shape shapes text, as Shape does, without the cache.
+func (font *Font) shape(text string, rightToLeft bool, tag string) []Glyph {
+	runes := []rune(text)
+	if !font.canShape() {
+		return font.unshaped(runes, rightToLeft)
 	}
 	direction := di.DirectionLTR
 	if rightToLeft {

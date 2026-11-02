@@ -12,3 +12,9 @@
 /docs/node_modules/
 /docs/build/
 /docs/.docusaurus/
+
+# Worktrees of Claude Code agents
+.claude/worktrees/
+
+# go build ./cmd/epubtests at the root
+/epubtests

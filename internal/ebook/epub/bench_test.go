@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/CedricHerzog/inkshelf/internal/ebook/epub/epubtest"
+	"github.com/CedricHerzog/inkshelf/internal/typesetting/layout"
 )
 
 // benchmarkChapters is the size of the books of the benchmarks: a long novel's chapters.
@@ -72,7 +73,7 @@ func BenchmarkRenderPage(b *testing.B) {
 	}
 	b.ReportAllocs()
 	for b.Loop() {
-		if _, err := book.RenderPage(1, screenSize); err != nil {
+		if _, err := book.RenderPage(1, screenSize, layout.Elements{}); err != nil {
 			b.Fatal(err)
 		}
 	}

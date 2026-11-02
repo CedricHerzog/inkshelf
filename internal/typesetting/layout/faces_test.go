@@ -2,6 +2,8 @@ package layout
 
 import (
 	"image"
+	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/tdewolff/font"
@@ -65,7 +67,7 @@ func TestGlyphFallback(t *testing.T) {
 	}
 
 	canvas := whiteCanvas(leftSettings)
-	if err := page.Draw(canvas, faces, nil); err != nil {
+	if err := page.Draw(canvas, faces, nil, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	// The lozenge as the fallback draws it, at its place.
@@ -78,6 +80,25 @@ func TestGlyphFallback(t *testing.T) {
 				t.Fatalf("pixel (%d, %d) is %d, want the fallback's %d", x, y, got, wanted)
 			}
 		}
+	}
+}
+
+// Arabic in a sans-serif run is drawn in the firmware's Arabic font, which joins its letters, not
+// in Liberation Sans, which has them without the rules to join them; the space between the words
+// stays in Liberation Sans.
+func TestJoiningScriptFallback(t *testing.T) {
+	faces := newTestFaces(t)
+	format := textFormat{family: "sans-serif", size: 44, shaping: &Shaping{RightToLeft: true, Language: "ar"}}
+	var parts []string
+	err := faces.forEachFontPart(format, "كنت في", func(font *fonts.Font, part string, top int) {
+		parts = append(parts, filepath.Base(font.Name)+": "+part)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"NotoSansArabicUI-Regular.ttf: كنت", "LiberationSans.ttf:  ", "NotoSansArabicUI-Regular.ttf: في"}
+	if !slices.Equal(parts, want) {
+		t.Errorf("parts %q, want %q", parts, want)
 	}
 }
 
@@ -101,7 +122,7 @@ func TestGlyphFallbackStyles(t *testing.T) {
 		if got := wordAt(t, page, "end").X - wordAt(t, page, "a◊").X; got != test.want {
 			t.Errorf("%+v: %d wide with its space, want %d", test.run, got, test.want)
 		}
-		if err := page.Draw(whiteCanvas(leftSettings), faces, nil); err != nil {
+		if err := page.Draw(whiteCanvas(leftSettings), faces, nil, Elements{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -111,7 +132,7 @@ func TestGlyphFallbackStyles(t *testing.T) {
 func TestNoFallbackForASCII(t *testing.T) {
 	faces := newTestFaces(t)
 	page := paginateOne(t, asciiDocument(t, document.Run{Text: "Plain text, ", Family: "Ascii"}, document.Run{Text: "and the book's."}), leftSettings, faces, noImages)
-	if err := page.Draw(whiteCanvas(leftSettings), faces, nil); err != nil {
+	if err := page.Draw(whiteCanvas(leftSettings), faces, nil, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	if len(faces.fallbacks) != 0 {

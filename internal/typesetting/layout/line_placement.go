@@ -29,7 +29,7 @@ func (layout *paginator) layOutLines(block document.Block, size int) ([]laidOutL
 	block, left, width := prepared.block, prepared.left, prepared.width
 	measure := func(text string, format *runFormat) int { return format.width(layout.faces, text) }
 	spacer := lineSpacer{measure: measure}
-	shared := blockLines{spacer: spacer, measure: measure,
+	shared := blockLines{spacer: spacer, measure: measure, vertical: layout.mode.Vertical(),
 		plain: plainLine{size: size, height: prepared.lineHeight, ascent: prepared.baseFont.Ascent()}}
 	if prepared.text.levels != nil {
 		text := prepared.text
@@ -154,6 +154,8 @@ type blockLines struct {
 	// levels returns the bidirectional level of the rune at an offset. It is nil for a block of
 	// left-to-right text only, whose lines need no reordering.
 	levels func(offset int) int8
+	// vertical is set for vertical text, whose inline images are centred on the column.
+	vertical bool
 }
 
 // lineFit is how a line's words fill its width: where the first one starts, and how many pixels
@@ -229,7 +231,12 @@ func placeWords(words []word, lines *blockLines, fit lineFit) laidOutLine {
 		if format.image != "" {
 			if size := format.imageSize; size.X > 0 && size.Y > 0 {
 				bottom := itemBaseline + format.imageDescent
-				line.images = append(line.images, PlacedImage{Path: format.image, Rect: image.Rect(x, bottom-size.Y, x+size.X, bottom), MathSize: format.mathSize})
+				if lines.vertical {
+					// Upright in its column, as the characters around it: centred where they are.
+					bottom = itemBaseline - (format.font.Ascent()-format.font.Descent())/2 + size.Y/2
+				}
+				line.images = append(line.images, PlacedImage{Path: format.image, Rect: image.Rect(x, bottom-size.Y, x+size.X, bottom), MathSize: format.mathSize,
+					Alt: format.alt, altFormat: altFormatOf(format.textFormat), altGray: format.gray})
 			}
 		} else {
 			text := fragment.text
@@ -237,7 +244,8 @@ func placeWords(words []word, lines *blockLines, fit lineFit) laidOutLine {
 				text += "-"
 			}
 			line.Words = append(line.Words, PlacedWord{X: x, Top: itemBaseline - format.font.Ascent(), Text: text,
-				Style: format.style, Size: format.size, Family: format.family, Spacing: format.spacing, Gray: format.gray, Shaping: format.shaping})
+				Style: format.style, Size: format.size, Family: format.family, Spacing: format.spacing, Gray: format.gray, Shaping: format.shaping,
+				Vertical: format.vertical})
 			if format.marks != nil {
 				line.addMarks(*fragment, x, itemBaseline, measure)
 			}
@@ -304,7 +312,7 @@ func (fragment *fragment) marksAbove() int {
 	if fragment.format.marks == nil || fragment.format.marks.Under {
 		return 0
 	}
-	return fragment.format.marks.format.font.Ascent()
+	return fragment.format.marks.above()
 }
 
 // marksBelow returns how far below the baseline emphasis marks under the fragment go, 0 if it
@@ -313,22 +321,30 @@ func (fragment *fragment) marksBelow() int {
 	if fragment.format.marks == nil || !fragment.format.marks.Under {
 		return 0
 	}
-	marks := fragment.format.marks.format.font
-	return fragment.format.font.Descent() + marks.Ascent() + marks.Descent()
+	marks := fragment.format.marks
+	if marks.format == nil {
+		return fragment.format.font.Descent() + marks.size
+	}
+	return fragment.format.font.Descent() + marks.format.font.Ascent() + marks.format.font.Descent()
 }
 
 // addMarks adds the emphasis marks of fragment, placed from x on baseline, as words of their own:
 // one centred above or under each of its characters but spaces and punctuation.
 func (line *laidOutLine) addMarks(fragment fragment, x, baseline int, measure measurer) {
-	format, marks := fragment.format, fragment.format.marks.format
-	mark := string(fragment.format.marks.Mark)
-	markWidth := measure(mark, marks)
+	format, marks := fragment.format, fragment.format.marks
+	mark := string(marks.Mark)
+	// A shape sits in a square of the marks' size, right over the text's ascent; a character
+	// at its own ascent above it.
+	markWidth, markHeight := marks.size, marks.above()
+	if marks.format != nil {
+		markWidth = measure(mark, marks.format)
+	}
 	rightToLeft := format.shaping != nil && format.shaping.RightToLeft
 	if rightToLeft {
 		x += fragment.width // its first character is at the right
 	}
-	top := baseline - format.font.Ascent() - marks.font.Ascent()
-	if fragment.format.marks.Under {
+	top := baseline - format.font.Ascent() - markHeight
+	if marks.Under {
 		top = baseline + format.font.Descent()
 	}
 	for index, character := range fragment.text {
@@ -341,7 +357,13 @@ func (line *laidOutLine) addMarks(fragment fragment, x, baseline int, measure me
 		if rightToLeft {
 			characterX = x - left - characterWidth
 		}
-		line.Words = append(line.Words, PlacedWord{X: characterX + (characterWidth-markWidth)/2, Top: top, Text: mark, Size: marks.size, Gray: format.gray})
+		placed := PlacedWord{X: characterX + (characterWidth-markWidth)/2, Top: top, Size: marks.size, Gray: format.gray}
+		if marks.format != nil {
+			placed.Text, placed.Shaping, placed.Vertical = mark, marks.format.shaping, marks.format.vertical
+		} else {
+			placed.Mark, placed.MarkOpen = marks.shape.shape, marks.shape.open
+		}
+		line.Words = append(line.Words, placed)
 	}
 }
 
@@ -368,13 +390,20 @@ func (line *laidOutLine) addStrokes(format *runFormat, left, right, lineBaseline
 			underlineSize, underlineBaseline = plainSize, lineBaseline
 		}
 		top := underlineBaseline + underlineSize/10
-		if format.style&document.UnderlineUnder != 0 {
+		switch {
+		case format.underlineOver:
+			top = underlineBaseline - format.font.Ascent() - strokeThickness(underlineSize)
+		case format.style&document.UnderlineUnder != 0:
 			top = underlineBaseline + format.font.Descent()
 		}
 		strokes = append(strokes, Stroke{image.Rect(left, top, right, top+strokeThickness(underlineSize)), format.gray})
 	}
 	if format.style&document.Strike != 0 {
 		top := baseline - size*3/10
+		if format.vertical != Horizontal {
+			// Through the middle of the column.
+			top = baseline - (format.font.Ascent()-format.font.Descent())/2 - strokeThickness(size)/2
+		}
 		strokes = append(strokes, Stroke{image.Rect(left, top, right, top+strokeThickness(size)), format.gray})
 	}
 	for index, stroke := range strokes {

@@ -1,8 +1,10 @@
 package fonts
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"golang.org/x/image/font/gofont/gobold"
 	"golang.org/x/image/font/gofont/gobolditalic"
@@ -71,6 +73,15 @@ var fallbackFiles = map[Style][]string{
 	BoldItalic: {"DejaVuSans-BoldOblique.ttf"},
 }
 
+// arabicFiles are the firmware's Arabic font of each style, which has the rules that join Arabic
+// letters, as DejaVu Sans and Liberation do not. It has no italic.
+var arabicFiles = map[Style][]string{
+	Regular:    {"NotoSansArabicUI-Regular.ttf"},
+	Bold:       {"NotoSansArabicUI-Bold.ttf"},
+	Italic:     {"NotoSansArabicUI-Regular.ttf"},
+	BoldItalic: {"NotoSansArabicUI-Bold.ttf"},
+}
+
 // goFonts are Go's fonts of each style, compiled into the program: the last resort, which
 // always opens. Go has no serif font, nor Arabic or Hebrew letters.
 var goFonts = map[Style][]byte{
@@ -129,19 +140,33 @@ func Open(family Family, style Style, size int) (*Font, error) {
 		return opened, nil
 	}
 	if family == Monospace {
-		return newFont("Go Mono", goMonoFonts[style], size)
+		return newFont("Go Mono", style, goMonoFonts[style], size)
 	}
-	return newFont("Go", goFonts[style], size)
+	return newFont("Go", style, goFonts[style], size)
 }
 
 // OpenFallbacks opens the fonts to try, in order, for the characters a font of style lacks, size
-// pixels high: the firmware's DejaVu Sans, if it opens, then Go's font.
-func OpenFallbacks(style Style, size int) ([]*Font, error) {
+// pixels high: the firmware's DejaVu Sans and its Arabic font, those that open, then a CJK font
+// (Noto Serif CJK for a serif text, Noto Sans CJK otherwise) for Chinese, Japanese and Korean,
+// then Go's font. The CJK fonts have one weight: their bold is the regular emboldened.
+func OpenFallbacks(style Style, size int, serif bool) ([]*Font, error) {
 	var fallbacks []*Font
-	if opened := openFirmwareFont(fallbackFiles[style], size); opened != nil {
-		fallbacks = append(fallbacks, opened)
+	for _, files := range []map[Style][]string{fallbackFiles, arabicFiles} {
+		if opened := openFirmwareFont(files[style], size); opened != nil {
+			fallbacks = append(fallbacks, opened)
+		}
 	}
-	opened, err := newFont("Go", goFonts[style], size)
+	cjk := cjkSans
+	if serif {
+		cjk = cjkSerif
+	}
+	if file := cjk.parsed(); file != nil {
+		opened, err := file.open(size, style == Bold || style == BoldItalic)
+		if err == nil {
+			fallbacks = append(fallbacks, opened)
+		}
+	}
+	opened, err := newFont("Go", style, goFonts[style], size)
 	if err != nil {
 		for _, fallback := range fallbacks {
 			fallback.Close()
@@ -158,11 +183,11 @@ func openFirmwareFont(names []string, size int) *Font {
 		for _, name := range names {
 			// A font that is missing or doesn't parse is skipped: the next one will do.
 			path := filepath.Join(dir, name)
-			data, err := os.ReadFile(path)
+			file, err := parsedFile(path, path, nil)
 			if err != nil {
 				continue
 			}
-			if opened, err := newFont(path, data, size); err == nil {
+			if opened, err := file.Open(size); err == nil {
 				return opened
 			}
 		}
@@ -170,12 +195,49 @@ func openFirmwareFont(names []string, size int) *Font {
 	return nil
 }
 
-// newFont parses the TrueType or OpenType font data and returns it at size pixels high. The
-// File it parses is not kept: the app's own fonts are opened at one size each.
-func newFont(name string, data []byte, size int) (*Font, error) {
-	parsed, err := Parse(name, data)
+// newFont returns the TrueType or OpenType font data of a style, named name, at size pixels high.
+// It is parsed once for all sizes.
+func newFont(name string, style Style, data []byte, size int) (*Font, error) {
+	file, err := parsedFile(fmt.Sprint(name, " ", style), name, data)
 	if err != nil {
 		return nil, err
 	}
-	return parsed.Open(size)
+	return file.Open(size)
+}
+
+// parsedFiles are the font files parsed so far, by path, or by name and style for Go's fonts, with the
+// error of those that could not be read or parsed. A book's page opens its fonts at several
+// sizes (headings, notes, small capitals), and reading and parsing a file again for each took
+// longer than opening the size.
+var parsedFiles = struct {
+	sync.Mutex
+	files  map[string]*File
+	errors map[string]error
+}{files: map[string]*File{}, errors: map[string]error{}}
+
+// parsedFile returns the font file named name parsed, from key in parsedFiles: data if it is not
+// nil, else the file at path name, read the first time.
+func parsedFile(key, name string, data []byte) (*File, error) {
+	parsedFiles.Lock()
+	defer parsedFiles.Unlock()
+	if file, ok := parsedFiles.files[key]; ok {
+		return file, nil
+	}
+	if err, ok := parsedFiles.errors[key]; ok {
+		return nil, err
+	}
+	var err error
+	if data == nil {
+		data, err = os.ReadFile(name)
+	}
+	var file *File
+	if err == nil {
+		file, err = Parse(name, data)
+	}
+	if err != nil {
+		parsedFiles.errors[key] = err
+		return nil, err
+	}
+	parsedFiles.files[key] = file
+	return file, nil
 }

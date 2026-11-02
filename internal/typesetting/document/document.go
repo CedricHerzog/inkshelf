@@ -86,11 +86,52 @@ const (
 )
 
 // Emphasis is the emphasis marks of a run's characters (CSS text-emphasis), drawn above them or
-// under them, half their size. Spaces and punctuation get none.
+// under them, half their size, and in vertical text to their right, or their left if Left.
+// Spaces and punctuation get none.
 type Emphasis struct {
 	Mark  rune // 0 for none
 	Under bool
+	Left  bool
 }
+
+// WritingMode is the direction lines of text go in, and the side the next line goes to (CSS
+// writing-mode).
+type WritingMode uint8
+
+// The writing modes. sideways-rl and sideways-lr are read as their vertical forms.
+const (
+	HorizontalTB WritingMode = iota // lines across, the next one below
+	VerticalRL                      // lines down, the next one to the left: Chinese and Japanese
+	VerticalLR                      // lines down, the next one to the right: Mongolian
+)
+
+// Vertical reports whether lines go down.
+func (mode WritingMode) Vertical() bool { return mode != HorizontalTB }
+
+// TextOrientation is how vertical text draws its characters (CSS text-orientation): upright,
+// one under the other, or sideways, turned a quarter turn clockwise as a line of horizontal
+// text would be.
+type TextOrientation uint8
+
+// The text orientations.
+const (
+	// OrientationMixed keeps upright what Unicode says to (UAX #50): ideographs and kana, but
+	// not Latin letters.
+	OrientationMixed TextOrientation = iota
+	OrientationUpright
+	OrientationSideways
+)
+
+// TextCombine is which text of vertical lines is drawn across, in one character's cell (CSS
+// text-combine-upright): a year, a number of two digits. It is CombineNone, CombineAll, or the
+// most digits a number may have to be combined, 2 to 4.
+type TextCombine uint8
+
+// The text combinations other than a number of digits.
+const (
+	CombineNone TextCombine = iota
+	CombineAll
+)
 
 // Float is the side of the text that a floated block goes to (CSS float).
 type Float uint8
@@ -125,6 +166,9 @@ const (
 	SmallCaps       // lowercase letters drawn as smaller capitals
 	// UnderlineUnder draws the underline under the descenders (text-underline-position: under).
 	UnderlineUnder
+	// UnderlineLeft draws the underline of vertical text on its left (text-underline-position:
+	// left), rather than on its right.
+	UnderlineLeft
 )
 
 // Run is text in one style, or an inline image. Its spaces are already collapsed, as HTML does.
@@ -156,6 +200,12 @@ type Run struct {
 	// URI. It counts as one rune. ImageHeight is its height in hundredths of an em, 0 for its own.
 	Image       string
 	ImageHeight Hundredths
+	// Alt is an inline image's text alternative, drawn in its place when it cannot be shown in
+	// time. It is not counted in runes: the reader's positions do not move.
+	Alt string
+	// Orientation and Combine are how the run's characters are drawn in vertical text.
+	Orientation TextOrientation
+	Combine     TextCombine
 }
 
 // Block is a paragraph, a heading, an image or a rule. Lengths are in hundredths of an em of
@@ -170,6 +220,9 @@ type Block struct {
 	// Direction is the direction of the text: where it starts, and how AlignStart and AlignEnd
 	// align it.
 	Direction Direction
+	// WritingMode is the direction of the block's lines. A block whose lines go another way than
+	// the document's (a horizontal table in a vertical book) is laid out apart, as one box.
+	WritingMode WritingMode
 	// WordBreak and LineBreak are where lines may break.
 	WordBreak WordBreak
 	LineBreak LineBreak
@@ -199,6 +252,9 @@ type Block struct {
 	Footnote string
 	Runs     []Run
 	Image    string // the image's path in the book, for an Image block
+	// Alt is an Image block's text alternative, drawn in its place when it cannot be shown in
+	// time. It is not counted in runes: the reader's positions do not move.
+	Alt string
 	// ImageWidth is an Image block's width, in percent of the text's (0 is its own).
 	ImageWidth Percent
 	// Float takes the block out of the text, to its left or its right, the lines of the next
@@ -232,6 +288,9 @@ type Document struct {
 	Fonts map[string]map[fonts.Style]*fonts.File
 	// Boxes are the borders and backgrounds of block elements, around their blocks.
 	Boxes []BorderBox
+	// WritingMode is the direction of the document's lines, which its pages follow: that of its
+	// body, as CSS has it.
+	WritingMode WritingMode
 }
 
 // Add appends block to the document, at its end, and returns its offset.

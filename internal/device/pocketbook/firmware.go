@@ -43,9 +43,15 @@ type firmware interface {
 
 // device is the reader the app runs on: the canvas it draws on, and the firmware behind it.
 type device struct {
-	// canvas is the screen's size, in portrait, as the app sees the screen.
-	canvas   *image.Gray
-	firmware firmware
+	// canvas is the screen as the app draws it: portrait or landscape, as orientation says.
+	canvas *image.Gray
+	// portrait is the firmware's canvas (or the emulator's), landscape the app's own, made on
+	// first use.
+	portrait, landscape *image.Gray
+	orientation         Orientation
+	// flashNext makes the next refresh a flash of the whole panel: the orientation changed.
+	flashNext bool
+	firmware  firmware
 	// dark is the reader's dark mode setting as last read (see DarkMode).
 	dark bool
 }

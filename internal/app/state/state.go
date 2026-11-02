@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/CedricHerzog/inkshelf/internal/app/widgets"
+	"github.com/CedricHerzog/inkshelf/internal/deadline"
 	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
 	"github.com/CedricHerzog/inkshelf/internal/progress"
 	"github.com/CedricHerzog/inkshelf/internal/servers"
@@ -74,6 +75,11 @@ type State struct {
 	CoverWake    *Wakeup          // wakes the goroutine that loads covers
 	ServerChoice chan int         // the server chosen on the server screen, by index
 	Syncer       *progress.Syncer // sends the reading progress; its lock is taken before mu
+	// The workers that bound the wait for a page's images, SVGs and formulas (package
+	// deadline): one pool for the pages read, one for the pages drawn while downloading, so
+	// that a download never makes a page wait.
+	ReadingPool  *deadline.Pool
+	DownloadPool *deadline.Pool
 
 	// The background work in progress, for the emulator. It has a lock of its own.
 	Work Work
@@ -112,6 +118,9 @@ type Options struct {
 	WiFiConnected func() bool
 	// ConnectWiFi connects to a known network, as pocketbook.KeepWiFiOn does.
 	ConnectWiFi func(ctx context.Context) (stop func(), err error)
+	// ElementBudget is how long a page waits in all for its images, SVGs and formulas,
+	// layout.PageBudget if 0: the emulator shortens it to show what a page shows past it.
+	ElementBudget time.Duration
 }
 
 // New returns the state of an app that keeps its files in dir and connects to the servers of

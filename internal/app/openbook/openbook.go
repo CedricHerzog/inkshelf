@@ -78,7 +78,7 @@ func OpenLocked(app *state.State, item state.BookItem) {
 			return
 		}
 	}
-	book.Page = min(max(book.Page, 1), book.Pages)
+	book.Page = shownPage(book, min(max(book.Page, 1), book.Pages))
 	if text != nil {
 		if location, err := text.Book.Location(text.Book.At()); err == nil {
 			book.Location = &location
@@ -138,7 +138,8 @@ func atLastPageLocked(app *state.State) bool {
 	if app.Reader.Text != nil {
 		return atLastTextPageLocked(app)
 	}
-	return app.Reader.OpenBook.Page == app.Reader.OpenBook.Pages
+	book := app.Reader.OpenBook
+	return lastShown(book, book.Page) >= book.Pages
 }
 
 // showEndPanelLocked shows the end panel, or hides it to go back to the last page, and
@@ -163,15 +164,15 @@ func movePageLocked(app *state.State, forward bool) bool {
 		return true
 	}
 	book := &app.Reader.OpenBook
-	pageNumber := book.Page - 1
+	pageNumber := previousPosition(*book, book.Page)
 	if forward {
-		pageNumber = book.Page + 1
+		pageNumber = nextPosition(*book, book.Page)
 	}
 	if pageNumber < 1 || pageNumber > book.Pages {
 		return false
 	}
 	book.Page = pageNumber
-	book.Completed = book.Completed || pageNumber == book.Pages
+	book.Completed = book.Completed || lastShown(*book, pageNumber) >= book.Pages
 	book.Unsynced = true
 	book.ReadAt = time.Now()
 	app.Reader.Unsaved = true

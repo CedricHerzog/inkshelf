@@ -30,7 +30,18 @@
 //
 //  6. Drawing. A Page holds everything at its place, in pixels; Page.Draw draws it with Faces,
 //     which open fonts as they are needed and fall back to other fonts for the characters a font
-//     lacks.
+//     lacks. A page's images and formulas are prepared on workers (Elements): it waits 10
+//     seconds for them in all, and one not ready by then shows its text alternative instead.
+//
+// Vertical text (Chinese and Japanese in columns, writing-mode vertical-rl) goes through the
+// same steps, on the page turned a quarter turn: a line is a column as long as the page is high,
+// and the pages are turned back once laid out. Its characters are drawn upright or sideways, as
+// Unicode's Vertical_Orientation says (vertical.go).
+//
+// The interface's text is set by the same rules when it needs them: a Label is one line, a book's
+// title in a list say, its characters in fonts that have them, its letters joined, its
+// right-to-left runs in visual order. PlainLabel tells the text that needs none of that, most of
+// it, which the interface draws a character after another as before.
 //
 // Positions in a document are offsets in runes: each block's text counts its runes, spaces
 // included, and an image or a rule counts as one. Layout never changes them, and every page

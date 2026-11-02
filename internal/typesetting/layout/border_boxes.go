@@ -26,10 +26,10 @@ type borderBoxPart struct {
 	placed int
 }
 
-// placedItemCount returns how many lines, images and rules the last page holds.
+// placedItemCount returns how many lines, images, rules and orthogonal boxes the last page holds.
 func (layout *paginator) placedItemCount() int {
 	page := layout.pages[len(layout.pages)-1]
-	return len(page.Lines) + len(page.Images) + len(page.Rules)
+	return len(page.Lines) + len(page.Images) + len(page.Rules) + len(page.orthogonal)
 }
 
 // borderPixels returns the width of a border in pixels: at least one if it is drawn at all, so
@@ -159,6 +159,7 @@ func (layout *paginator) placeBorderBoxPart(part borderBoxPart, bottom int, last
 		Rect:  image.Rect(left, part.top, right, bottom).Intersect(image.Rect(0, 0, layout.settings.Width, layout.settings.Height)),
 		Right: layout.placedBorder(borderBox.Right), Left: layout.placedBorder(borderBox.Left),
 		Background: borderBox.Background, Filled: borderBox.Filled, Depth: depth,
+		Layers: borderBox.Layers, LayerUnit: float64(layout.settings.FontSize) / 100,
 	}
 	if part.first {
 		placed.Top = layout.placedBorder(borderBox.Top)
@@ -183,8 +184,8 @@ func (layout *paginator) placedBorder(border document.Border) document.Border {
 }
 
 // drawBorderBoxes draws boxes into dst, the outer ones first so that the inner ones show on top:
-// each box's background, then its border.
-func drawBorderBoxes(dst *image.Gray, boxes []PlacedBorderBox) {
+// each box's background color and layers, the layers' images from tiles, then its border.
+func drawBorderBoxes(dst *image.Gray, boxes []PlacedBorderBox, tiles TileLoader) {
 	if len(boxes) == 0 {
 		return
 	}
@@ -195,6 +196,7 @@ func drawBorderBoxes(dst *image.Gray, boxes []PlacedBorderBox) {
 		if borderBox.Filled {
 			fill(dst, rect, borderBox.Background)
 		}
+		PaintBackground(dst, rect, borderBox.Layers, borderBox.LayerUnit, tiles)
 		drawSide(dst, image.Rect(rect.Min.X, rect.Min.Y, rect.Max.X, rect.Min.Y+borderBox.Top.Width), borderBox.Top, true)
 		drawSide(dst, image.Rect(rect.Min.X, rect.Max.Y-borderBox.Bottom.Width, rect.Max.X, rect.Max.Y), borderBox.Bottom, true)
 		drawSide(dst, image.Rect(rect.Min.X, rect.Min.Y, rect.Min.X+borderBox.Left.Width, rect.Max.Y), borderBox.Left, false)

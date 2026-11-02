@@ -2,8 +2,12 @@ package pageimage
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
+	"hash/crc32"
 	"image"
 	"image/color"
+	"image/png"
 	"math/rand/v2"
 	"testing"
 )
@@ -152,4 +156,22 @@ func grayModelReference(img image.Image) *image.Gray {
 		}
 	}
 	return gray
+}
+
+// An image whose header asks for more than maxPixels is not decoded: a crafted header could
+// take the reader's memory.
+func TestDecodeRejectsHugeHeader(t *testing.T) {
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, image.NewGray(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	data := encoded.Bytes()
+	// The IHDR chunk follows the 8-byte signature: length, type, then width and height.
+	const ihdr = 8 + 4
+	binary.BigEndian.PutUint32(data[ihdr+4:], 7746)
+	binary.BigEndian.PutUint32(data[ihdr+8:], 7746)
+	binary.BigEndian.PutUint32(data[ihdr+4+13:], crc32.ChecksumIEEE(data[ihdr:ihdr+4+13]))
+	if _, err := Decode(data); !errors.Is(err, errTooLarge) {
+		t.Fatalf("error %v, want %v", err, errTooLarge)
+	}
 }

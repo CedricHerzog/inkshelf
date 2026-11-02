@@ -6,7 +6,7 @@ APP := build/inkshelf.app
 # The reader: InkPad 3 (B288, Cortex-A7), firmware 6.x.
 TARGET := CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7
 
-.PHONY: build test lint deploy reader-deploy reader-shots reader-log reader-profile emu emu-fake shots shots-all shots-compare baseline verify bench bench-baseline \
+.PHONY: cjk-fonts epub-tests build test lint deploy reader-remote reader-deploy reader-shots reader-log reader-profile emu emu-fake shots shots-all shots-compare baseline verify bench bench-baseline \
 	bench-compare profile icons docs docs-build docs-shots clean
 
 # Release build: optimised and stripped.
@@ -30,6 +30,10 @@ deploy:
 READER_SCRIPT ?= emulator/scripts/reader/smoke.txt
 reader-deploy: build
 	go run ./cmd/readerctl deploy
+
+# Over USB once, to start: deploy, and turn remote control on with emulator/reader.json's token.
+reader-remote: build
+	./deploy.sh --remote
 
 reader-shots:
 	go run ./cmd/readerctl script $(READER_SCRIPT)
@@ -67,7 +71,8 @@ define run-script
 build/emulator -fake -fresh -frozen-status -script emulator/scripts/$(1).txt -out build/shots/$(1) $(call script-flags,$(1))
 
 endef
-script-flags = $(if $(filter servers,$(1)),-servers 2,$(if $(filter mealie,$(1)),-fake-type mealie,$(if $(filter calibreweb-%,$(1)),-fake-type calibreweb)))
+# calibreweb-slow waits 10 ms for a page's pictures, to show what shows past the wait.
+script-flags = $(if $(filter servers,$(1)),-servers 2,$(if $(filter mealie,$(1)),-fake-type mealie,$(if $(filter calibreweb-slow,$(1)),-fake-type calibreweb -element-limit 10ms,$(if $(filter calibreweb-%,$(1)),-fake-type calibreweb))))
 
 # The shots of shots-all, compared with those of make baseline: lists the PNGs that changed.
 shots-compare:
@@ -85,6 +90,27 @@ verify: build lint
 	go test ./...
 	$(MAKE) shots-all
 	$(MAKE) shots-compare
+
+# The W3C's EPUB 3 reading-system tests read as the reader would (cmd/epubtests,
+# docs/reference/epub-conformance.md): each test's words and first pages in build/epub-tests, the
+# tests whose output changed since the previous run, and the results by area of
+# cmd/epubtests/judgments.tsv. EPUB_TESTS is a checkout of https://github.com/w3c/epub-tests.
+EPUB_TESTS ?= $(HOME)/src/epub-tests
+epub-tests:
+	rm -rf build/epub-tests-previous
+	if [ -d build/epub-tests ]; then mv build/epub-tests build/epub-tests-previous; fi
+	go run ./cmd/epubtests -tests $(EPUB_TESTS) -previous build/epub-tests-previous
+
+# The CJK fonts that internal/graphics/fonts embeds (docs/reference/on-disk-formats.md#fonts): Noto
+# Sans and Serif CJK JP, from notofonts/noto-cjk at CJK_COMMIT, compressed with Brotli into
+# internal/graphics/fonts/cjk with their decompressed sizes. Committed: run it to change the version.
+CJK_COMMIT := f8d1575
+CJK_URL := https://github.com/notofonts/noto-cjk/raw/$(CJK_COMMIT)
+cjk-fonts:
+	mkdir -p build/cjk
+	curl -sSfL -o build/cjk/NotoSansCJKjp-Regular.otf $(CJK_URL)/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf
+	curl -sSfL -o build/cjk/NotoSerifCJKjp-Regular.otf $(CJK_URL)/Serif/OTF/Japanese/NotoSerifCJKjp-Regular.otf
+	go run ./internal/graphics/fonts/gen_cjk.go build/cjk internal/graphics/fonts/cjk
 
 # Benchmarks (docs/reference/profiling.md): each 6 times, for benchstat, in build/bench/new.txt.
 # BENCH (a pattern) and PKG narrow them: make bench BENCH=Paginate PKG=./internal/typesetting/layout.

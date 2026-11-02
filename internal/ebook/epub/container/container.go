@@ -2,7 +2,6 @@ package container
 
 import (
 	"archive/zip"
-	"cmp"
 	"errors"
 	"fmt"
 	"path"
@@ -26,8 +25,9 @@ type Book struct {
 	// PageProgression is the spine's page-progression-direction: "ltr", "rtl", or "" for the
 	// default of the book's language.
 	PageProgression string
-	// Layout is the book's rendition:layout: Reflowable or PrePaginated.
-	Layout string
+	// Rendition is how the package asks for the whole book to be shown, with the defaults
+	// filled in. A spine item may override it: see RenditionOf.
+	Rendition Rendition
 
 	zip   *zip.ReadCloser
 	files map[string]*zip.File // by path in the zip
@@ -52,6 +52,9 @@ type Book struct {
 	cacheMu sync.Mutex
 	sheets  map[string]*css.Stylesheet
 	fonts   map[string]*fonts.File
+	// sheetBytes is how much of the book's stylesheets has been parsed, against
+	// maxBookStylesheetBytes.
+	sheetBytes int
 }
 
 // Open opens the EPUB at filePath.
@@ -115,7 +118,7 @@ func (book *Book) ChapterOfPath(itemPath string) int {
 
 // ChapterLayout returns the rendition:layout of chapter index: its itemref's, else the book's.
 func (book *Book) ChapterLayout(index int) string {
-	return cmp.Or(book.chapters[index].Layout, book.Layout)
+	return book.RenditionOf(book.chapters[index]).Layout
 }
 
 // rightToLeftLanguages are the languages written right to left.

@@ -98,8 +98,12 @@ func NewEmulator(size image.Point, simulateRefresh bool) *Emulator {
 	return emulator
 }
 
-// Size returns the screen's size.
-func (emulator *Emulator) Size() image.Point { return emulator.canvas.Rect.Size() }
+// Size returns the screen's size, in the orientation of the last refresh.
+func (emulator *Emulator) Size() image.Point {
+	emulator.mu.Lock()
+	defer emulator.mu.Unlock()
+	return emulator.panel.Rect.Size()
+}
 
 // flush copies rect of canvas to the panel (see copyToPanel).
 func (emulator *Emulator) flush(canvas *image.Gray, rect image.Rectangle, waveform Waveform, full bool) {
@@ -109,6 +113,7 @@ func (emulator *Emulator) flush(canvas *image.Gray, rect image.Rectangle, wavefo
 	}
 	defer timing.Start(context.Background(), "refresh").End()
 	emulator.mu.Lock()
+	emulator.panel = followingPanel(emulator.panel, canvas)
 	copyToPanel(emulator.panel, canvas, rect, waveform)
 	refresh := PanelRefresh{Rect: rect, Waveform: waveform, Full: full, At: time.Now()}
 	emulator.lastRefresh = refresh.At

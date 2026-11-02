@@ -40,6 +40,7 @@ import (
 	"github.com/CedricHerzog/inkshelf/internal/servers/mealie/fakemealie"
 	"github.com/CedricHerzog/inkshelf/internal/servers/registry"
 	"github.com/CedricHerzog/inkshelf/internal/timing"
+	"github.com/CedricHerzog/inkshelf/internal/typesetting/layout"
 )
 
 // options are the command's flags.
@@ -76,6 +77,8 @@ type options struct {
 	// profileDir, if set, gets the CPU profile, the execution trace and the other profiles of
 	// the run (docs/reference/profiling.md).
 	profileDir string
+	// elementLimit is how long a page waits in all for its images, SVGs and formulas.
+	elementLimit time.Duration
 }
 
 func main() {
@@ -94,6 +97,7 @@ func main() {
 	flag.StringVar(&opts.outDir, "out", "build/shots", "where the script's shots go")
 	flag.BoolVar(&opts.frozenStatus, "frozen-status", false, "show a fixed time and free space, and fixed addresses for the fake servers, so that shots are the same on every run")
 	flag.StringVar(&opts.profileDir, "profile", "", "write the run's CPU profile, execution trace and other profiles to this directory")
+	flag.DurationVar(&opts.elementLimit, "element-limit", layout.PageBudget, "how long a page waits in all for its images, SVGs and formulas before it shows their text alternatives")
 	flag.Parse()
 	log.SetFlags(log.Ltime | log.Lmicroseconds | log.Lshortfile)
 	if err := run(opts); err != nil {
@@ -126,6 +130,8 @@ func run(opts options) error {
 		return err
 	}
 	fonts.AddDir(filepath.Join(opts.dir, "fonts"))
+	// The CJK fonts are decompressed once, outside the reader's files that -fresh deletes.
+	fonts.SetCacheDir("build/emulator-cache")
 
 	emulator := pocketbook.NewEmulator(size, opts.eink)
 	emulator.SetDarkMode(opts.dark)
@@ -156,15 +162,15 @@ var (
 	frozenFreeSpace = int64(12) << 30
 )
 
-// appOptions are the app's options for opts: the real clock and free space, unless frozen.
+// appOptions are the app's options for opts: the real clock and free space, unless frozen, and
+// the page budget of its elements.
 func appOptions(opts options) app.Options {
-	if !opts.frozenStatus {
-		return app.Options{}
+	options := app.Options{ElementBudget: opts.elementLimit}
+	if opts.frozenStatus {
+		options.Now = func() time.Time { return frozenTime }
+		options.FreeSpace = func(string) (int64, bool) { return frozenFreeSpace, true }
 	}
-	return app.Options{
-		Now:       func() time.Time { return frozenTime },
-		FreeSpace: func(string) (int64, bool) { return frozenFreeSpace, true },
-	}
+	return options
 }
 
 // parseSize parses a screen size written WIDTHxHEIGHT.

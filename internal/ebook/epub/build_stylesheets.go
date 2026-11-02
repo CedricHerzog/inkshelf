@@ -49,7 +49,8 @@ func (parser *builder) addStylesheet(sheet *css.Stylesheet, sheetPath string) {
 }
 
 // addFont adds the font of an @font-face rule to the document: the first of its sources in a
-// format the app reads, by its family in lower case and its style. Measuring, it adds none.
+// format the app reads that the book holds (a remote one is never fetched), by its family in
+// lower case and its style. Measuring, it adds none.
 func (parser *builder) addFont(face css.FontFace, sheetPath string) {
 	if face.Family == "" || parser.forIndex {
 		return
@@ -62,7 +63,7 @@ func (parser *builder) addFont(face css.FontFace, sheetPath string) {
 		}
 		data := parser.book.Font(resolve(sheetPath, address))
 		if data == nil {
-			return
+			continue
 		}
 		family := strings.ToLower(face.Family)
 		if parser.doc.Fonts == nil {

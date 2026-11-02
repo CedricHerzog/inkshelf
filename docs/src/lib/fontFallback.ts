@@ -1,16 +1,25 @@
 // Which font draws each character of a text, as forEachCoveredPart
 // (internal/typesetting/layout/faces.go) decides: text the font covers is one part, in one
 // check; otherwise each character the font lacks goes to the first fallback that has it
-// (fallbacksOf: the reader's typeface, then fonts.OpenFallbacks's DejaVu Sans and Go), or stays
-// in the font, to be drawn as its .notdef box. Neighbouring characters with the same font make
-// one part. The fonts' coverage here is a simplified picture, by Unicode blocks, not their
-// real tables.
+// (fallbacksOf: the reader's typeface, then fonts.OpenFallbacks's DejaVu Sans, Noto Sans Arabic
+// UI, Noto CJK and Go), or stays in the font, to be drawn as its .notdef box. An Arabic letter
+// also goes to a fallback when its font has it without the rules that join it, if one has both
+// (Font.ShapesScriptOf). Neighbouring characters with the same font make one part. The fonts'
+// coverage here is a simplified picture, by Unicode blocks, not their real tables.
 
 export type ToyFont = {
   name: string;
   /** Inclusive code point ranges the font has a glyph for. */
   ranges: readonly [number, number][];
+  /** Whether the font has the rules that join Arabic letters. */
+  joinsArabic?: boolean;
 };
+
+/** Arabic's blocks: letters that take their form from their neighbours. */
+const arabic: [number, number][] = [
+  [0x600, 0x6ff],
+  [0x750, 0x77f],
+];
 
 const latin: [number, number][] = [
   [0x20, 0x7e],
@@ -28,10 +37,19 @@ export const bookFont: ToyFont = {name: 'Book font', ranges: [...latin]};
 /** The reader's serif typeface, Liberation Serif. */
 export const readerSerif: ToyFont = {name: 'Liberation Serif', ranges: [...latin, ...punctuation, ...greekCyrillic, [0x20ac, 0x20ac]]};
 
-/** DejaVu Sans, the firmware font with the most characters. */
+/** DejaVu Sans, the firmware font with the most characters: Arabic letters among them, but not the rules that join them. */
 export const dejaVuSans: ToyFont = {
   name: 'DejaVu Sans',
-  ranges: [...latin, ...punctuation, ...greekCyrillic, [0x20ac, 0x20ac], [0x590, 0x5ff], [0x600, 0x6ff], [0x2190, 0x21ff], [0x2200, 0x22ff], [0x2600, 0x26ff]],
+  ranges: [...latin, ...punctuation, ...greekCyrillic, [0x20ac, 0x20ac], [0x590, 0x5ff], ...arabic, [0x2190, 0x21ff], [0x2200, 0x22ff], [0x2600, 0x26ff]],
+};
+
+/** Noto Sans Arabic UI, the firmware's Arabic font, with the rules that join its letters. */
+export const notoSansArabic: ToyFont = {name: 'Noto Sans Arabic UI', ranges: [[0x20, 0x20], ...arabic], joinsArabic: true};
+
+/** Noto Serif CJK JP, the firmware's or else the program's own, for serif text: Chinese, Japanese and Korean. */
+export const notoSerifCJK: ToyFont = {
+  name: 'Noto Serif CJK',
+  ranges: [...latin, ...punctuation, ...greekCyrillic, [0x3000, 0x30ff], [0x4e00, 0x9fff], [0xac00, 0xd7af], [0xff00, 0xffef]],
 };
 
 /** Go's font, compiled into the program: the last resort, which always opens. */
@@ -40,6 +58,12 @@ export const goFont: ToyFont = {name: 'Go', ranges: [...latin, ...punctuation, .
 export function has(font: ToyFont, character: string): boolean {
   const code = character.codePointAt(0)!;
   return font.ranges.some(([first, last]) => code >= first && code <= last);
+}
+
+/** Whether font has the rules to shape character's script, or the script needs none. */
+export function shapes(font: ToyFont, character: string): boolean {
+  const code = character.codePointAt(0)!;
+  return !arabic.some(([first, last]) => code >= first && code <= last) || font.joinsArabic === true;
 }
 
 export type Part = {
@@ -55,7 +79,7 @@ export type Part = {
  */
 export function coveredParts(font: ToyFont, fallbacks: readonly ToyFont[], text: string): {parts: Part[]; oneCheck: boolean} {
   const characters = Array.from(text);
-  if (characters.every((character) => has(font, character))) {
+  if (characters.every((character) => has(font, character) && shapes(font, character))) {
     return {parts: text === '' ? [] : [{font, text, missing: false}], oneCheck: true};
   }
   const tried = fallbacks.filter((fallback) => fallback !== font);
@@ -63,10 +87,12 @@ export function coveredParts(font: ToyFont, fallbacks: readonly ToyFont[], text:
   for (const character of characters) {
     let chosen = font;
     let missing = false;
-    if (!has(font, character)) {
-      const found = tried.find((fallback) => has(fallback, character));
+    if (!has(font, character) || !shapes(font, character)) {
+      const found =
+        tried.find((fallback) => has(fallback, character) && shapes(fallback, character)) ??
+        (has(font, character) ? undefined : tried.find((fallback) => has(fallback, character)));
       if (found) chosen = found;
-      else missing = true;
+      else if (!has(font, character)) missing = true;
     }
     const last = parts[parts.length - 1];
     if (last && last.font === chosen && last.missing === missing) last.text += character;

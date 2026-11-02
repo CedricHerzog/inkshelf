@@ -11,7 +11,8 @@ import (
 )
 
 // TestMain makes the fonts of the emulator, the reader's, the first to try: DejaVu Sans is the
-// fallback that has Arabic and Hebrew, which Go's fonts lack.
+// fallback that has Hebrew and Noto Sans Arabic UI the one that joins Arabic, which Go's fonts
+// lack.
 func TestMain(m *testing.M) {
 	fonts.AddDir("../../../emulator/fonts")
 	os.Exit(m.Run())
@@ -139,17 +140,17 @@ func TestArabicShaped(t *testing.T) {
 	if placed.Shaping == nil || !placed.Shaping.RightToLeft {
 		t.Fatalf("%q not shaped right to left: %+v", word, placed)
 	}
-	fallbacks, err := faces.fallbacksOf(fonts.Regular, 24)
+	fallbacks, err := faces.fallbacksOf("", fonts.Regular, 24)
 	if err != nil {
 		t.Fatal(err)
 	}
-	arabic := fallbacks[slices.IndexFunc(fallbacks, func(font *fonts.Font) bool { return font.Covers(word) })]
+	arabic := fallbacks[slices.IndexFunc(fallbacks, func(font *fonts.Font) bool { return font.Covers(word) && font.ShapesScriptsOf(word) })]
 	shaped := fonts.WidthOf(arabic.Shape(word, true, ""))
 	if got := faces.width(placed.format(), word); got != shaped || shaped >= arabic.Width(word) {
 		t.Errorf("%q %d wide, shaped %d, its letters alone %d", word, got, shaped, arabic.Width(word))
 	}
 	canvas := whiteCanvas(leftSettings)
-	if err := page.Draw(canvas, faces, nil); err != nil {
+	if err := page.Draw(canvas, faces, nil, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	if slices.Equal(canvas.Pix, whiteCanvas(leftSettings).Pix) {

@@ -2,6 +2,7 @@ package epub
 
 import (
 	"image"
+	"reflect"
 	"testing"
 
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
@@ -47,6 +48,28 @@ func TestTextGrayContrast(t *testing.T) {
 	}
 }
 
+// A box's background layers have their lengths in hundredths of an em of its font: a CSS pixel
+// is 1/16 em. Percentages and auto stay as they are; a box with layers alone is a box.
+func TestBoxLayers(t *testing.T) {
+	doc := styledChapter(t, `.grid { background: linear-gradient(black 16px, transparent 0) 8px 50% / 2em auto, url(missing.png) }`,
+		`<div class="grid"><p>squared paper</p></div>`)
+	if len(doc.Boxes) != 1 {
+		t.Fatalf("boxes %+v, want the grid's", doc.Boxes)
+	}
+	layers := doc.Boxes[0].Layers
+	if len(layers) != 1 {
+		t.Fatalf("layers %+v, want the gradient's (the missing image left out)", layers)
+	}
+	layer := layers[0]
+	if layer.X != (css.Length{Value: 50, Unit: "px"}) || layer.Y != (css.Length{Value: 50, Unit: "%"}) ||
+		layer.Size.Width != (css.Length{Value: 200, Unit: "px"}) || !layer.Size.Height.IsAuto() {
+		t.Errorf("layer placed at %v %v, sized %+v", layer.X, layer.Y, layer.Size)
+	}
+	if stop := layer.Gradient.Stops[0]; !stop.InPixels || stop.Position != 100 {
+		t.Errorf("first stop %+v, want 16px as 100 hundredths", stop)
+	}
+}
+
 // A block element with a border or a background is a box around its blocks: its margin outside
 // its border, its padding inside; the text in it is inset by both. The page's background, a
 // white one and a box that holds nothing are no boxes.
@@ -68,7 +91,7 @@ body { background: #fff; color: #000 } .page { background-color: white }
 		PaddingTop: 50, PaddingBottom: 50, MarginTop: 100, MarginBottom: 100, LeftEdge: 200, RightEdge: 200,
 		Background: 0xEE, Filled: true,
 	}
-	if outer != wantOuter {
+	if !reflect.DeepEqual(outer, wantOuter) {
 		t.Errorf("box\n%+v, want\n%+v", outer, wantOuter)
 	}
 	if inner.Start != blocks[2].Start || inner.End != blocks[3].Start || inner.Left.Style != document.Double || inner.Left.Width != 31 || inner.LeftEdge != 313 {

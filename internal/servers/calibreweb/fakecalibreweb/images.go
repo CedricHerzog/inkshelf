@@ -8,7 +8,9 @@ import (
 	"image/jpeg"
 	"image/png"
 	"strings"
+	"sync"
 
+	"github.com/gen2brain/gav1d/avif"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/gobold"
 	"golang.org/x/image/font/opentype"
@@ -23,6 +25,11 @@ var (
 	coverSize     = image.Pt(600, 900)
 	comicPageSize = image.Pt(1200, 1800) // a CBZ page
 	plateSize     = image.Pt(800, 500)   // the illustration of an EPUB
+	// largeSize is the showcase's large photograph: 30.7 M pixels, under pageimage's cap,
+	// some 0.3 s to decode on a computer and seconds on the reader.
+	largeSize = image.Pt(4800, 6400)
+	// posterSize is the poster of the showcase's video, a still of 16:9.
+	posterSize = image.Pt(800, 450)
 )
 
 // jpegQuality is the quality of the covers and CBZ pages.
@@ -50,6 +57,46 @@ func drawPlate() ([]byte, error) {
 	}
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, img); err != nil {
+		return nil, err
+	}
+	return encoded.Bytes(), nil
+}
+
+// drawPoster returns the poster of the showcase's video: its name on a white band across a dark
+// still, as a JPEG.
+func drawPoster() ([]byte, error) {
+	img := image.NewRGBA(image.Rectangle{Max: posterSize})
+	draw.Draw(img, img.Bounds(), image.NewUniform(color.Gray{Y: 70}), image.Point{}, draw.Src)
+	band := image.Rect(0, posterSize.Y/3, posterSize.X, posterSize.Y*2/3)
+	draw.Draw(img, band, image.White, image.Point{}, draw.Src)
+	if err := drawLines(img, band, 48, []string{"A video's poster"}); err != nil {
+		return nil, err
+	}
+	return encodeJPEG(img)
+}
+
+// largeImage returns the showcase's large photograph, gray squares of 400 pixels in a JPEG, made
+// once: encoding it takes about a second.
+var largeImage = sync.OnceValues(func() ([]byte, error) {
+	img := image.NewGray(image.Rectangle{Max: largeSize})
+	for row := range largeSize.Y {
+		for column := range largeSize.X {
+			img.Pix[row*img.Stride+column] = uint8((column/400+row/400)%3*70 + 60)
+		}
+	}
+	return encodeJPEG(img)
+})
+
+// drawAVIFPlate returns an illustration as an AVIF, with no fallback: "AVIF" in black on a light
+// gray, at the plate's size.
+func drawAVIFPlate() ([]byte, error) {
+	img := image.NewRGBA(image.Rectangle{Max: plateSize})
+	draw.Draw(img, img.Bounds(), image.NewUniform(color.Gray{Y: 200}), image.Point{}, draw.Src)
+	if err := drawLines(img, img.Bounds(), 160, []string{"AVIF"}); err != nil {
+		return nil, err
+	}
+	var encoded bytes.Buffer
+	if err := avif.Encode(&encoded, img, avif.EncodeOptions{Quality: 70}); err != nil {
 		return nil, err
 	}
 	return encoded.Bytes(), nil

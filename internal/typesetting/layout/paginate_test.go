@@ -243,7 +243,7 @@ func TestImages(t *testing.T) {
 	for index := range canvas.Pix {
 		canvas.Pix[index] = 255
 	}
-	if err := pages[0].Draw(canvas, faces, webimage.NewLoader(readFrom(files), faces.SVGText())); err != nil {
+	if err := pages[0].Draw(canvas, faces, webimage.NewLoader(readFrom(files), faces.SVGText()), Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	if center := pages[0].Images[0].Rect.Min.Add(image.Pt(60, 30)); canvas.GrayAt(center.X, center.Y).Y > 64 {
@@ -293,7 +293,7 @@ func TestSVGImage(t *testing.T) {
 	for index := range canvas.Pix {
 		canvas.Pix[index] = 255
 	}
-	if err := pages[0].Draw(canvas, faces, webimage.NewLoader(read, faces.SVGText())); err != nil {
+	if err := pages[0].Draw(canvas, faces, webimage.NewLoader(read, faces.SVGText()), Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	if center := pages[0].Images[0].Rect.Min.Add(image.Pt(60, 30)); canvas.GrayAt(center.X, center.Y).Y > 64 {
@@ -339,7 +339,40 @@ func BenchmarkRenderPage(b *testing.B) {
 		for index := range canvas.Pix {
 			canvas.Pix[index] = 255
 		}
-		if err := pages[1].Draw(canvas, faces, nil); err != nil {
+		if err := pages[1].Draw(canvas, faces, nil, Elements{}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkRenderPageVertical draws a page of vertical Japanese text, as BenchmarkRenderPage
+// draws one of horizontal text: what a page turn of a vertical book costs.
+func BenchmarkRenderPageVertical(b *testing.B) {
+	faces := newTestFaces(b)
+	pages, err := Paginate(verticalDocument(document.VerticalRL, 40), benchmarkSettings, faces, noImages)
+	if err != nil {
+		b.Fatal(err)
+	}
+	canvas := whiteCanvas(benchmarkSettings)
+	b.ReportAllocs()
+	for b.Loop() {
+		for index := range canvas.Pix {
+			canvas.Pix[index] = 255
+		}
+		if err := pages[1].Draw(canvas, faces, nil, Elements{}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkPaginateVertical lays out a vertical Japanese chapter, as BenchmarkPaginateChapter
+// does a horizontal one.
+func BenchmarkPaginateVertical(b *testing.B) {
+	doc := verticalDocument(document.VerticalRL, 60)
+	faces := newTestFaces(b)
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := Paginate(doc, benchmarkSettings, faces, noImages); err != nil {
 			b.Fatal(err)
 		}
 	}

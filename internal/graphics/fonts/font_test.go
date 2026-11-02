@@ -150,7 +150,7 @@ func TestOpenFace(t *testing.T) {
 }
 
 // Has and Covers know the characters of the font, before and after they are measured; off the
-// reader, the fallbacks are Go's font.
+// reader, the fallbacks are the CJK font and Go's font.
 func TestCovers(t *testing.T) {
 	font := openTestFont(t, false)
 	for range 2 { // asked, then from the cache
@@ -158,12 +158,12 @@ func TestCovers(t *testing.T) {
 			t.Errorf("Has ◊ %v, ◆ %v; Covers %v, %v", font.Has('◊'), font.Has('◆'), font.Covers("Bonjour ◊"), font.Covers("◆◆◆"))
 		}
 	}
-	fallbacks, err := OpenFallbacks(Italic, 30)
+	fallbacks, err := OpenFallbacks(Italic, 30, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fallbacks) != 1 || fallbacks[0].Name != "Go" || fallbacks[0].Size() != 30 {
-		t.Errorf("fallbacks %v, want Go's font", fallbacks)
+	if len(fallbacks) != 2 || fallbacks[0].Name != cjkSans.name || fallbacks[1].Name != "Go" || fallbacks[1].Size() != 30 {
+		t.Errorf("fallbacks %v, want Noto Sans CJK then Go's font", fallbacks)
 	}
 }
 

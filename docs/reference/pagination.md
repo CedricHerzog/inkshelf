@@ -103,6 +103,12 @@ hyphen draws a hyphen; if that hyphen does not fit, the last word moves to the n
   of the bidi algorithm). Offsets keep the logical order.
 - Underlines and strikes become `Stroke`s, continuous across a run; links become tap
   rectangles, merged per line.
+- **Emphasis marks** (`text-emphasis`) go above or under each character but spaces and
+  punctuation, half its size. A keyword mark (dot, circle, double circle, triangle, sesame,
+  filled or open) is a `PlacedWord` whose `Mark` is set, drawn as a shape in a square of that
+  size (`emphasis_marks.go`): few fonts have the sesame, and a font's marks are not the size and
+  place CSS gives them. A mark that is another character is drawn in the reader's font, or as a
+  dot when no font has it.
 
 ## 5. Pages
 
@@ -148,6 +154,7 @@ page ends inside a box, it is *broken*: drawn to the page's bottom without its b
 then *restarted* at the next page's top without its top border. A box whose first part would
 hold nothing moves to the next page whole, rather than leaving a lone top border at the
 bottom of a page. Margins collapse through a box that has no border or padding on that side.
+Each part of a broken box paints its own background layers, sized and placed in that part.
 
 ## Child paginators
 
@@ -161,3 +168,91 @@ the blocks with the same code:
 
 The parent then copies the child's result onto its own page, moved to where it goes. A table
 in a cell is laid out by the cell's paginator, so nesting works the same way.
+
+## Vertical writing
+
+Chinese and Japanese books are often set in vertical lines: each line is a column that goes
+down, and the next column is to its left (`vertical-rl`), or to its right in Mongolian
+(`vertical-lr`). The document's `WritingMode` (its body's) decides; `vertical.go` does the rest
+with the same line breaking, justification and pagination as horizontal text.
+
+- **Laid out turned.** `paginateIn` lays a vertical document out in *logical* coordinates: the
+  page's width and height swapped (`Settings.turned`), its top and bottom margins at the start
+  and end of the lines, and the margin of the side columns stack from at the top. A line is
+  then as long as the page is high, and a page ends when the columns fill its width. Images are
+  sized with their width and height swapped too (`turnedSizer`), so that they stand upright.
+- **Turned back.** When the pages are done, `pageTurner.turnPage` moves everything onto the
+  page: a logical x becomes a y, and a logical y an x, from the right in `vertical-rl`. A word of
+  vertical text ends with its column's centre line as its `X` and the top of its text as its
+  `Top`. Offsets do not change, so a reading position means the same text in both directions.
+- **Upright or sideways.** Each character is drawn one of two ways (`characterForm`):
+  ideographs and kana upright, one under the other, shaped top to bottom (`Font.ShapeVertical`)
+  so that brackets, the long vowel mark and small kana take their vertical forms; Latin words
+  as a horizontal line turned a quarter turn clockwise (`Font.DrawTurned`). Which is Unicode's
+  `Vertical_Orientation` (UAX #50), generated from the UCD into `vertical_orientation.go`, and
+  `text-orientation` can make everything upright or everything sideways. A fragment never mixes
+  the two: `splitFragments` ends one where the form changes, as it does at a change of bidi
+  level.
+- **Combined.** A run of `text-combine-upright` (a year, a number) is one fragment one em long,
+  drawn across, squeezed into the cell if it is wider (`drawCombined`). Each element of it is a
+  cell of its own.
+- **Marks and lines to the side.** Emphasis marks and underlines go to the right of the column,
+  or to its left when `text-emphasis-position` or `text-underline-position` say `left`: above
+  the logical line in `vertical-rl`, under it in `vertical-lr`. A strike-through goes down the
+  column's middle. An inline image is centred on the column, as the characters around it.
+- **Other directions inside.** A block whose lines go the other way than the page's (a
+  horizontal table in a vertical book, or vertical text in a horizontal one) is an *orthogonal
+  box*: `placeOrthogonal` lays its blocks out apart, in their own mode, on a page of the
+  screen's size (a child paginator of its own), and places each resulting page as one box where
+  the next block goes, as long as its content along the line and as wide as it across. Images
+  and rules have no direction and stay in the page's.
+- **Box sides as the lines go.** CSS names a box's margins, paddings and borders by their sides
+  on the screen; the document model names them as its lines go: `MarginTop` is the space before
+  a block, `Left` the start of its lines. The EPUB's builder turns one into the other
+  (`epub.physicalSide`): in `vertical-rl`, `margin-right` is the space before a block,
+  `margin-left` the space after it, `margin-top` and `margin-bottom` the start and end of its
+  columns; `vertical-lr` has the space before on the left. A border box is laid out with its
+  sides logical too, and `pageTurner.box` puts them back where the book drew them: its border
+  before on the right of a `vertical-rl` page, on its first page only. A table that stays
+  vertical reads its cells' borders and paddings the same way (`edgesOf`), and its grid's rules,
+  placed logically, are turned with the page.
+- **Formulas upright.** MathML Core's user-agent stylesheet sets `writing-mode: horizontal-tb
+  !important` on every MathML element, so a formula is laid out across in any book. In vertical
+  text it stands upright, as CSS places a box of the other direction: an inline one is an
+  inline image as long down its column as the formula is high and as thick as it is wide,
+  centred on the column (`makeFormats`); a displayed one takes a band across the columns as wide
+  as it is, centred down the page (`placeFormula`), and in a table that stays vertical its column
+  is as long as the formula is high (`blockWidths`).
+- Not followed in vertical text: drop caps (merged into their paragraph).
+
+`Settings.Horizontal` lays every document out across whatever its mode: a note's popup is a
+band across the page.
+
+## Slow elements
+
+`Page.Draw` draws a page's images and formulas when it draws the page, not when it lays it
+out: layout only needs their sizes, read from the image's header. Decoding a photograph or
+drawing an SVG can take seconds on the reader, and a crafted one longer. So a page waits for its
+elements 10 seconds in all (`PageBudget`), not each element 10 seconds.
+
+- `Settings.Elements` (an `Elements`) names the pool of workers that prepares them, the page's
+  budget (`Budget`, `PageBudget` if 0) and the book, which names each element's key with its
+  path and size. A nil pool prepares everything on the goroutine that draws, with no limit:
+  tests and tools.
+- The reader starts the budget (`Elements.Started`) before it lays out the page's chapter
+  (`reading`'s `draw`, `epub.Book.RenderPage` for a fixed-layout page), so that a slow layout
+  leaves the elements less time and the page still appears within the 10 seconds; `Draw` starts
+  it if no one has. It prepares each background image, image and formula through
+  `PrepareElement`, which waits at most what is left of it. Once the budget is spent, every
+  element left shows its fallback without a wait.
+- An element not ready in time shows its text alternative (`PlacedImage.Alt`, from the
+  document's `Alt`) in its box, in the text's font, broken into lines between words and cut at
+  the box's edges (`drawAlt`); without one the box stays empty. So does an image whose format
+  the app refuses to decode (`pageimage.ErrRefused`: an AVIF, while its decoder cannot run on the
+  calling goroutine). An image that cannot be decoded at all is left out, as before.
+- A formula is laid out and drawn on the worker, on a white canvas of its own, then darkens the
+  page under it: the worker never touches the page, which may have moved on.
+- A fixed-layout page drawn at download (`fixedlayout.Page.Render`) shares one budget across its
+  regions, through `Elements.Started` as well.
+
+The workers, their pools and their locks are in [app-threading.md](app-threading.md#the-element-workers).

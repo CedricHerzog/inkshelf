@@ -22,7 +22,9 @@ firmware's own behavior. Those need the reader (see the end of this page).
 
 The emulated reader keeps its files in `emulator/` (`-dir`): `config.json`, `servers/<name>/`, and
 with `-fake`, everything under `emulator/fake/`. `emulator/fonts/` holds the reader's fonts, so
-text looks as it does on the reader. It has no CJK font: Chinese and Japanese show as boxes.
+text looks as it does on the reader, but for its CJK fonts: the firmware's Noto CJK collections
+(44 MB) are not copied, so the emulator uses the app's own, the same fonts in a later version,
+decompressed once into `build/emulator-cache/fonts/`, outside what `-fresh` deletes.
 
 ## Flags
 
@@ -42,6 +44,7 @@ text looks as it does on the reader. It has no CJK font: Chinese and Japanese sh
 | `-out DIR` | `build/shots` | where the script's shots go |
 | `-frozen-status` | off | a fixed clock and free space, and fixed addresses for the fake servers, so that two runs give byte-identical shots |
 | `-profile DIR` | none | write the run's CPU profile, execution trace and other profiles to `DIR` ([profiling.md](profiling.md)) |
+| `-element-limit D` | `10s` | how long a page waits in all for its images, SVGs and formulas before it shows their text alternatives ([pagination.md](pagination.md#slow-elements)): shorter, it shows a slow element's fallback on any computer |
 
 Pass flags through make with `EMUFLAGS`, e.g. `make emu-fake EMUFLAGS="-servers 2 -fake-type komga,mealie"`.
 
@@ -101,7 +104,9 @@ Each script needs the fake servers it was written for. `shots-all` passes them f
 | `smoke.txt` | none (fake Komga) |
 | `servers.txt` | `-servers 2` |
 | `mealie.txt` | `-fake-type mealie` |
-| `calibreweb-comics.txt`, `calibreweb-epub.txt`, `calibreweb-fxl.txt`, `calibreweb-links.txt`, `calibreweb-mathml.txt`, `calibreweb-showcase.txt`, `calibreweb-toc.txt` | `-fake-type calibreweb` |
+| `calibreweb-comics.txt`, `calibreweb-epub.txt`, `calibreweb-fxl.txt`, `calibreweb-links.txt`, `calibreweb-mathml.txt`, `calibreweb-showcase.txt`, `calibreweb-toc.txt`, `calibreweb-vertical.txt` | `-fake-type calibreweb` |
+| `calibreweb-slow.txt` | `-fake-type calibreweb -element-limit 10ms` |
+| `calibreweb-spread.txt` | `-fake-type calibreweb` |
 
 For example: `make shots SCRIPT=emulator/scripts/calibreweb-epub.txt EMUFLAGS="-fake-type calibreweb"`.
 
@@ -122,6 +127,9 @@ For the default 1404x1872 screen (an InkPad 3). The scripts in `emulator/scripts
 their comments repeat them; sizes come from the constants of [app/widgets](../../internal/app/widgets)
 and of each screen's package, scaled by `widgets.Px`.
 
+- **A spread** turns the screen to landscape, 1872x1404: shots and the web view take that size,
+  and a script's points are checked against it once the app settles. Its right third starts at
+  x 1248, its middle is around (936, 700), and the toolbar's Back stays at (150, 84).
 - **Lists and contents**: header Back at (150, 84); footer at y 1790: its left third is
   ‹ Prev, its right third Next ›, and its middle the page number, which opens the A–Z jump on
   the series list.

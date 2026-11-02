@@ -69,19 +69,20 @@ func Run(target Target, work BackgroundWork, steps []Step, save SaveShot) error 
 	if err := waitIdle(target, work, defaultTimeout); err != nil {
 		return fmt.Errorf("starting: %w", err)
 	}
-	screen := image.Rectangle{Max: target.Size()}
 	for _, current := range steps {
 		log.Printf("script: line %d: %s", current.line, current.command)
-		for _, point := range current.points {
-			if !point.In(screen) {
-				return fmt.Errorf("line %d: %v is off the screen %v", current.line, point, screen.Max)
-			}
-		}
 		if inputCommands[current.command] {
 			// Input given while the app still works on the previous one would land on what
 			// happens to show then.
 			if err := waitSettled(target, work, defaultTimeout); err != nil {
 				return fmt.Errorf("line %d: %w", current.line, err)
+			}
+		}
+		// The screen of the moment, once the app settled: a spread turns it to landscape.
+		screen := image.Rectangle{Max: target.Size()}
+		for _, point := range current.points {
+			if !point.In(screen) {
+				return fmt.Errorf("line %d: %v is off the screen %v", current.line, point, screen.Max)
 			}
 		}
 		if err := runStep(target, emulated, work, current, save); err != nil {

@@ -11,7 +11,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gen2brain/gav1d/avif"
+	"golang.org/x/image/font/gofont/gobold"
+
 	"github.com/CedricHerzog/inkshelf/internal/ebook/epub/epubtest"
+	"github.com/CedricHerzog/inkshelf/internal/graphics/fonts"
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
 	"github.com/CedricHerzog/inkshelf/internal/web/uri"
 )
@@ -410,11 +414,15 @@ func TestFallbacks(t *testing.T) {
 	}
 }
 
-// A JPEG XL image is shown, not its fallback, and sized from its header; an AVIF one still
-// goes to its fallback.
-func TestJXLImage(t *testing.T) {
+// A JPEG XL image is shown, not its fallback; an AVIF one gives way to its fallback while its
+// decoder cannot run on the calling goroutine. Both are sized from their headers.
+func TestJXLAndAVIFImages(t *testing.T) {
 	jxl, err := os.ReadFile("../../graphics/pageimage/testdata/page.jxl") // 64×48
 	if err != nil {
+		t.Fatal(err)
+	}
+	var encoded bytes.Buffer
+	if err := avif.Encode(&encoded, image.NewGray(image.Rect(0, 0, 40, 30))); err != nil {
 		t.Fatal(err)
 	}
 	book := openPackage(t, "", "", `
@@ -427,7 +435,7 @@ func TestJXLImage(t *testing.T) {
 		map[string]string{
 			"OEBPS/photo.jxl":   string(jxl),
 			"OEBPS/photo.png":   pngOf(t, image.Pt(100, 100)),
-			"OEBPS/figure.avif": "\x00\x00\x00\x1cftypavif",
+			"OEBPS/figure.avif": encoded.String(),
 			"OEBPS/figure.png":  pngOf(t, image.Pt(100, 100)),
 			"OEBPS/part.xhtml":  xhtml(`<p>Text</p><img src="photo.jxl"/><img src="figure.avif"/>`),
 		})
@@ -441,6 +449,9 @@ func TestJXLImage(t *testing.T) {
 	}
 	if size, err := book.ImageSize("OEBPS/photo.jxl"); err != nil || size != image.Pt(64, 48) {
 		t.Errorf("ImageSize = %v, %v, want 64x48", size, err)
+	}
+	if size, err := book.ImageSize("OEBPS/figure.avif"); err != nil || size != image.Pt(40, 30) {
+		t.Errorf("ImageSize = %v, %v, want 40x30", size, err)
 	}
 }
 
@@ -541,8 +552,8 @@ func TestMetadata(t *testing.T) {
 	if book.Title != "A long title" || book.Language != "fr" || book.Identifier != "urn:uuid:abc" || strings.Join(book.Creators, "|") != "Jean Dupont|Marie Curie" {
 		t.Errorf("title %q, language %q, identifier %q, creators %q", book.Title, book.Language, book.Identifier, book.Creators)
 	}
-	if book.PageProgression != "rtl" || book.Layout != PrePaginated {
-		t.Errorf("page progression %q, layout %q", book.PageProgression, book.Layout)
+	if book.PageProgression != "rtl" || book.Rendition.Layout != PrePaginated {
+		t.Errorf("page progression %q, layout %q", book.PageProgression, book.Rendition.Layout)
 	}
 	if book.ChapterLayout(0) != Reflowable || book.ChapterLayout(1) != PrePaginated {
 		t.Errorf("chapter layouts %q, %q", book.ChapterLayout(0), book.ChapterLayout(1))
@@ -752,5 +763,165 @@ func TestDataImage(t *testing.T) {
 	}
 	if size, err := book.ImageSize(source); err != nil || size != image.Pt(4, 2) {
 		t.Errorf("ImageSize = %v, %v, want 4x2", size, err)
+	}
+}
+
+// Nothing a book carries runs, and nothing is fetched: a script and an event handler leave the
+// static text around them and add none of their own; a remote image is a missing one, its text
+// alternative kept; a remote font is skipped for the next source; an iframe, a form and a
+// WebAssembly object load nothing.
+func TestNothingRunsOrIsFetched(t *testing.T) {
+	book := openStyled(t, `
+@font-face { font-family: Remote; src: url(https://fonts.example.com/remote.ttf) }
+@font-face { font-family: Mirrored; src: url(https://fonts.example.com/mirrored.ttf), url(fonts/mirrored.ttf) }
+.remote { font-family: Remote, sans-serif } .mirrored { font-family: Mirrored, serif }`,
+		`<p>Before <script>document.write("Injected")</script>after.</p>
+<p onclick="alert('Clicked')">Click <a href="javascript:alert(1)" onmouseover="steal()">here</a>.</p>
+<p><img src="https://images.example.com/lighthouse.png" alt="A lighthouse
+  on a rock"/></p>
+<p class="remote">Remote font</p><p class="mirrored">Mirrored font</p>
+<iframe src="other.xhtml"></iframe>
+<form action="https://example.com/send"><input type="text" value="Typed"/><button>Send</button></form>
+<object type="application/wasm" data="module.wasm"><p>No module</p></object>`,
+		map[string]string{
+			"OEBPS/other.xhtml":        xhtml("<p>Framed</p>"),
+			"OEBPS/module.wasm":        "\x00asm",
+			"OEBPS/fonts/mirrored.ttf": string(gobold.TTF),
+		})
+	doc, err := book.Chapter(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := strings.Join(texts(doc), "|")
+	for _, own := range []string{"Injected", "Clicked", "alert", "Framed", "Typed", "asm"} {
+		if strings.Contains(all, own) {
+			t.Errorf("%q shows in %q", own, all)
+		}
+	}
+	for _, static := range []string{"Before after.", "Click here.", "Remote font", "Mirrored font", "No module"} {
+		if !strings.Contains(all, static) {
+			t.Errorf("%q missing from %q", static, all)
+		}
+	}
+
+	index := slices.IndexFunc(doc.Blocks, func(block document.Block) bool { return block.Kind == document.Image })
+	if index < 0 {
+		t.Fatalf("no image block in %q", all)
+	}
+	remote := doc.Blocks[index]
+	if remote.Alt != "A lighthouse on a rock" {
+		t.Errorf("the remote image's text alternative %q", remote.Alt)
+	}
+	if _, err := book.Resource(remote.Image); err == nil || strings.Contains(remote.Image, "://") {
+		t.Errorf("the remote image %q can be read (%v): want a missing image", remote.Image, err)
+	}
+
+	if doc.Fonts["remote"] != nil || runOf(t, doc, "Remote font").Family != "sans-serif" {
+		t.Errorf("a remote font was used: fonts %v", doc.Fonts)
+	}
+	if doc.Fonts["mirrored"][fonts.Regular] == nil || runOf(t, doc, "Mirrored font").Family != "mirrored" {
+		t.Errorf("the book's own source after a remote one was not used: fonts %v", doc.Fonts)
+	}
+}
+
+// An image's text alternative is kept, not counted in runes: <img alt>, an inline SVG's own
+// <title>, MathML's alttext.
+func TestImageAlt(t *testing.T) {
+	book := openPackage(t, "", "", `
+<item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+<item id="picture" href="picture.png" media-type="image/png"/>`,
+		`><itemref idref="chapter"/>`,
+		map[string]string{
+			"OEBPS/picture.png": pngOf(t, image.Pt(400, 300)),
+			"OEBPS/chapter.xhtml": xhtml(`<p><img src="picture.png" alt=" A  harbour "/></p>
+<p>Small <img src="picture.png" alt="an icon" style="height: 1em"/> inline.</p>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><title>A red <tspan>square</tspan></title><g><title>Not this</title><rect width="20" height="10"/></g></svg>
+<p>So <math alttext="x squared"><msup><mi>x</mi><mn>2</mn></msup></math>.</p>
+<math display="block" alttext="one over n"><mfrac><mn>1</mn><mi>n</mi></mfrac></math>`),
+		})
+	doc, err := book.Chapter(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var alts []string
+	for _, block := range doc.Blocks {
+		if block.Kind == document.Image {
+			alts = append(alts, block.Alt)
+		}
+		for _, run := range block.Runs {
+			if run.Image != "" {
+				alts = append(alts, run.Alt)
+			}
+		}
+	}
+	want := []string{"A harbour", "an icon", "A red square", "x squared", "one over n"}
+	if strings.Join(alts, "|") != strings.Join(want, "|") {
+		t.Errorf("text alternatives %q, want %q", alts, want)
+	}
+	// Each image counts one rune, its text alternative none.
+	if want := 1 + len([]rune("Small ")) + 1 + len([]rune(" inline.")) + 1 + len([]rune("So ")) + 1 + 1 + 1; doc.Chars != want {
+		t.Errorf("%d runes, want %d", doc.Chars, want)
+	}
+}
+
+// Audio and video never play: a video shows its poster when the book holds it, else its
+// fallback content, as does audio; their sources and tracks show nothing.
+func TestMediaElements(t *testing.T) {
+	book := openPackage(t, "", "", `
+<item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+<item id="poster" href="poster.png" media-type="image/png"/>
+<item id="movie" href="movie.mp4" media-type="video/mp4"/>
+<item id="song" href="song.mp3" media-type="audio/mpeg"/>`,
+		`><itemref idref="chapter"/>`,
+		map[string]string{
+			"OEBPS/poster.png": pngOf(t, image.Pt(400, 300)),
+			"OEBPS/movie.mp4":  "not a movie",
+			"OEBPS/song.mp3":   "not a song",
+			"OEBPS/chapter.xhtml": xhtml(`<video poster="poster.png" src="movie.mp4" controls="controls"><p>Poster fallback</p></video>
+<video poster="https://videos.example.com/still.png"><source src="movie.mp4" type="video/mp4"/><p>Remote poster fallback</p></video>
+<video poster="missing.png" src="movie.mp4"><p>Missing poster fallback</p></video>
+<video src="movie.mp4"><track kind="captions" src="captions.vtt"/><p>No poster fallback</p></video>
+<audio controls="controls"><source src="song.mp3" type="audio/mpeg"/><p>Audio fallback</p></audio>
+<audio src="song.mp3"/>
+<p>After</p>`),
+		})
+	doc, err := book.Chapter(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"[image OEBPS/poster.png]", "Remote poster fallback", "Missing poster fallback", "No poster fallback", "Audio fallback", "After"}
+	if got := texts(doc); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("blocks\n%q\nwant\n%q", got, want)
+	}
+}
+
+// A media overlay (read-aloud) is ignored: a book with one builds the same documents as without.
+func TestMediaOverlayIgnored(t *testing.T) {
+	chapter := xhtml(`<p id="s1">The first sentence.</p><p id="s2">The second one.</p>`)
+	smil := `<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops" version="3.0"><body><seq epub:textref="chapter.xhtml">
+<par id="p1"><text src="chapter.xhtml#s1"/><audio src="voice.mp3" clipBegin="0s" clipEnd="2s"/></par>
+<par id="p2"><text src="chapter.xhtml#s2"/><audio src="voice.mp3" clipBegin="2s" clipEnd="4s"/></par>
+</seq></body></smil>`
+	plain := openPackage(t, "", "", `<item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>`,
+		`><itemref idref="chapter"/>`, map[string]string{"OEBPS/chapter.xhtml": chapter})
+	overlaid := openPackage(t, "", `<meta property="media:duration">0:00:04</meta><meta property="media:active-class">-epub-media-overlay-active</meta>`, `
+<item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" media-overlay="overlay"/>
+<item id="overlay" href="chapter.smil" media-type="application/smil+xml"/>
+<item id="voice" href="voice.mp3" media-type="audio/mpeg"/>`,
+		`><itemref idref="chapter"/>`,
+		map[string]string{"OEBPS/chapter.xhtml": chapter, "OEBPS/chapter.smil": smil, "OEBPS/voice.mp3": "not a voice"})
+	if plain.Chapters() != overlaid.Chapters() {
+		t.Fatalf("%d chapters with the overlay, %d without", overlaid.Chapters(), plain.Chapters())
+	}
+	want, err := plain.Chapter(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := overlaid.Chapter(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(texts(got), "|") != strings.Join(texts(want), "|") || got.Chars != want.Chars {
+		t.Errorf("with the overlay %q (%d runes), want %q (%d runes)", texts(got), got.Chars, texts(want), want.Chars)
 	}
 }

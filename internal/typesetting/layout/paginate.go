@@ -1,10 +1,12 @@
 package layout
 
 import (
+	"context"
 	"image"
 	"log"
 	"strings"
 
+	"github.com/CedricHerzog/inkshelf/internal/timing"
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/hyphen"
 	"github.com/CedricHerzog/inkshelf/internal/web/mathml"
@@ -26,6 +28,11 @@ type Settings struct {
 	// reader shows them in a popup when their call is tapped. Notes linked from other chapters
 	// (endnotes) stay in the text, where their links lead.
 	HideFootnotes bool
+	// Horizontal lays every document out in horizontal lines, whatever its writing mode: a note
+	// shown in a popup across the bottom of the page.
+	Horizontal bool
+	// Elements bounds how long drawing a page waits for its images, SVGs and formulas.
+	Elements Elements
 }
 
 // content returns the rectangle the text goes in.
@@ -81,13 +88,54 @@ type paginator struct {
 	// what is placed, line by line, so that a row too high for a page can be cut between lines.
 	cell  *document.TableCell
 	units *[]contentUnit
+	// mode is the writing mode of the lines laid out: a vertical one is laid out in logical
+	// coordinates (vertical.go). page and pageSizer are the page's own settings and image sizes,
+	// before a vertical layout turns them, which orthogonal boxes are laid out with; page is nil
+	// in a paginator that lays out apart (a cell, a float).
+	mode      document.WritingMode
+	page      *Settings
+	pageSizer ImageSizer
 }
 
 // Paginate lays doc out into pages. The first page starts at offset 0, and an empty document has
 // one empty page. faces learn the fonts doc embeds; sizer gives the size of its images.
 func Paginate(doc *document.Document, settings Settings, faces *Faces, sizer ImageSizer) ([]Page, error) {
 	faces.embed(doc.Fonts)
-	layout := &paginator{settings: settings, faces: faces, sizer: sizer, content: settings.content(), doc: doc}
+	mode := doc.WritingMode
+	if settings.Horizontal {
+		mode = document.HorizontalTB
+	}
+	pages, err := paginateIn(mode, doc, settings, faces, sizer)
+	if err != nil {
+		return nil, err
+	}
+	for index := range pages {
+		page := &pages[index]
+		if index+1 < len(pages) {
+			page.End = pages[index+1].Start
+		} else {
+			page.End = doc.Chars
+		}
+		// A table row cut across pages shows text past the next page's start in its later cells.
+		for _, line := range page.Lines {
+			page.End = max(page.End, line.End)
+		}
+	}
+	return pages, nil
+}
+
+// paginateIn lays doc out into pages, its lines in mode: a vertical mode is laid out with the
+// page turned, then turned back.
+func paginateIn(mode document.WritingMode, doc *document.Document, settings Settings, faces *Faces, sizer ImageSizer) ([]Page, error) {
+	layoutSettings, layoutSizer := settings, sizer
+	if mode.Vertical() {
+		// A span of its own, so that the log and the trace tell a vertical chapter's cost apart.
+		span := timing.Start(context.Background(), "paginate vertical")
+		defer span.End()
+		layoutSettings, layoutSizer = settings.turned(mode), turnedSizer(sizer)
+	}
+	layout := &paginator{settings: layoutSettings, faces: faces, sizer: layoutSizer, content: layoutSettings.content(), doc: doc,
+		mode: mode, page: &settings, pageSizer: sizer}
 	layout.pageHeight = layout.content.Dy()
 	for _, block := range doc.Blocks {
 		if block.Hyphenate {
@@ -107,17 +155,15 @@ func Paginate(doc *document.Document, settings Settings, faces *Faces, sizer Ima
 		return nil, err
 	}
 	layout.closeAllBorderBoxes()
+	turner := pageTurner{mode: mode, width: settings.Width}
 	for index := range layout.pages {
 		page := &layout.pages[index]
-		if index+1 < len(layout.pages) {
-			page.End = layout.pages[index+1].Start
-		} else {
-			page.End = doc.Chars
+		if mode.Vertical() {
+			if err := turner.turnPage(page, faces); err != nil {
+				return nil, err
+			}
 		}
-		// A table row cut across pages shows text past the next page's start in its later cells.
-		for _, line := range page.Lines {
-			page.End = max(page.End, line.End)
-		}
+		placeOrthogonalBoxes(page)
 	}
 	return layout.pages, nil
 }
@@ -128,6 +174,14 @@ func (layout *paginator) placeBlocks(blocks []document.Block) error {
 	for index := 0; index < len(blocks); {
 		if layout.cell == nil && len(layout.doc.Boxes) > 0 {
 			layout.enterBorderBoxes(blocks[index])
+		}
+		if layout.isOrthogonal(blocks[index]) {
+			count := layout.orthogonalGroup(blocks[index:])
+			if err := layout.placeOrthogonal(blocks[index : index+count]); err != nil {
+				return err
+			}
+			index += count
+			continue
 		}
 		if table := layout.tableOf(blocks[index]); table != nil {
 			// A table clears the floats, as an image does: a grid squeezed beside a float would
@@ -201,7 +255,7 @@ func (layout *paginator) newPage(start int) {
 // empty page goes there anyway: the next page would be no better.
 func (layout *paginator) pageIsEmpty() bool {
 	page := layout.pages[len(layout.pages)-1]
-	return len(page.Lines) == 0 && len(page.Images) == 0 && len(page.Rules) == 0
+	return len(page.Lines) == 0 && len(page.Images) == 0 && len(page.Rules) == 0 && len(page.orthogonal) == 0
 }
 
 // startBlock moves to where block goes: to a new page if it asks for one, then under its top
@@ -279,29 +333,39 @@ func (layout *paginator) placeImage(block document.Block) {
 	layout.placeBorder(block, false)
 	left += (width - scaled.X) / 2
 	page := &layout.pages[len(layout.pages)-1]
-	page.Images = append(page.Images, PlacedImage{Path: block.Image, Rect: image.Rect(left, layout.y, left+scaled.X, layout.y+scaled.Y)})
+	page.Images = append(page.Images, PlacedImage{Path: block.Image, Rect: image.Rect(left, layout.y, left+scaled.X, layout.y+scaled.Y),
+		Alt: block.Alt, altFormat: textFormat{size: layout.settings.FontSize}})
 	layout.y += scaled.Y
 	layout.recordUnit(layout.y-scaled.Y, block.Start)
 }
 
 // placeFormula places a displayed formula, centred, on the current page if it fits, else on the
 // next. It is laid out at the text's size, smaller if it does not fit in the text's width and
-// the page.
+// the page. MathML lays a formula out across in any writing mode: in vertical text it stands
+// upright, as long down the line as it is high, and as thick across the lines as it is wide.
 func (layout *paginator) placeFormula(block document.Block) {
 	left, width := layout.textArea(block)
-	formula, size, err := layout.faces.formula(block.Image, layout.settings.FontSize, image.Pt(width, layout.pageHeight))
+	limit := image.Pt(width, layout.pageHeight)
+	if layout.mode.Vertical() {
+		limit = image.Pt(layout.pageHeight, width)
+	}
+	formula, size, err := layout.faces.formula(block.Image, layout.settings.FontSize, limit)
 	if err != nil {
 		log.Printf("layout: formula: %v", err)
 		return
 	}
-	height := formula.Ascent + formula.Descent
+	along, height := formula.Width, formula.Ascent+formula.Descent // in the layout's coordinates
+	if layout.mode.Vertical() {
+		along, height = height, along
+	}
 	if layout.borderHeight(block.BorderTop)+height > layout.roomLeft() && !layout.pageIsEmpty() {
 		layout.newPage(block.Start)
 	}
 	layout.placeBorder(block, false)
-	left += (width - formula.Width) / 2
+	left += (width - along) / 2
 	page := &layout.pages[len(layout.pages)-1]
-	page.Images = append(page.Images, PlacedImage{Path: block.Image, Rect: image.Rect(left, layout.y, left+formula.Width, layout.y+height), MathSize: size})
+	page.Images = append(page.Images, PlacedImage{Path: block.Image, Rect: image.Rect(left, layout.y, left+along, layout.y+height), MathSize: size,
+		Alt: block.Alt, altFormat: textFormat{family: mathFamily, size: layout.settings.FontSize}})
 	layout.y += height
 	layout.recordUnit(layout.y-height, block.Start)
 }

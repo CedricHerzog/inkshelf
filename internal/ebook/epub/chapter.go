@@ -46,7 +46,7 @@ func (book *Book) Document(itemPath string) (*document.Document, error) {
 // whole. forIndex leaves out what BuildIndex doesn't need.
 func (book *Book) documentOf(item container.SpineItem, forIndex bool) (*document.Document, error) {
 	switch {
-	case cmp.Or(item.Layout, book.Layout) == PrePaginated:
+	case book.RenditionOf(item).Layout == PrePaginated:
 		doc := &document.Document{}
 		doc.Add(document.Block{Kind: document.Image, Image: renderedPagePrefix + item.Path})
 		return doc, nil

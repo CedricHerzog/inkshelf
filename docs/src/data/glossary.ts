@@ -409,7 +409,7 @@ export const glossary: readonly GlossaryEntry[] = [
     id: 'font-fallback',
     term: 'Font fallback',
     group: 'Layout',
-    short: 'Drawing the characters a font lacks with another font that has them: DejaVu Sans, then Go\'s font.',
+    short: 'Drawing the characters a font lacks with another font that has them: DejaVu Sans, then the app\'s CJK font, then Go\'s font.',
     chapter: '/books/fonts',
   },
   {

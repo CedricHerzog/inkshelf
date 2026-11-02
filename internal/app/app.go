@@ -17,6 +17,7 @@ import (
 	"github.com/CedricHerzog/inkshelf/internal/app/session"
 	"github.com/CedricHerzog/inkshelf/internal/app/state"
 	"github.com/CedricHerzog/inkshelf/internal/app/widgets"
+	"github.com/CedricHerzog/inkshelf/internal/deadline"
 	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
 	"github.com/CedricHerzog/inkshelf/internal/graphics/fonts"
 	"github.com/CedricHerzog/inkshelf/internal/servers"
@@ -65,8 +66,15 @@ func New(dir string, open servers.Opener, kindOf servers.KindOf, options Options
 	}
 }
 
+// The workers of the deadline pools. Two for reading, so that one element given up and still
+// running leaves a worker for the next; one for downloads, which prepare one page at a time.
+const (
+	readingWorkers  = 2
+	downloadWorkers = 1
+)
+
 // Init draws the loading screen and starts the goroutines: the session's loading, the
-// preloader of pages and the loader of covers.
+// preloader of pages, the loader of covers and the workers of the deadline pools.
 func (app *application) Init() error {
 	size := pocketbook.ScreenSize()
 	widgets.SetScreen(min(size.X, size.Y))
@@ -82,6 +90,8 @@ func (app *application) Init() error {
 	app.Covers.Failed = map[state.CoverKey]bool{}
 	app.ServerChoice = make(chan int, 1)
 	app.Syncer = session.NewSyncer(app.State)
+	app.ReadingPool = deadline.NewPool(readingWorkers)
+	app.DownloadPool = deadline.NewPool(downloadWorkers)
 	app.Loading.Status = "Loading series…"
 	app.Draw()
 
@@ -89,6 +99,12 @@ func (app *application) Init() error {
 	app.Go(state.LoadingWork, func() { session.Load(app.State) })
 	app.GoLoop(func() { openbook.Preloader(app.State) })
 	app.GoLoop(func() { covers.Loader(app.State) })
+	for range readingWorkers {
+		app.GoLoop(func() { app.ReadingPool.Loop(app.Ctx) })
+	}
+	for range downloadWorkers {
+		app.GoLoop(func() { app.DownloadPool.Loop(app.Ctx) })
+	}
 	return nil
 }
 
@@ -142,8 +158,9 @@ func (app *application) Draw() {
 		return
 	}
 	// The panel no longer shows the book's page: the reader refreshes it whole when it comes
-	// back.
+	// back. Only the reader draws in landscape, for a spread.
 	app.Reader.Shown = state.Shown{}
+	pocketbook.SetOrientation(pocketbook.Portrait)
 	pocketbook.ClearScreen()
 	screen.DrawLocked()
 	widgets.Show(dark, fullRefresh, pocketbook.GC16, pocketbook.Screen())

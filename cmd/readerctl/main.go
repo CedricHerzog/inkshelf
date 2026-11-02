@@ -218,6 +218,10 @@ func (reader *reader) runScript(path string) error {
 	if err := os.RemoveAll(outDir); err != nil {
 		return err
 	}
+	// A script that fails before its first shot still gets its log, and its error reported.
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return err
+	}
 	for _, name := range result.Shots {
 		if err := reader.saveTo(filepath.Join(outDir, name+".png"), "/shots/"+name+".png", requestTimeout); err != nil {
 			return err

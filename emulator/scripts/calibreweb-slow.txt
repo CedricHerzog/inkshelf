@@ -1,0 +1,15 @@
+# The showcase's Safety chapter on a page that waits 10 ms in all for its pictures, not 10 s: the
+# large photograph, not decoded in time, shows its description in its box:
+#   make shots SCRIPT=emulator/scripts/calibreweb-slow.txt EMUFLAGS="-fake-type calibreweb -element-limit 10ms"
+# The series list's rows, 282 px high from y 292, are centred at y 433, 715, 997: No series is
+# the third, and World scripts the third of its books. Its contents screen has no tabs: the
+# chapters' lines are 141 px high from y 166, Safety, the seventh, at y 1080.
+
+tap 700 997                 # No series
+tap 700 997                 # download World scripts
+idle 60s
+tap 700 433                 # read it: downloaded books come first
+tap 700 900                 # the toolbar
+tap 720 84                  # Contents
+tap 700 1080                # Safety
+shot 01-safety              # the large photograph's description in its box, the rest of the page as at 10 s

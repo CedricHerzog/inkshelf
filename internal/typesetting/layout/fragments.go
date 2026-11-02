@@ -85,6 +85,8 @@ func (word word) text() string {
 // (text.breaks is set) breaks where the Unicode line breaking algorithm allows instead. A
 // fragment never mixes two bidirectional levels, so that it can be drawn in one direction: a
 // right-to-left fragment, or one in a script whose letters join, is measured and drawn shaped.
+// In vertical text, a fragment is either upright or sideways (characterForm), and a run that
+// combines (a year across a column) is one fragment.
 //
 // This is the hottest loop of the layout, which is why it stays one function with closures: it
 // runs once per character of every chapter laid out.
@@ -109,13 +111,20 @@ func splitFragments(block *document.Block, formats []*runFormat, faces *Faces, t
 		}
 		var characters strings.Builder
 		start, runes := offset, 0
+		form := Horizontal // of the fragment being built, in vertical text
+		if text.vertical && combines(run) {
+			form = Combined
+		}
 		endFragment := func(kind breakKind) {
 			if runes > 0 {
 				content := characters.String()
 				fragmentFormat := format
-				if levels != nil || text.shaped {
+				if form != Horizontal {
+					fragmentFormat = format.verticalFormat(form, text.languageOf(run))
+				}
+				if (levels != nil || text.shaped) && form != Upright && form != Combined {
 					if rightToLeft := text.level(start)%2 == 1; rightToLeft || text.shaped && containsShaped(content) {
-						fragmentFormat = format.shapedFormat(rightToLeft, text.languageOf(run))
+						fragmentFormat = fragmentFormat.shapedFormat(rightToLeft, text.languageOf(run))
 					}
 				}
 				fragments = append(fragments, fragment{text: content, format: fragmentFormat, start: start, runes: runes, width: fragmentFormat.width(faces, content), breakAfter: kind})
@@ -124,6 +133,22 @@ func splitFragments(block *document.Block, formats []*runFormat, faces *Faces, t
 			}
 			characters.Reset()
 			runes = 0
+		}
+		if form == Combined {
+			// Across in one cell: no break inside, but after it where the text allows one.
+			for _, character := range run.Text {
+				characters.WriteRune(character)
+				runes++
+				offset++
+			}
+			kind := breakNone
+			if opportunities != nil {
+				if opportunities[offset-1-block.Start] {
+					kind = breakDirect
+				}
+			}
+			endFragment(kind)
+			continue
 		}
 		for _, character := range run.Text {
 			switch character {
@@ -136,6 +161,12 @@ func splitFragments(block *document.Block, formats []*runFormat, faces *Faces, t
 			default:
 				if levels != nil && runes > 0 && text.level(offset) != text.level(start) {
 					endFragment(breakNone)
+				}
+				if text.vertical {
+					if characterForm := characterForm(character, run.Orientation); characterForm != form {
+						endFragment(breakNone)
+						form = characterForm
+					}
 				}
 				if runes == 0 {
 					start = offset

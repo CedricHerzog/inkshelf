@@ -17,6 +17,7 @@ guard it (see the end of this page).
 └── inkshelf/
     ├── config.json                      the servers, written by the user
     ├── profile, remote                  markers written by the user: profiling, remote control
+    ├── fonts/                           the CJK fonts, decompressed from the program (a cache)
     └── servers/<name>/                  one folder per server, named after its "name"
         ├── filters.json                 the lists' filters and the reader's settings
         ├── covers/
@@ -25,6 +26,7 @@ guard it (see the end of this page).
         └── books/<book id>/
             ├── book.json                the book and its progress, written last
             ├── 0001.pg4, 0002.pg4 …     a book of pages
+            ├── spread-0002.pg4 …        the spreads of a fixed-layout EPUB, in landscape
             ├── book.epub, index.json, cover.pg4    a Reflowable EPUB
             └── book.cbz, book.epub.part …          only while downloading
 ```
@@ -67,7 +69,11 @@ cover older than its series is fetched again.
 `book.json` is `shelf.Book` ([shelf/book.go](../../internal/shelf/book.go)): ids, titles, `pages`,
 `format`, `number`, `direction`, and the progress: `page`, `completed`, `dirty` (the Go field is
 `Unsynced`), `remove` (`PendingRemoval`), `readAt`, and for an EPUB `location`
-(`{"chapter", "offset"}`, see [progress-sync.md](progress-sync.md)).
+(`{"chapter", "offset"}`, see [progress-sync.md](progress-sync.md)). A fixed-layout EPUB with
+two-page spreads also has `spreads`: the pages, counted from 1, that start one (`[2, 4]`). Each
+number n has its `spread-%04d.pg4` on disk, written before `book.json`; n + 1 is a page of the
+book, and spreads do not overlap. The field is left out when empty: a book downloaded before
+spreads reads in portrait, one page at a time, and an older version ignores the field.
 
 **book.json is written last.** A folder without it is an interrupted download, and the next
 `Download` resumes it, skipping pages already on disk. Every file is written to a temporary file
@@ -78,7 +84,7 @@ What else the folder holds depends on `format` (the integer values of `servers.F
 | `format` | What | Files |
 |---|---|---|
 | 0, `PageImages` | Komga pages, Mealie recipes | `0001.pg4` …; books from old versions have `0001.png` …, still read |
-| 1, `ComicArchive` | a CBZ, or a fixed-layout EPUB drawn at download | `0001.pg4` …; `book.cbz` or `book.epub` only until the pages are made, then deleted |
+| 1, `ComicArchive` | a CBZ, or a fixed-layout EPUB drawn at download | `0001.pg4` …; for a fixed-layout EPUB, `spread-0002.pg4` … (1872×1404, the two pages side by side); `book.cbz` or `book.epub` only until the pages are made, then deleted |
 | 2, `Reflowable` | an EPUB laid out while reading | `book.epub`; `index.json`; `cover.pg4` |
 
 A CBZ or an EPUB is fetched to `book.cbz.part` or `book.epub.part`, renamed once complete.
@@ -98,8 +104,24 @@ and the page progression. It carries `version`, `epub.IndexVersion`: an index of
 is built again when the book opens (`Store.LoadIndex`).
 
 Bump `IndexVersion` when a change to [ebook/epub](../../internal/ebook/epub) changes how many runes a
-chapter has. Note that the reading positions saved in `book.json` are rune offsets too: a change
-that moves offsets moves the readers' places in their books a little.
+chapter has, or what else the index says. Note that the reading positions saved in `book.json` are
+rune offsets too: a change that moves offsets moves the readers' places in their books a little.
+Version 8 (from 7) gives a vertical-rl book without a `page-progression-direction` the right to left
+page progression; its rune counts are those of version 7, so saved positions keep their place.
+Version 9 adds `spreads`, the image spreads of a reflowable book (`{"first", "left", "right"}`,
+chapter indexes), left out when empty; rune counts do not change. The golden
+`testdata/golden/index.json` is version 9, and `index-7.json` and `index-8.json` check that an older
+index is built again.
+
+## fonts
+
+`fonts/NotoSansCJKjp-Regular.otf` and `fonts/NotoSerifCJKjp-Regular.otf` are the CJK fonts of
+[graphics/fonts](../../internal/graphics/fonts) (`cjk.go`), decompressed from the program the first
+time a page needs a Chinese, Japanese or Korean character, so that later starts skip the
+decompression. Only on a firmware without Noto CJK of its own: the InkPad 3's 6.x has them, and
+leaves the folder unwritten (a folder written by an earlier version stays, unused). A cache: deleting the folder is safe, and a file whose size is not the font's (written
+in part when the reader went off, or by another version) is written again. Each is written to a
+temporary file renamed over it. The emulator keeps its copy in `build/emulator-cache/fonts/`.
 
 ## inkshelf.log
 

@@ -216,6 +216,7 @@ func (layout *paginator) cellPaginator(cell *document.TableCell, size, width int
 	return &paginator{
 		settings: settings, faces: layout.faces, sizer: layout.sizer, hyphenator: layout.hyphenator, doc: layout.doc,
 		content: image.Rect(0, 0, max(width, 1), cellHeight), pageHeight: layout.pageHeight, cell: cell, units: units,
+		mode: layout.mode,
 	}
 }
 

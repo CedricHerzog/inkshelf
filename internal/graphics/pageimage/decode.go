@@ -2,6 +2,7 @@ package pageimage
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -10,8 +11,11 @@ import (
 	_ "image/png"  // registers the PNG decoder with image.Decode
 	"io"
 
-	"github.com/gen2brain/jxl"  // also registers the JPEG XL decoder with image.Decode, unguarded
-	_ "golang.org/x/image/webp" // registers the WebP decoder with image.Decode
+	"github.com/gen2brain/gav1d/avif" // also registers the AVIF decoder with image.Decode, unguarded
+	"github.com/gen2brain/jxl"        // also registers the JPEG XL decoder with image.Decode, unguarded
+	_ "golang.org/x/image/webp"       // registers the WebP decoder with image.Decode
+
+	"github.com/CedricHerzog/inkshelf/internal/timing"
 )
 
 // The signatures of a JPEG XL file: a bare codestream, or the ISO BMFF container.
@@ -28,6 +32,42 @@ const maxJXLPixels = 1 << 23
 // errJXLTooLarge is returned for a JPEG XL image larger than maxJXLPixels.
 var errJXLTooLarge = errors.New("jxl: image too large")
 
+// The brands of an AVIF file, its bytes 4 to 12: a still image, or an image sequence.
+const (
+	avifStill    = "ftypavif"
+	avifSequence = "ftypavis"
+)
+
+// maxAVIFPixels is the largest AVIF image decoded, in pixels: JPEG XL's 8.4 M. An AV1 decoder
+// keeps its reference planes and works a picture in 16-bit samples, and a header may ask for any
+// size.
+const maxAVIFPixels = maxJXLPixels
+
+// errAVIFTooLarge is returned for an AVIF image larger than maxAVIFPixels.
+var errAVIFTooLarge = errors.New("avif: image too large")
+
+// avifOnCaller is set once gav1d can decode on the calling goroutine. It cannot yet: it decodes
+// a frame and its tiles on goroutines of its own whenever the reader has more than one core, and
+// a panic there on a crafted image would end the app, which no recover can stop. Until then an
+// AVIF is refused and the book's manifest fallback shows instead (the container no longer counts
+// AVIF as an image it can show), or the image's text alternative.
+const avifOnCaller = false
+
+// ErrRefused is the error, wrapped, of an image of a format the app can read but chooses not to
+// decode: its text alternative is shown in its place, as for one that is not ready in time.
+var ErrRefused = errors.New("image refused")
+
+// errAVIFOffCaller is returned for an AVIF image while avifOnCaller is not set.
+var errAVIFOffCaller = fmt.Errorf("%w: avif: its decoder would run off the calling goroutine", ErrRefused)
+
+// maxPixels is the largest image of another format decoded, in pixels (33.5 M, a double page
+// scanned at 400 dpi): decoded, it takes up to 4 bytes a pixel, and a header may ask for any
+// size, which a book could use to take the reader's memory.
+const maxPixels = 1 << 25
+
+// errTooLarge is returned for an image larger than maxPixels.
+var errTooLarge = errors.New("image too large")
+
 // DecodeGray decodes a JPEG, PNG, WebP or JPEG XL image to grayscale, what is transparent in
 // it composited over white, the page.
 func DecodeGray(data []byte) (*image.Gray, error) {
@@ -38,14 +78,30 @@ func DecodeGray(data []byte) (*image.Gray, error) {
 	return toGray(img), nil
 }
 
-// Decode decodes an image of any registered format, a JPEG XL one through decodeJXL. It is
-// what decodes the images of books and servers: the JPEG XL decoder that image.Decode picks
-// has no size cap, and a panic in its goroutines could not be recovered.
-func Decode(data []byte) (image.Image, error) {
-	if isJXL(data) {
+// Decode decodes an image of any registered format, a JPEG XL one through decodeJXL, and refuses
+// an AVIF one until avifOnCaller is set. It is what decodes the images of books and servers: the
+// decoders that image.Decode picks for those have no size cap of ours, and a panic in their
+// goroutines could not be recovered. An image whose header gives more than maxPixels is not
+// decoded, and a decoder's panic is returned as an error.
+func Decode(data []byte) (img image.Image, err error) {
+	switch {
+	case isJXL(data):
 		return decodeJXL(data)
+	case isAVIF(data):
+		if !avifOnCaller {
+			return nil, errAVIFOffCaller
+		}
+		return decodeAVIF(data)
 	}
-	img, _, err := image.Decode(bytes.NewReader(data))
+	defer recoverError(&err)
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	if int64(config.Width)*int64(config.Height) > maxPixels {
+		return nil, fmt.Errorf("%w: %d×%d", errTooLarge, config.Width, config.Height)
+	}
+	img, _, err = image.Decode(bytes.NewReader(data))
 	return img, err
 }
 
@@ -78,6 +134,31 @@ func decodeJXL(data []byte) (img image.Image, err error) {
 	// One thread: a panic in the decoder's own goroutines would end the app. Pages are
 	// decoded in parallel already.
 	return jxl.Decode(bytes.NewReader(data), jxl.Options{Threads: 1, FrameSizeLimit: maxJXLPixels})
+}
+
+// isAVIF reports whether data is an AVIF file: an ISO BMFF file of an AVIF brand.
+func isAVIF(data []byte) bool {
+	return len(data) >= 12 && (string(data[4:12]) == avifStill || string(data[4:12]) == avifSequence)
+}
+
+// decodeAVIF decodes an AVIF image whose header gives at most maxAVIFPixels, its frame limited
+// to the same, a panic on the calling goroutine returned as an error. gav1d decodes an image's
+// frame and tiles on goroutines of its own and offers no way to keep them on the caller, so a
+// panic there is not recovered: Decode calls it only once avifOnCaller is set, and fuzzing
+// (FuzzDecodeAVIF) keeps it ready for then. It gives *image.NRGBA,
+// or *image.NRGBA64 above 8 bits, which goes through img.At.
+func decodeAVIF(data []byte) (img image.Image, err error) {
+	span := timing.Start(context.Background(), "decode avif")
+	defer span.End()
+	defer recoverError(&err)
+	config, err := avif.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	if int64(config.Width)*int64(config.Height) > maxAVIFPixels {
+		return nil, fmt.Errorf("%w: %d×%d", errAVIFTooLarge, config.Width, config.Height)
+	}
+	return avif.Decode(bytes.NewReader(data), avif.Options{FrameSizeLimit: maxAVIFPixels})
 }
 
 // recoverError puts a panic, as an error, in *err; it is deferred.

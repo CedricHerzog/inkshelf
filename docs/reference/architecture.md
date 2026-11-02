@@ -13,18 +13,19 @@ interactive animations.
 |---|---|---|
 | device | [device/pocketbook](../../internal/device/pocketbook) | The PocketBook reader without its SDK: framebuffer, e-ink refreshes, firmware messages, input, the event loop, Wi-Fi, and an emulated reader for the host. |
 | device | [device/pocketbook/script](../../internal/device/pocketbook/script) | Scripts of taps, buttons, waits and shots, parsed and run against the emulator or a reader under remote control. |
-| graphics | [graphics/fonts](../../internal/graphics/fonts), [graphics/pageimage](../../internal/graphics/pageimage) | Pixels: TrueType fonts, shaping and drawing text in gray; page images decoded, fitted, toned, dithered to 16 grays and packed into `.pg4` files. |
+| graphics | [graphics/fonts](../../internal/graphics/fonts), [graphics/pageimage](../../internal/graphics/pageimage) | Pixels: TrueType fonts (the CJK ones compiled in), shaping and drawing text in gray, upright or turned for vertical text; page images decoded, fitted, toned, dithered to 16 grays and packed into `.pg4` files. |
 | web | [web/css](../../internal/web/css), [web/svgimage](../../internal/web/svgimage), [web/mathml](../../internal/web/mathml), [web/webfont](../../internal/web/webfont), [web/webimage](../../internal/web/webimage), [web/uri](../../internal/web/uri) | The web formats books are written in: the CSS cascade, SVG, MathML, WOFF fonts, a book's images, relative links and data: URIs. |
-| typesetting | [typesetting/document](../../internal/typesetting/document), [typesetting/layout](../../internal/typesetting/layout), [typesetting/hyphen](../../internal/typesetting/hyphen) | Text on pages: the document model (blocks of styled runs), line breaking, bidi, justification, floats, tables, pagination, hyphenation. |
+| typesetting | [typesetting/document](../../internal/typesetting/document), [typesetting/layout](../../internal/typesetting/layout), [typesetting/hyphen](../../internal/typesetting/hyphen) | Text on pages: the document model (blocks of styled runs), line breaking, bidi, vertical writing, justification, floats, tables, pagination, hyphenation. |
 | ebook | [ebook/epub/container](../../internal/ebook/epub/container), [ebook/epub](../../internal/ebook/epub), [ebook/fixedlayout](../../internal/ebook/fixedlayout), [ebook/comicarchive](../../internal/ebook/comicarchive) | Book files: an EPUB's zip, package and navigation; its XHTML and CSS turned into documents; fixed-layout pages; the pages of a CBZ. |
 | (utility) | [naturalorder](../../internal/naturalorder) | "Tome 2" before "Tome 10". Imports nothing; used by ebook, servers and shelf. |
 | (utility) | [timing](../../internal/timing) | Spans for the log and the execution trace, and profile captures. Imports nothing of Inkshelf's; any domain may use it. See [profiling.md](profiling.md). |
+| (utility) | [deadline](../../internal/deadline) | Workers that bound how long a page waits for a slow image, SVG or formula; past the wait, the element's fallback shows. Imports only `timing`; any domain may use it. |
 | servers | [servers](../../internal/servers), [servers/komga](../../internal/servers/komga), [servers/mealie](../../internal/servers/mealie), [servers/calibreweb](../../internal/servers/calibreweb), [servers/httpclient](../../internal/servers/httpclient), [servers/registry](../../internal/servers/registry), their fakes, [servers/servertest](../../internal/servers/servertest) | What the app needs from a server of books (the `Server` interface and its neutral model), and one package per kind of server. See [servers.md](servers.md). |
 | shelf | [shelf](../../internal/shelf) | The books downloaded on the reader: downloading them, preparing them for the panel, `book.json`, covers. See [on-disk-formats.md](on-disk-formats.md). |
 | progress | [progress](../../internal/progress) | Keeping the reading progress of the reader and the server in agreement. See [progress-sync.md](progress-sync.md). |
 | reading | [reading](../../internal/reading) | The engine behind reading an EPUB whose text flows: positions, page turns across chapters, links and notes, the table of contents. |
 | app | [app](../../internal/app) and below | The user interface: state, widgets, services, screens. See [app-threading.md](app-threading.md). |
-| cmd | [cmd/inkshelf](../../cmd/inkshelf), [cmd/emulator](../../cmd/emulator) | The program for the reader, and the emulator for the host. See [emulator.md](emulator.md). |
+| cmd | [cmd/inkshelf](../../cmd/inkshelf), [cmd/emulator](../../cmd/emulator), [cmd/readerctl](../../cmd/readerctl), [cmd/epubtests](../../cmd/epubtests) | The program for the reader, the emulator for the host, the remote control of a reader, and the W3C's EPUB tests read as the reader would. See [emulator.md](emulator.md), [remote-control.md](remote-control.md) and [epub-conformance.md](epub-conformance.md). |
 
 ## The layering rule
 
@@ -87,7 +88,8 @@ flowchart BT
 ```
 
 `timing` is left out of the graph to keep it readable: device, graphics, ebook, servers, shelf,
-reading, app and cmd use it, to time their work for the log and the trace.
+reading, app and cmd use it, to time their work for the log and the trace. So is `deadline`,
+which app uses to start its workers.
 
 ## Where do I look for…
 
@@ -100,8 +102,8 @@ reading, app and cmd use it, to time their work for the log and the trace.
 | How a page image is prepared | [graphics/pageimage](../../internal/graphics/pageimage); [image-pipeline.md](image-pipeline.md) |
 | A CSS property in a book | [ebook/epub](../../internal/ebook/epub) (`computeStyle` and the builder), [web/css](../../internal/web/css) (parsing, cascade); [epub-to-page.md](epub-to-page.md) |
 | What a chapter becomes | [typesetting/document](../../internal/typesetting/document); [document-model.md](document-model.md) |
-| Line breaking, justification, pagination | [typesetting/layout](../../internal/typesetting/layout); [pagination.md](pagination.md) |
-| Fonts, fallbacks, Arabic shaping | [graphics/fonts](../../internal/graphics/fonts) |
+| Line breaking, justification, pagination, vertical writing | [typesetting/layout](../../internal/typesetting/layout); [pagination.md](pagination.md) |
+| Fonts, fallbacks, the CJK fonts, Arabic shaping | [graphics/fonts](../../internal/graphics/fonts) |
 | How much of EPUB 3.3 works | [epub-conformance.md](epub-conformance.md) |
 | A server's API | [servers/komga](../../internal/servers/komga), [servers/mealie](../../internal/servers/mealie), [servers/calibreweb](../../internal/servers/calibreweb); [servers.md](servers.md) |
 | Adding a kind of server | [servers.md](servers.md), the checklist at the end |

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
+	"github.com/CedricHerzog/inkshelf/internal/typesetting/layout"
 	"github.com/CedricHerzog/inkshelf/internal/web/css"
 	"github.com/CedricHerzog/inkshelf/internal/web/webimage"
 )
@@ -90,7 +91,7 @@ func darkIn(page *image.Gray, rect image.Rectangle) bool {
 func TestRenderImagePage(t *testing.T) {
 	book := files{"page.png": blackPNG(t, image.Pt(400, 400))}
 	page := &Page{Size: image.Pt(600, 800), EmPixels: 16, Regions: []*Region{{Rect: image.Rect(0, 0, 600, 800), Content: imageDocument("page.png")}}}
-	drawn, err := page.Render(image.Pt(300, 300), book)
+	drawn, err := page.Render(image.Pt(300, 300), book, layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +104,7 @@ func TestRenderImagePage(t *testing.T) {
 }
 
 // The text of a positioned box is laid out in it, at the page's scale, and nothing of it is
-// drawn outside; its background image is stretched over it.
+// drawn outside; its background image, sized 100% 100%, is stretched over it.
 func TestRenderPositionedText(t *testing.T) {
 	text := &document.Document{}
 	text.Add(document.Block{Runs: []document.Run{{Text: "Il était une fois une très longue phrase qui ne tient pas sur une ligne."}}})
@@ -111,9 +112,9 @@ func TestRenderPositionedText(t *testing.T) {
 	page := &Page{Size: image.Pt(600, 800), EmPixels: 16, Regions: []*Region{
 		{Rect: image.Rect(0, 0, 600, 800)},
 		{Rect: box, Content: text},
-		{Rect: image.Rect(0, 700, 600, 800), Background: "dark.png"},
+		{Rect: image.Rect(0, 700, 600, 800), Layers: layersOf(t, "background: url(dark.png) 0 0 / 100% 100% no-repeat")},
 	}}
-	drawn, err := page.Render(image.Pt(1200, 1600), files{"dark.png": blackPNG(t, image.Pt(10, 10))})
+	drawn, err := page.Render(image.Pt(1200, 1600), files{"dark.png": blackPNG(t, image.Pt(10, 10))}, layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +137,7 @@ func TestRenderPositionedText(t *testing.T) {
 func TestRenderSVGPage(t *testing.T) {
 	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="100" height="200" viewBox="0 0 100 200"><rect x="0" y="100" width="100" height="100" fill="black"/></svg>`)
 	page := &Page{Size: image.Pt(100, 200), EmPixels: 16, Regions: []*Region{{Rect: image.Rect(0, 0, 100, 200), Content: imageDocument("page.svg")}}}
-	drawn, err := page.Render(image.Pt(100, 100), files{"page.svg": svg})
+	drawn, err := page.Render(image.Pt(100, 100), files{"page.svg": svg}, layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,22 +149,40 @@ func TestRenderSVGPage(t *testing.T) {
 	}
 }
 
-func FuzzFillGradient(f *testing.F) {
-	for _, seed := range []string{"linear-gradient(to top left, red, blue 10% 20%, #0008)", "linear-gradient(-45deg, black -50%, white 150%)"} {
+func FuzzRenderBackground(f *testing.F) {
+	for _, seed := range []string{"background: linear-gradient(to top left, red, blue 10% 20%, #0008)",
+		"background: url(half.png) 3px 4px / 7px auto space, repeating-radial-gradient(circle, black, white 2px)",
+		"background: linear-gradient(-45deg, black -50%, white 150%) 0 0 / 1px 1px"} {
 		f.Add(seed, 7, 3)
 	}
-	f.Fuzz(func(t *testing.T, value string, width, height int) {
-		gradient, ok := css.ParseLinearGradient(value, css.Black)
-		if !ok {
-			return
+	files := files{"half.png": transparentPNG(f, image.Pt(4, 4))}
+	f.Fuzz(func(t *testing.T, style string, width, height int) {
+		var layers []document.BackgroundLayer
+		for _, layer := range css.Backgrounds(css.ParseDeclarations(style), css.Black) {
+			layers = append(layers, document.BackgroundLayer{BackgroundLayer: layer, ImageSize: image.Pt(4, 4)})
 		}
-		canvas := image.NewGray(image.Rect(0, 0, 8, 8))
-		fillGradient(canvas, image.Rect(-2, -2, width%64, height%64), &gradient)
+		page := &Page{Size: image.Pt(64, 64), EmPixels: 16, Regions: []*Region{{Rect: image.Rect(-2, -2, width%64, height%64), Layers: layers}}}
+		if _, err := page.Render(image.Pt(32, 32), files, layout.Elements{}); err != nil {
+			t.Fatal(err)
+		}
 	})
 }
 
+// layersOf returns the background layers of a style, in CSS pixels.
+func layersOf(t testing.TB, style string) []document.BackgroundLayer {
+	t.Helper()
+	var layers []document.BackgroundLayer
+	for _, layer := range css.Backgrounds(css.ParseDeclarations(style), css.Black) {
+		layers = append(layers, document.BackgroundLayer{BackgroundLayer: layer})
+	}
+	if len(layers) == 0 {
+		t.Fatalf("no layer in %q", style)
+	}
+	return layers
+}
+
 // transparentPNG returns a PNG of size whose left half is black and right half transparent.
-func transparentPNG(t *testing.T, size image.Point) []byte {
+func transparentPNG(t testing.TB, size image.Point) []byte {
 	t.Helper()
 	picture := image.NewNRGBA(image.Rectangle{Max: size})
 	for row := range size.Y {
@@ -178,18 +197,14 @@ func transparentPNG(t *testing.T, size image.Point) []byte {
 	return encoded.Bytes()
 }
 
-// A box's color, then its gradient, then its image: the gradient from white to black, top to
-// bottom, over a half-transparent gray; the transparent half of the image shows them.
+// A box's color, then its layers from the bottom one up: the gradient from white to black, top
+// to bottom, over a half-transparent gray; the transparent half of the image shows them.
 func TestRenderBackgrounds(t *testing.T) {
-	gradient, ok := css.ParseLinearGradient("linear-gradient(to bottom, white, black)", css.Black)
-	if !ok {
-		t.Fatal("the gradient does not parse")
-	}
 	page := &Page{Size: image.Pt(100, 100), EmPixels: 16, Regions: []*Region{
 		{Rect: image.Rect(0, 0, 100, 50), Color: css.Color{Gray: 0, Alpha: 128}},
-		{Rect: image.Rect(0, 50, 100, 100), Gradient: &gradient, Background: "half.png"},
+		{Rect: image.Rect(0, 50, 100, 100), Layers: layersOf(t, "background: url(half.png) 0 0 / 100% 100%, linear-gradient(to bottom, white, black)")},
 	}}
-	drawn, err := page.Render(image.Pt(100, 100), files{"half.png": transparentPNG(t, image.Pt(20, 20))})
+	drawn, err := page.Render(image.Pt(100, 100), files{"half.png": transparentPNG(t, image.Pt(20, 20))}, layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,29 +220,6 @@ func TestRenderBackgrounds(t *testing.T) {
 	} {
 		if gray := drawn.GrayAt(check.point.X, check.point.Y).Y; gray < check.low || gray > check.high {
 			t.Errorf("gray at %v = %d, want %d to %d", check.point, gray, check.low, check.high)
-		}
-	}
-}
-
-// A gradient to a corner and at an angle: CSS's gradient line, as long as the box's corners
-// are apart along it.
-func TestGradientDirections(t *testing.T) {
-	for _, test := range []struct {
-		value       string
-		dark, light image.Point
-	}{
-		{"linear-gradient(90deg, white, black)", image.Pt(99, 50), image.Pt(0, 50)},
-		{"linear-gradient(to top left, white, black)", image.Pt(0, 0), image.Pt(99, 99)},
-		{"linear-gradient(0.5turn, black, white)", image.Pt(50, 0), image.Pt(50, 99)},
-	} {
-		gradient, ok := css.ParseLinearGradient(test.value, css.Black)
-		if !ok {
-			t.Fatalf("%s does not parse", test.value)
-		}
-		canvas := image.NewGray(image.Rect(0, 0, 100, 100))
-		fillGradient(canvas, canvas.Bounds(), &gradient)
-		if dark, light := canvas.GrayAt(test.dark.X, test.dark.Y).Y, canvas.GrayAt(test.light.X, test.light.Y).Y; dark > 10 || light < 245 {
-			t.Errorf("%s: %d at %v, %d at %v", test.value, dark, test.dark, light, test.light)
 		}
 	}
 }

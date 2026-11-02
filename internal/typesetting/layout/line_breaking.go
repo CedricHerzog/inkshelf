@@ -190,18 +190,52 @@ func splitWord(unsplit word, at int, breakAfter breakKind, measure measurer) []w
 	return []word{head, tail}
 }
 
+// exactTailRunes is the longest tail of a cut fragment that is measured again. A longer one, the
+// rest of a word far wider than a line, is taken as the fragment's width less the head's: it will
+// be cut again, and measuring all of it at each cut made a 100,000-letter word take minutes.
+const exactTailRunes = 1024
+
 // cutFragment cuts fragment after its first runes runes.
 func cutFragment(fragment fragment, runes int, measure measurer) (head, tail fragment) {
-	index := 0
-	for range runes {
-		_, size := utf8.DecodeRuneInString(fragment.text[index:])
-		index += size
-	}
+	index := runeIndex(fragment.text, runes)
 	head, tail = fragment, fragment
 	head.text, head.runes, head.breakAfter = fragment.text[:index], runes, breakNone
 	tail.text, tail.runes, tail.start = fragment.text[index:], fragment.runes-runes, fragment.start+runes
-	head.width, tail.width = measure(head.text, fragment.format), measure(tail.text, fragment.format)
+	head.width = measure(head.text, fragment.format)
+	if tail.runes > exactTailRunes {
+		tail.width = fragment.width - head.width
+	} else {
+		tail.width = measure(tail.text, fragment.format)
+	}
 	return head, tail
+}
+
+// runeIndex returns the byte index of text's rune at offset runes.
+func runeIndex(text string, runes int) int {
+	index := 0
+	for range runes {
+		_, size := utf8.DecodeRuneInString(text[index:])
+		index += size
+	}
+	return index
+}
+
+// headWidth returns the width of word's start before its rune at offset at, as splitWord
+// measures it, without measuring the rest.
+func headWidth(unsplit word, at int, measure measurer) int {
+	width, offset := 0, 0
+	for _, fragment := range unsplit.fragments {
+		if offset+fragment.runes <= at {
+			width += fragment.width
+			offset += fragment.runes
+			continue
+		}
+		if offset < at {
+			width += measure(fragment.text[:runeIndex(fragment.text, at-offset)], fragment.format)
+		}
+		break
+	}
+	return width
 }
 
 // cutWord cuts a word too wide for a line in two, between characters: the longest start that
@@ -213,7 +247,7 @@ func cutWord(tooWide word, width int, measure measurer) []word {
 		return []word{tooWide}
 	}
 	fitting := 1
-	for fitting+1 < runes && splitWord(tooWide, fitting+1, breakDirect, measure)[0].width <= width {
+	for fitting+1 < runes && headWidth(tooWide, fitting+1, measure) <= width {
 		fitting++
 	}
 	return splitWord(tooWide, fitting, breakDirect, measure)

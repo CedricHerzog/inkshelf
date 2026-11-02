@@ -26,6 +26,7 @@ make test       # go test ./... on the host
 make lint       # golangci-lint (.golangci.yml) on the host and for the reader; brew install golangci-lint
 make verify     # build, make lint, go test, make shots-all, make shots-compare
 make deploy     # deploy.sh: copy the app and icons to a reader mounted over USB, then eject
+make reader-remote   # deploy.sh --remote: the same, and turn remote control on with emulator/reader.json's token
 make reader-deploy   # the same over Wi-Fi, to a reader under remote control (emulator/reader.json); then restarts the app
 make reader-shots READER_SCRIPT=emulator/scripts/reader/smoke.txt   # a script on the reader -> build/reader-shots/
 make reader-log # follow the reader's log (reader-profile: its profiles -> build/reader-profile/)
@@ -36,6 +37,8 @@ make shots-all  # every script with its flags -> build/shots/<script>/
 make baseline   # shots-all, saved as build/baseline/shots for shots-compare
 make bench      # every benchmark x6 -> build/bench/new.txt (BENCH=Pattern PKG=./internal/...); bench-baseline, bench-compare (benchstat)
 make profile SCRIPT=emulator/scripts/calibreweb-epub.txt   # a script with -profile -> build/profile/<script>/ (cpu.pprof, trace.out, ...)
+make epub-tests # the W3C's EPUB 3 tests (EPUB_TESTS=a checkout of w3c/epub-tests) -> build/epub-tests/, what changed, results by area
+make cjk-fonts  # Noto Serif and Sans CJK, downloaded and Brotli-compressed into internal/graphics/fonts/cjk (committed)
 make docs       # the documentation site (docs, Docusaurus, Node 20+), http://localhost:3000/inkshelf/
 make docs-build # its typecheck and build, which fail on a broken link
 ```
@@ -70,7 +73,7 @@ Domains go bottom to top: a package imports only from its own domain or lower on
 internal/
   device/pocketbook     the reader without its SDK: framebuffer, e-ink refresh, firmware IPC, event loop, Wi-Fi, emulator  -> docs/reference/eink-and-firmware.md
   device/pocketbook/script   scripts of taps, buttons, waits and shots, run on the emulator or the reader  -> docs/reference/emulator.md
-  graphics/fonts        TrueType fonts, fallbacks, HarfBuzz shaping, drawing text in gray
+  graphics/fonts        TrueType fonts, fallbacks and the CJK fonts compiled in, HarfBuzz shaping, drawing text in gray, upright or turned
   graphics/pageimage    page images: decode, fit, tone, dither to 16 grays, .pg4  -> docs/reference/image-pipeline.md
   web/css               CSS parsing and cascade for EPUB stylesheets
   web/svgimage          SVG images, styled and rasterized
@@ -79,7 +82,7 @@ internal/
   web/webimage          a book's images, raster or SVG, sized and prepared
   web/uri               relative links and data: URIs
   typesetting/document  the document model: blocks of styled runs, tables, border boxes  -> docs/reference/document-model.md
-  typesetting/layout    line breaking, bidi, justification, floats, tables, pagination, drawing  -> docs/reference/pagination.md
+  typesetting/layout    line breaking, bidi, vertical writing, justification, floats, tables, pagination, drawing  -> docs/reference/pagination.md
   typesetting/hyphen    Liang hyphenation with embedded patterns
   ebook/epub/container  an EPUB's zip, OPF, spine, navigation, resources, DRM
   ebook/epub            chapters to documents (XHTML+CSS), fixed-layout pages, the index  -> docs/reference/epub-to-page.md, docs/reference/epub-conformance.md
@@ -87,6 +90,7 @@ internal/
   ebook/comicarchive    the pages of a CBZ
   naturalorder          "tome 2" before "tome 10"
   timing                spans for the log and the execution trace, profile captures (any domain may use it)  -> docs/reference/profiling.md
+  deadline              workers that bound the wait for a page's slow elements, past which their fallback shows (any domain may use it)
   servers               the Server interface, its neutral model, config.json, title sorting  -> docs/reference/servers.md
   servers/{komga,mealie,calibreweb}   one package per kind of server, each with its fake*/ for the emulator
   servers/httpclient    the shared HTTP client and response handling
@@ -103,6 +107,7 @@ internal/
 cmd/inkshelf            the program for the reader: logging, then pocketbook.Run
 cmd/emulator            the app on the host, interactive or headless  -> docs/reference/emulator.md
 cmd/readerctl           drives a reader under remote control over Wi-Fi  -> docs/reference/remote-control.md
+cmd/epubtests           the W3C's EPUB 3 tests laid out and drawn as the reader would, for judging by eye  -> docs/reference/epub-conformance.md
 emulator/               the emulator's fonts and scripts (committed); config.json, servers/, fake/ (gitignored)
 ```
 

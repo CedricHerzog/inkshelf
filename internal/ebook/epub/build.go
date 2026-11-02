@@ -194,6 +194,9 @@ func (parser *builder) blockElement() *element {
 // makes of the document (a block, a table's part, a float, a region of a page).
 func (parser *builder) start(token xml.StartElement) {
 	parent := parser.top()
+	if parent.name == "html" && strings.EqualFold(token.Name.Local, "body") {
+		parser.restyleRoot(parent)
+	}
 	opened := childOf(parent, token)
 	parser.stack = append(parser.stack, opened)
 	parser.readHeadElement(opened)
@@ -233,6 +236,16 @@ func (parser *builder) start(token xml.StartElement) {
 	}
 	opened.run = parser.runOf(opened)
 	parser.addContent(opened)
+}
+
+// restyleRoot computes again what the root element's children inherit when its body opens.
+// Books often style html in a stylesheet of their head (its writing mode, its font size), which
+// is read after html opened; its body and the rest follow it, as in a browser.
+func (parser *builder) restyleRoot(root *element) {
+	if root.hidden {
+		return
+	}
+	root.style.inherited = computeStyle(&root.parent.style, parser.cascade.Compute(root, ""), parser.familyOf, parser.page != nil).inherited
 }
 
 // childOf returns the element that token opens in parent, with what it inherits from it.
@@ -279,6 +292,10 @@ func (parser *builder) record(opened *element) {
 	if (name == "html" || name == "body") && parser.doc.Language == "" {
 		parser.doc.Language = attributes["lang"] // or xml:lang
 	}
+	if name == "html" || name == "body" {
+		// The body's writing mode is the page's, as CSS takes it for HTML.
+		parser.doc.WritingMode = opened.style.writingMode
+	}
 	id := attributes["id"]
 	if name == "a" {
 		id = cmp.Or(id, attributes["name"])
@@ -307,15 +324,16 @@ func (parser *builder) addContent(opened *element) {
 		parser.lineBreak()
 		parser.clearAfter(opened)
 	case name == "img" || name == "image":
-		parser.addImage(cmp.Or(attributes["src"], attributes["href"]), opened)
+		parser.addImage(cmp.Or(attributes["src"], attributes["href"]), opened, attributes["alt"])
 	case name == "object":
 		// An <object> shows its image if the book has one to show, else its content.
 		if _, ok := parser.book.SupportedImage(resolve(parser.chapterPath, attributes["data"])); ok {
-			parser.addImage(attributes["data"], opened)
+			parser.addImage(attributes["data"], opened, "")
 			opened.hidden = true
 		}
-	case name == "video" && attributes["poster"] != "":
-		parser.addImage(attributes["poster"], opened)
+	case name == "video" && parser.canShowImage(attributes["poster"]):
+		// A video shows its poster, a still the book holds; else its fallback content.
+		parser.addImage(attributes["poster"], opened, "")
 		opened.hidden = true
 	case name == "hr":
 		parser.flush()

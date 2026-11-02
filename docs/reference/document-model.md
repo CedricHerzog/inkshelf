@@ -19,15 +19,17 @@ classDiagram
         +Language string
         +Fonts embedded fonts
         +Boxes List~BorderBox~
+        +WritingMode
         +Add(block) int
     }
     class Block {
         +Kind Paragraph, Image or Rule
         +Runs List~Run~
+        +Image, Alt string
         +Start int
         +Indent, Left, Right Hundredths
         +MarginTop, MarginBottom Hundredths
-        +Align, Direction
+        +Align, Direction, WritingMode
         +KeepWithNext, PageBreak bool
         +Float, FloatGroup, FloatWidth
         +Footnote string
@@ -39,12 +41,14 @@ classDiagram
         +FontScale Percent
         +Family string
         +Link string
-        +Image string
+        +Image, Alt string
+        +Emphasis, Orientation, Combine
     }
     class BorderBox {
         +Start, End int
         +Top, Right, Bottom, Left Border
         +Background gray
+        +Layers List~BackgroundLayer~
     }
     class Table {
         +Rows, Columns int
@@ -84,6 +88,25 @@ A **Run** is text in one style inside a block: bold, italic, a size relative to 
 A run with `Image` set is an **inline image** (a small picture in a line of text, or a formula,
 see [epub-to-page.md](epub-to-page.md#formulas)); its `Text` is empty.
 
+An image block and an inline image carry `Alt`, the image's text alternative: `<img alt>`, an
+inline SVG's own `<title>`, or MathML's `alttext`, its spaces collapsed. It is drawn in the
+image's box when the image is not ready within its page's budget
+([pagination.md](pagination.md#slow-elements)). It is not counted in runes: an image counts
+one, with or without it, so reading positions do not move.
+
+## Vertical text
+
+`WritingMode` says which way lines go: `HorizontalTB` (across, the next one below), `VerticalRL`
+(down, the next one to the left: Chinese and Japanese) or `VerticalLR` (down, the next one to
+the right). The document's is its body's, which its pages follow; a block's is its own, and a
+block whose lines go the other way than the document's is laid out apart, as one box
+([pagination.md](pagination.md#vertical-writing)). A run says how its characters are drawn in
+vertical text: `Orientation` (`OrientationMixed`, Unicode's choice of upright or sideways;
+`OrientationUpright`; `OrientationSideways`) and `Combine` (`CombineNone`, `CombineAll`, or the
+most digits of a number drawn across in one cell, 2 to 4). `Emphasis.Left` puts its marks to the
+left of vertical text, and the style bit `UnderlineLeft` its underline; the right is the default.
+None of them changes a rune count.
+
 ## Offsets: where things are
 
 Positions in a document are **rune offsets**: a count of characters (Go's runes, not bytes)
@@ -117,6 +140,12 @@ may be many blocks. The model keeps the blocks flat and lists boxes on the side:
 **BorderBox** draws its borders and background around the blocks from offset `Start` to `End`.
 Boxes nest (`Document.Boxes` is ordered by `Start`, the outer box first). The blocks inside
 already have their `Left` and `Right` widened to make room for the borders and padding.
+
+A box's background is its `Background` gray (drawn when `Filled`) and up to 8 `Layers` over
+it, the first on top. A **BackgroundLayer** is CSS's: an image (a path in the book) or a
+`css.Gradient`, its size, position and repeat on each axis, and the image's own size. Its
+lengths are in the box's units, hundredths of an em here (CSS pixels on a pre-paginated page),
+written with the unit `px`; percentages and `auto` stay as they are.
 
 Layout draws a box under its text and splits it at page breaks: see
 [pagination.md](pagination.md#border-boxes-across-pages).

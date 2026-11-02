@@ -1,0 +1,18 @@
+# A reflowable EPUB of the fake Calibre-Web whose picture goes across two pages: two chapters of
+# one image each, pinned to the left and the right page, shown together in landscape:
+#   make shots SCRIPT=emulator/scripts/calibreweb-spread.txt EMUFLAGS="-fake-type calibreweb"
+# The series list's rows, 282 px high from y 292, are centred at y 433, 715, 997: No series is
+# the third, and Zoé et le phare the fifth of its books, at y 1561. In portrait the right third,
+# past x 936, turns forward; in landscape (1872x1404) past x 1248.
+
+tap 700 997                 # No series
+tap 700 1561                # download Zoé et le phare
+idle 60s
+tap 700 433                 # read it: downloaded books come first
+shot 01-before              # the text before the picture, in portrait
+tap 1200 900                # next page
+shot 02-spread              # landscape: the two halves of the sea against the gutter, one picture
+tap 1700 700                # next page, past both chapters
+shot 03-after               # the text after the picture, in portrait again
+key prev
+shot 04-spread-again        # back on the spread, from after it

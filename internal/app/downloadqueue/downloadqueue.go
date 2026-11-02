@@ -25,6 +25,7 @@ import (
 	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
 	"github.com/CedricHerzog/inkshelf/internal/shelf"
 	"github.com/CedricHerzog/inkshelf/internal/timing"
+	"github.com/CedricHerzog/inkshelf/internal/typesetting/layout"
 )
 
 // BooksFromHere is how many books the hold menu's "Download n books from here" queues: the
@@ -106,10 +107,14 @@ func nextLocked(app *state.State) (shelf.Book, context.Context) {
 func downloader(ctx context.Context, app *state.State, book shelf.Book) {
 	defer keepAwake()()
 	size := pocketbook.ScreenSize()
+	// Fixed-layout pages are drawn by the download pool, so that a download never makes a page
+	// being read wait for a worker.
+	store := app.Store
+	store.Elements = layout.Elements{Pool: app.DownloadPool, Budget: app.Options.ElementBudget}
 	for ctx != nil {
 		taskContext, endTask := timing.Task(ctx, "download")
 		span := timing.Start(taskContext, "download")
-		err := app.Store.Download(taskContext, app.Server.Client, book, size.X, size.Y, func(progress shelf.DownloadProgress) {
+		err := store.Download(taskContext, app.Server.Client, book, size.X, size.Y, func(progress shelf.DownloadProgress) {
 			app.Update(false, func() bool {
 				return noteProgressLocked(app, progress)
 			})

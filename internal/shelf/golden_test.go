@@ -3,6 +3,7 @@ package shelf
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/CedricHerzog/inkshelf/internal/ebook/epub"
+	"github.com/CedricHerzog/inkshelf/internal/ebook/epub/epubtest"
 	"github.com/CedricHerzog/inkshelf/internal/servers"
 )
 
@@ -17,7 +19,8 @@ import (
 // rewritten when the app is updated. These tests read files as the app saves them, and save
 // them again.
 
-// goldenDir holds a store of two books and an index.json.
+// goldenDir holds a store of three books (fxl-9 with spreads) and an index.json, with index-7.json and index-8.json,
+// the indexes that versions 7 and 8 of the parser saved.
 var goldenDir = filepath.Join("testdata", "golden")
 
 // readFixture returns a file of goldenDir, without its final newline.
@@ -53,8 +56,19 @@ func TestBookGolden(t *testing.T) {
 		t.Errorf("epub-7: got %+v", textBook)
 	}
 
+	spreadBook, ok := golden.BookEvenIfRemoved("fxl-9")
+	if !ok {
+		t.Fatal("fxl-9 not found")
+	}
+	if spreadBook.Format != servers.ComicArchive || spreadBook.Page != 2 || !reflect.DeepEqual(spreadBook.Spreads, []int{2, 4}) {
+		t.Errorf("fxl-9: got %+v", spreadBook)
+	}
+	if pageBook.Spreads != nil || textBook.Spreads != nil {
+		t.Error("a book saved before spreads has some")
+	}
+
 	saved := Store{Dir: t.TempDir()}
-	for _, book := range []Book{pageBook, textBook} {
+	for _, book := range []Book{pageBook, textBook, spreadBook} {
 		if err := os.MkdirAll(saved.bookDir(book.ID), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -80,7 +94,8 @@ func TestIndexGolden(t *testing.T) {
 	if index.Title != "Les Étoiles" || index.Language != "fr" || index.Total != 21910 || index.PageProgression != "rtl" ||
 		len(index.Chapters) != 3 || index.Chapters[1] != (epub.ChapterIndex{Path: "OEBPS/chapter1.xhtml", Title: "Chapitre 1", Chars: 12034}) ||
 		len(index.TOC) != 2 || index.TOC[1] != (epub.TOCEntry{Title: "Scène 2", Level: 1, Chapter: 1, Offset: 5120}) ||
-		len(index.PageList) != 2 || len(index.Landmarks) != 2 || index.Landmarks[1].Type != "bodymatter" {
+		len(index.PageList) != 2 || len(index.Landmarks) != 2 || index.Landmarks[1].Type != "bodymatter" ||
+		len(index.Spreads) != 1 || index.Spreads[0] != (epub.Spread{First: 3, Left: 4, Right: 3}) {
 		t.Errorf("read %+v", index)
 	}
 	encoded, err := json.Marshal(index)
@@ -106,5 +121,50 @@ func TestIndexGolden(t *testing.T) {
 	}
 	if !reflect.DeepEqual(loaded, index) {
 		t.Errorf("LoadIndex: got %+v, want %+v", loaded, index)
+	}
+}
+
+// An index saved by an older parser (version 7, before vertical books turned their pages from
+// right to left; version 8, before image spreads) is read, then built again from the EPUB and
+// saved at the current version.
+func TestOlderIndexRebuilt(t *testing.T) {
+	for _, version := range []int{7, 8} {
+		t.Run(fmt.Sprint("version ", version), func(t *testing.T) { testOlderIndexRebuilt(t, version) })
+	}
+}
+
+// testOlderIndexRebuilt is TestOlderIndexRebuilt for the index of an older version.
+func testOlderIndexRebuilt(t *testing.T, version int) {
+	fixture := readFixture(t, fmt.Sprintf("index-%d.json", version))
+	var older epub.Index
+	if err := json.Unmarshal(fixture, &older); err != nil || older.Version != version {
+		t.Fatalf("index-%d.json: version %d, %v", version, older.Version, err)
+	}
+	store := Store{Dir: t.TempDir()}
+	if err := os.MkdirAll(store.bookDir("epub-7"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(store.bookDir("epub-7"), indexFile), fixture, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opened, err := epub.Open(epubtest.Write(t, epubtest.Files(t, epubtest.Options{Chapters: 2, Paragraphs: 2})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer opened.Close()
+	rebuilt, err := store.LoadIndex("epub-7", opened)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rebuilt.Version != epub.IndexVersion || rebuilt.Title == older.Title {
+		t.Errorf("loaded %+v, want an index built again", rebuilt)
+	}
+	saved, err := os.ReadFile(filepath.Join(store.bookDir("epub-7"), indexFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reread epub.Index
+	if err := json.Unmarshal(saved, &reread); err != nil || reread.Version != epub.IndexVersion {
+		t.Errorf("saved again at version %d, %v", reread.Version, err)
 	}
 }

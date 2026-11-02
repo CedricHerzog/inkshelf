@@ -3,6 +3,7 @@ package css
 import (
 	"fmt"
 	"maps"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -343,5 +344,43 @@ func BenchmarkCompute(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		cascade.Compute(element, "")
+	}
+}
+
+// hostileRules returns a stylesheet of count rules, each with a selector of four compounds
+// ending in em, as a crafted book may hold.
+func hostileRules(count int) string {
+	var css strings.Builder
+	for index := range count {
+		fmt.Fprintf(&css, ".c%d p span.x%d > em:not(.y) { margin-left: %dpx; color: #%06x }\n", index, index, index%40, index*97%0xffffff)
+	}
+	return css.String()
+}
+
+// A stylesheet of rules far past what real books hold (the largest of 345 is 24 KB) is cut,
+// parsed in bounded memory, and adds no more than maxCascadeRules rules: an element then
+// matches against those only.
+func TestHostileStylesheetBounded(t *testing.T) {
+	css := hostileRules(50000) // 3.6 MB
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	cascade := NewCascade()
+	for range 4 { // four sheets of it, as a chapter may link
+		cascade.Add(Parse(css, screen))
+	}
+	runtime.ReadMemStats(&after)
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 200<<20 {
+		t.Errorf("parsing allocated %d MB, want under 200", allocated>>20)
+	}
+	if cascade.rules > maxCascadeRules {
+		t.Errorf("the cascade holds %d rules, want at most %d", cascade.rules, maxCascadeRules)
+	}
+	if got := len(cascade.byName["em"]); got > maxCascadeRules {
+		t.Errorf("%d rules to match an em against, want at most %d", got, maxCascadeRules)
+	}
+	root := add(nil, "root", "div", "class", "c5")
+	emphasis := add(add(add(root, "p", "p"), "span", "span", "class", "x5"), "em", "em")
+	if values := cascade.Compute(emphasis, ""); values["margin-left"] != "5px" {
+		t.Errorf("the first rules still apply: margin-left %q, want 5px", values["margin-left"])
 	}
 }

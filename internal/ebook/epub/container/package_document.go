@@ -7,21 +7,16 @@ import (
 	"strings"
 )
 
-// The values of rendition:layout.
-const (
-	Reflowable   = "reflowable"
-	PrePaginated = "pre-paginated"
-)
-
 // documentTypes are the media types of the chapters read as XHTML.
 var documentTypes = []string{"application/xhtml+xml", "text/html"}
 
 // IsDocumentType reports whether mediaType is that of a chapter read as XHTML.
 func IsDocumentType(mediaType string) bool { return slices.Contains(documentTypes, mediaType) }
 
-// imageTypes are the media types of the images the book can show: EPUB's core media types,
-// image/jpg, which books write for image/jpeg, and image/jxl. An AVIF image goes to its
-// fallback.
+// imageTypes are the media types of the images the book can show: EPUB's core media types but
+// AVIF, image/jpg, which books write for image/jpeg, and image/jxl. AVIF is left out while its
+// decoder cannot run on the calling goroutine (pageimage's avifOnCaller), so that its manifest
+// fallback is shown.
 var imageTypes = []string{"image/gif", "image/jpeg", "image/jpg", "image/jxl", "image/png", "image/svg+xml", "image/webp"}
 
 // SpineItem is an item of the spine: a part of the book, in reading order.
@@ -32,7 +27,9 @@ type SpineItem struct {
 	// of its fallback chain that the book can show. Content is "" if there is none.
 	Content, ContentType string
 	Linear               bool
-	Layout               string // from the itemref's properties, "" for the book's Layout
+	// Rendition is what the itemref's properties set; a field left "" takes the book's.
+	// Book.RenditionOf combines the two.
+	Rendition Rendition
 }
 
 // manifestItem is a file of the book, as its package document lists it.
@@ -157,15 +154,7 @@ func (book *Book) readSpine(opf packageDocument) error {
 			// No fallback, and a media type books get wrong (text/xml, none): read it as XHTML.
 			spine.Content, spine.ContentType = item.Href, "application/xhtml+xml"
 		}
-		for property := range strings.FieldsSeq(itemRef.Properties) {
-			switch {
-			case spine.Layout != "": // the first layout given wins
-			case property == "rendition:layout-pre-paginated":
-				spine.Layout = PrePaginated
-			case property == "rendition:layout-reflowable":
-				spine.Layout = Reflowable
-			}
-		}
+		spine.Rendition = readItemRendition(itemRef.Properties)
 		book.spine = append(book.spine, spine)
 		if !spine.Linear {
 			continue // shown only when a link leads to it
@@ -178,7 +167,7 @@ func (book *Book) readSpine(opf packageDocument) error {
 	return nil
 }
 
-// readMetadata reads the title, language, creators, identifier and layout of the package
+// readMetadata reads the title, language, creators, identifier and rendition of the package
 // document, their whitespace collapsed.
 func (book *Book) readMetadata(opf packageDocument) {
 	metadata := opf.Metadata
@@ -208,15 +197,7 @@ func (book *Book) readMetadata(opf packageDocument) {
 			book.identifiers = append(book.identifiers, identifier)
 		}
 	}
-	book.Layout = Reflowable
-	for _, meta := range metadata.Metas {
-		if meta.Property == "rendition:layout" && meta.Refines == "" {
-			if collapse(meta.Value) == PrePaginated {
-				book.Layout = PrePaginated
-			}
-			break // the first one counts
-		}
-	}
+	book.Rendition = readPackageRendition(opf)
 }
 
 // firstSupported follows the manifest's fallback chain from item id to the first supported
