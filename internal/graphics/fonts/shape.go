@@ -62,7 +62,14 @@ const firstJoiningCharacter = 0x0600
 func (file *File) textFont() (*textfont.Font, error) {
 	file.shaping.once.Do(func() {
 		var face *textfont.Face
-		face, file.shaping.err = textfont.ParseTTF(bytes.NewReader(file.data))
+		if !file.collection {
+			face, file.shaping.err = textfont.ParseTTF(bytes.NewReader(file.data))
+		} else {
+			var faces []*textfont.Face
+			if faces, file.shaping.err = textfont.ParseTTC(bytes.NewReader(file.data)); file.shaping.err == nil {
+				face = faces[file.face]
+			}
+		}
 		if file.shaping.err == nil {
 			file.shaping.parsed = face.Font
 			for _, script := range face.GSUB.Scripts {

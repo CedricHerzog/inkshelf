@@ -17,6 +17,9 @@ type File struct {
 	// data is the file's bytes. The shaper parses them again, its own way (see textFont).
 	data   []byte
 	parsed *opentype.Font
+	// collection tells a File that is one font, face, of a collection (a .ttc file).
+	collection bool
+	face       int
 	// shaping is the file parsed for the shaper, on first use.
 	shaping shapingFont
 }
@@ -29,6 +32,25 @@ func Parse(name string, data []byte) (*File, error) {
 		return nil, fmt.Errorf("%s: %w", name, err)
 	}
 	return &File{name: name, data: data, parsed: parsed}, nil
+}
+
+// parseCollectionFace parses the font of family in data, a font collection (a .ttc file, which
+// holds several fonts sharing tables: Noto CJK's Japanese, Korean and Chinese ones, say).
+func parseCollectionFace(name string, data []byte, family string) (*File, error) {
+	collection, err := opentype.ParseCollection(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", name, err)
+	}
+	for face := range collection.NumFonts() {
+		parsed, err := collection.Font(face)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", name, err)
+		}
+		if faceFamily, err := parsed.Name(nil, sfnt.NameIDFamily); err == nil && faceFamily == family {
+			return &File{name: name, data: data, parsed: parsed, collection: true, face: face}, nil
+		}
+	}
+	return nil, fmt.Errorf("%s: no font %q", name, family)
 }
 
 // Open returns the file's font at size pixels high. Unlike the package's Open, which finds

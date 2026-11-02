@@ -144,10 +144,12 @@ Sans Arabic UI, then a CJK font, then Go's. A letter of a joining script (Arabic
 fallback when its font has it without the rules that join it: the firmware's Liberation Sans has
 Arabic letters but no Arabic shaping rules, and HarfBuzz's stand-in forms put their dots beside
 their place, so the first fallback that has both draws it (`Font.ShapesScriptOf`). The CJK fonts
-are the app's own (the firmware's Noto CJK collections are not used yet): Noto Serif CJK JP for
-serif text, Noto Sans CJK JP otherwise, which have Chinese and Korean too. They are compiled into the
-program compressed with Brotli (27.5 MB for both), decompressed the first time a character needs
-one into `inkshelf/fonts/` (0.2 to 0.3 s each on the Mac), and read from there at later starts
+are Noto Serif CJK JP for serif text and Noto Sans CJK JP otherwise, which have Chinese and Korean
+too. The firmware's own are used when it has them: the Japanese font of its
+`NotoSerifCJK-Regular.ttc` and `NotoSansCJK-Regular.ttc` collections, read in about 0.1 s on the
+InkPad 3. Else the app's, compiled into the program compressed with Brotli (27.5 MB for both), are
+decompressed the first time a character needs one into `inkshelf/fonts/` (6.3 s on the reader,
+0.2 to 0.3 s on the Mac), and read from there at later starts
 ([on-disk-formats.md](on-disk-formats.md#fonts)). They have one weight: their bold is the
 regular emboldened. A word its own font covers costs nothing extra, and every font file is parsed
 once, whatever the sizes it is opened at.

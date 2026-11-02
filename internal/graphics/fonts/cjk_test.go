@@ -2,14 +2,19 @@ package fonts
 
 import (
 	"bytes"
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"golang.org/x/image/font/gofont/gomono"
+	"golang.org/x/image/font/gofont/goregular"
 )
 
-// Chinese, Japanese and Korean characters, which no font of the reader has, are drawn by the
-// CJK font of the text's family: Noto Serif CJK for serif text, Noto Sans CJK otherwise.
+// Chinese, Japanese and Korean characters, where the firmware has no CJK font (the tests' case),
+// are drawn by the program's CJK font of the text's family: Noto Serif CJK for serif text, Noto
+// Sans CJK otherwise.
 func TestCJKFallbacks(t *testing.T) {
 	for _, serif := range []bool{false, true} {
 		want := cjkSans.name
@@ -131,5 +136,73 @@ func TestFontFileParsedOnce(t *testing.T) {
 	}
 	if smallFallbacks[0].file != largeFallbacks[0].file || smallFallbacks[0].file != cjkSerif.parsed() {
 		t.Errorf("the CJK font's sizes parsed apart")
+	}
+}
+
+// collectionOf returns a font collection (a .ttc file) of fonts: its header, then each font with
+// the offsets of its tables moved to where they land.
+func collectionOf(fonts ...[]byte) []byte {
+	header := 12 + 4*len(fonts)
+	data := make([]byte, header)
+	copy(data, "ttcf")
+	binary.BigEndian.PutUint32(data[4:], 0x00010000)
+	binary.BigEndian.PutUint32(data[8:], uint32(len(fonts)))
+	for index, font := range fonts {
+		for len(data)%4 != 0 {
+			data = append(data, 0)
+		}
+		start := len(data)
+		binary.BigEndian.PutUint32(data[12+4*index:], uint32(start))
+		data = append(data, font...)
+		tables := int(binary.BigEndian.Uint16(font[4:]))
+		for table := range tables {
+			offset := start + 12 + 16*table + 8
+			binary.BigEndian.PutUint32(data[offset:], binary.BigEndian.Uint32(data[offset:])+uint32(start))
+		}
+	}
+	return data
+}
+
+// A font of a collection is found by its family, and shaped from the collection too.
+func TestParseCollectionFace(t *testing.T) {
+	data := collectionOf(goregular.TTF, gomono.TTF)
+	file, err := parseCollectionFace("go.ttc", data, "Go Mono")
+	if err != nil {
+		t.Fatal(err)
+	}
+	font, err := file.Open(40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer font.Close()
+	if font.Width("i") != font.Width("m") {
+		t.Errorf("i %d and m %d wide: not Go Mono", font.Width("i"), font.Width("m"))
+	}
+	if shaped := font.Shape("im", false, ""); len(shaped) != 2 || shaped[0].Advance != shaped[1].Advance {
+		t.Errorf("shaped %+v, want two glyphs of Go Mono's one advance", shaped)
+	}
+	if _, err := parseCollectionFace("go.ttc", data, "Noto Sans CJK JP"); err == nil {
+		t.Error("a family the collection lacks was found")
+	}
+}
+
+// The firmware's CJK collection, when a font directory has it, is used rather than the
+// program's font, which is not unpacked.
+func TestCJKFromFirmware(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "cjk.ttc"), collectionOf(goregular.TTF, gomono.TTF), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	saved := fontDirs
+	fontDirs = []string{dir}
+	t.Cleanup(func() { fontDirs = saved })
+	font := &cjkFont{firmware: "cjk.ttc", family: "Go Mono", name: "not-compiled-in.otf"}
+	file := font.parsed()
+	if file == nil || !file.collection || file.face != 1 {
+		t.Fatalf("parsed %+v, want face 1 of the firmware's collection", file)
+	}
+	missing := &cjkFont{firmware: "none.ttc", family: "Go Mono", name: cjkSans.name}
+	if file := missing.parsed(); file == nil || file.collection {
+		t.Errorf("without the firmware's collection, parsed %+v, want the program's font", file)
 	}
 }

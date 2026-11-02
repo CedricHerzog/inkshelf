@@ -22,8 +22,9 @@ firmware's own behavior. Those need the reader (see the end of this page).
 
 The emulated reader keeps its files in `emulator/` (`-dir`): `config.json`, `servers/<name>/`, and
 with `-fake`, everything under `emulator/fake/`. `emulator/fonts/` holds the reader's fonts, so
-text looks as it does on the reader. The app's own CJK fonts are decompressed once into
-`build/emulator-cache/fonts/`, outside what `-fresh` deletes.
+text looks as it does on the reader, but for its CJK fonts: the firmware's Noto CJK collections
+(44 MB) are not copied, so the emulator uses the app's own, the same fonts in a later version,
+decompressed once into `build/emulator-cache/fonts/`, outside what `-fresh` deletes.
 
 ## Flags
 

@@ -134,11 +134,14 @@ font, as a box.
   <FontFallback />
 </Figure>
 
-The firmware has no font for Chinese, Japanese or Korean, so the app brings two: Noto Serif CJK
-for serif text and Noto Sans CJK for the rest, each with tens of thousands of glyphs. They are
-large (25 and 16 MB), so they travel inside the program compressed with Brotli, and the first
-page that needs one decompresses it into a folder of the reader (`inkshelf/fonts/`), where the
-next starts find it: a cost of about a second, once. They have no bold: a bold CJK character is
+Chinese, Japanese and Korean take Noto Serif CJK for serif text and Noto Sans CJK for the rest,
+each with tens of thousands of glyphs. The InkPad 3's firmware has them, as font collections:
+one `.ttc` file holds the Japanese, Korean and Chinese fonts, which share most of their glyphs,
+and the app reads the Japanese one, in a tenth of a second. A firmware may lack them, so the
+app brings its own too. They are large (25 and 16 MB), so they travel inside the program
+compressed with Brotli, and the first page that needs one decompresses it into a folder of the
+reader (`inkshelf/fonts/`), where the next starts find it: a cost of six seconds on the reader,
+once. They have no bold: a bold CJK character is
 the regular one with its strokes widened by a 24th of its size (`embolden`).
 
 <details>

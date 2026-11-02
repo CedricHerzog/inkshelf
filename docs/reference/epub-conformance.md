@@ -101,10 +101,9 @@ book pair).
 
 ## Remaining work, by value for reading books on this reader
 
-1. The first CJK page, or the first list with a Chinese, Japanese or Korean title, waits 6.3 s on
-   the reader for its font's decompression (once per install), with nothing on the panel; the firmware has Noto Sans and Serif CJK of its own, which would
-   need none. Measured on the reader on 2 November 2026: vertical page turns 0.11 to 0.94 s, a
-   full-page AVIF 5.75 s (under the 10-second limit). Still to measure there: a page of formulas
+1. Measured on the reader on 2 November 2026: the firmware's CJK fonts read in 0.08 to 0.1 s,
+   so a vertical book opens in 0.9 s (6.6 s with the app's own fonts to decompress); vertical page
+   turns 0.11 to 0.94 s; a full-page AVIF 5.75 s (under the 10-second limit). Still to measure there: a page of formulas
    and a JPEG XL decode (about 270 ms on the Mac in pure Go for a full page, several seconds
    expected on the ARM).
 2. AVIF's decoder runs an image's tiles on goroutines of its own, where a panic cannot be

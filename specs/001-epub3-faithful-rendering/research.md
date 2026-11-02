@@ -189,6 +189,13 @@ as horizontal books do. Contrary to the facts above, `/ebrmain/fonts` on this fi
 Devanagari and other Noto fonts: the compiled-in fonts and their unpacking could give way to the
 firmware's, when present.
 
+**Firmware fonts first (2026-11-02).** The firmware's collections hold Noto Sans CJK 2.003 (JP,
+KR, SC, TC, HK and their Mono, 19.5 MB) and Noto Serif CJK 1.001 (JP, KR, SC, TC, 24.8 MB). The
+app now reads the Japanese font of each when the firmware has it (`parseCollectionFace`), in 76
+and 101 ms on the B288, and keeps its own as the fallback: Kusamakura opens in 0.88 s instead of
+6.6 s, with the same 334 pages, no missing glyph and no rune left out. The compiled-in fonts stay
+in the binary, for a firmware without them and for the emulator.
+
 **Alternatives.** Separate font files copied by `deploy.sh`: users install the app by copying
 one file, and a missing font would fail silently. Japan-only subsets: fail FR-005 for Korean and
 much Chinese. The variable fonts: larger, and lose `VORG`.

@@ -118,7 +118,8 @@ index is built again.
 `fonts/NotoSansCJKjp-Regular.otf` and `fonts/NotoSerifCJKjp-Regular.otf` are the CJK fonts of
 [graphics/fonts](../../internal/graphics/fonts) (`cjk.go`), decompressed from the program the first
 time a page needs a Chinese, Japanese or Korean character, so that later starts skip the
-decompression. A cache: deleting the folder is safe, and a file whose size is not the font's (written
+decompression. Only on a firmware without Noto CJK of its own: the InkPad 3's 6.x has them, and
+leaves the folder unwritten (a folder written by an earlier version stays, unused). A cache: deleting the folder is safe, and a file whose size is not the font's (written
 in part when the reader went off, or by another version) is written again. Each is written to a
 temporary file renamed over it. The emulator keeps its copy in `build/emulator-cache/fonts/`.
 

@@ -157,7 +157,8 @@ landmarks as tabs; a tap goes there, and the toolbar then shows ‹ Return, back
 left. A book written right to left (its `page-progression-direction`, else its language, else its
 vertical text) turns its pages as manga do. Arabic and Hebrew text runs right to left, joined and mixed with left-to-right
 text as in a browser; Chinese and Japanese lines break between ideographs, never before a closing
-mark, and are drawn with the app's own CJK fonts (Noto Serif or Sans CJK, which have Korean too).
+mark, and are drawn with Noto Serif or Sans CJK (which have Korean too): the reader's own, else
+the app's.
 A book in vertical lines (`writing-mode: vertical-rl`) reads in columns from the right, its
 ideographs upright, its Latin words turned, a year across one column (`text-combine-upright`),
 its emphasis marks and underlines to the right; a horizontal table in it keeps its rows across.
