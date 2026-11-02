@@ -25,6 +25,7 @@ classDiagram
     class Block {
         +Kind Paragraph, Image or Rule
         +Runs List~Run~
+        +Image, Alt string
         +Start int
         +Indent, Left, Right Hundredths
         +MarginTop, MarginBottom Hundredths
@@ -40,7 +41,7 @@ classDiagram
         +FontScale Percent
         +Family string
         +Link string
-        +Image string
+        +Image, Alt string
         +Emphasis, Orientation, Combine
     }
     class BorderBox {
@@ -86,6 +87,12 @@ A **Run** is text in one style inside a block: bold, italic, a size relative to 
 (`FontScale`), a font family, a link target, a gray. `<em>`, `<a>` and `<span>` become runs.
 A run with `Image` set is an **inline image** (a small picture in a line of text, or a formula,
 see [epub-to-page.md](epub-to-page.md#formulas)); its `Text` is empty.
+
+An image block and an inline image carry `Alt`, the image's text alternative: `<img alt>`, an
+inline SVG's own `<title>`, or MathML's `alttext`, its spaces collapsed. It is drawn in the
+image's box when the image is not ready within its page's budget
+([pagination.md](pagination.md#slow-elements)). It is not counted in runes: an image counts
+one, with or without it, so reading positions do not move.
 
 ## Vertical text
 

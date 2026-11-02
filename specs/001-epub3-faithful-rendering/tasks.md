@@ -317,13 +317,13 @@ image in the showcase script.
 
 ### Tests for User Story 5
 
-- [ ] T051 [P] [US5] Security tests in `internal/ebook/epub/epub_test.go`:
+- [X] T051 [P] [US5] Security tests in `internal/ebook/epub/epub_test.go`:
   - a `scripted` spine item with a manifest fallback shows the fallback;
   - a `<script>` and an `onclick` leave the static text around them and add no text of their own;
   - an `https:` image is a missing resource and its `Alt` is kept;
   - an `https:` font in `@font-face` falls back to the next font;
   - an `<iframe>`, `<form>` and `<object type="application/wasm">` are not loaded.
-- [ ] T052 [P] [US5] Deadline-at-draw test in `internal/typesetting/layout/draw_test.go`:
+- [X] T052 [P] [US5] Deadline-at-draw test in `internal/typesetting/layout/draw_test.go`:
   - with a pool whose limit is 50 ms and an image loader that sleeps 200 ms, `Page.Draw` returns after about 50 ms with the image's `Alt` drawn in its box;
   - a second `Draw` does not wait;
   - a formula that fails to lay out draws its alt text;
@@ -331,37 +331,37 @@ image in the showcase script.
 
 ### Implementation for User Story 5
 
-- [ ] T053 [US5] Add `Alt` to `document.Image` in `internal/typesetting/document/document.go` ("Not counted in runes"; no `IndexVersion` bump). Fill it:
+- [X] T053 [US5] Add `Alt` to `document.Image` in `internal/typesetting/document/document.go` ("Not counted in runes"; no `IndexVersion` bump). Fill it:
   - from `<img alt>` in `internal/ebook/epub/build_images.go`;
   - from an inline SVG's `<title>` in `internal/ebook/epub/build_svg.go`;
   - from MathML `alttext` in `internal/ebook/epub/build_math.go`.
-- [ ] T054 [US5] Bound each element in `internal/typesetting/layout/draw.go` (the per-image loop, ~30–44) and `internal/typesetting/layout/formulas.go`:
+- [X] T054 [US5] Bound each element in `internal/typesetting/layout/draw.go` (the per-image loop, ~30–44) and `internal/typesetting/layout/formulas.go`:
   - Run each image load (through the `webimage.Loader`), SVG rasterization and formula layout through the `deadline` pool given in the layout options.
   - The limit is per page (FR-014a): start a 10-second page budget when `Draw` begins, and give each element min(10 s, what is left of the budget). Once the budget is spent, every element left shows its fallback without a wait.
   - Use the key (book, resource, size).
   - Past the limit, draw `Alt` in the element's box in the text's font, or leave it empty when there is none.
-- [ ] T055 [US5] Hand the pool down:
+- [X] T055 [US5] Hand the pool down:
   - Add the pool to `openbook.TextSettings` in `internal/app/openbook/text.go` and to the layout options it builds.
   - For download-time pages, pass the download pool from `internal/app/downloadqueue/downloadqueue.go` to `shelf.Store.Download` and on to `ebook/fixedlayout` (`internal/ebook/fixedlayout/page.go`), so each fixed-layout page has the same 10-second page budget.
-- [ ] T056 [US5] Review the input caps of every parser of book content and fix any that has none:
+- [X] T056 [US5] Review the input caps of every parser of book content and fix any that has none:
   - CSS: `internal/web/css`.
   - SVG: `internal/web/svgimage/tree.go`.
   - MathML: `internal/web/mathml/node.go`.
   - Fonts: `internal/web/webfont`.
   - Images: `internal/graphics/pageimage/decode.go`; add a pixel cap like `maxJXLPixels` for JPEG, PNG and WebP, checked with `DecodeConfig`.
   - Add a hostile-input set under `internal/ebook/epub/testdata/hostile/` (a 100k-element SVG, a 60 Mpx PNG header, nested CSS, deep MathML) and a test that opens and draws each within the limit without a panic (SC-006).
-- [ ] T057 [US5] Add a "Safety" chapter to the fake showcase book in `internal/servers/calibreweb/fakecalibreweb/showcase.go`, with a `<script>`, an `onclick`, an `https:` image with `alt`, and text around them. Add its step and `shot` to `emulator/scripts/calibreweb-showcase.txt`.
-- [ ] T058 [US5] Show the fallback in a shot (constitution VI):
+- [X] T057 [US5] Add a "Safety" chapter to the fake showcase book in `internal/servers/calibreweb/fakecalibreweb/showcase.go`, with a `<script>`, an `onclick`, an `https:` image with `alt`, and text around them. Add its step and `shot` to `emulator/scripts/calibreweb-showcase.txt`.
+- [X] T058 [US5] Show the fallback in a shot (constitution VI):
   - Add an emulator flag `-element-limit` (default 10s) in `cmd/emulator/main.go`, used as the reading pool's page budget.
   - In the Safety chapter of the fake showcase book, add an image the fake server serves slowly (`internal/servers/calibreweb/fakecalibreweb/server.go`).
   - Add a script `emulator/scripts/calibreweb-slow.txt`, run with `-element-limit 50ms` (its flags in the Makefile's `shots-all`), that opens that page and `shot`s the alt text in the image's box.
-- [ ] T059 [US5] Update the docs this story makes wrong (constitution VII):
+- [X] T059 [US5] Update the docs this story makes wrong (constitution VII):
   - docs/reference/app-threading.md: the two pools, the wait under the renderer lock;
   - docs/reference/pagination.md: the page's 10-second budget at draw;
   - docs/reference/document-model.md: `Image.Alt`;
   - docs/reference/emulator.md: `-element-limit`.
   - Run `make docs-build`.
-- [ ] T060 [US5] Run `make verify` and `make epub-tests`:
+- [X] T060 [US5] Run `make verify` and `make epub-tests`:
   - Confirm that every scripting test shows its fallback or its static text.
   - Confirm that no network request leaves the emulator but to the fake server (its log).
   - Update `cmd/epubtests/judgments.tsv`, and in the same change the Scripting row of docs/reference/epub-conformance.md if any reason changed (constitution VII), with the Total row and the "Of the N tests in scope, M pass" sentence.

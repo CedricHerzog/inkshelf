@@ -20,34 +20,40 @@ func (parser *builder) inlineSVG(decoder *xml.Decoder, data []byte) {
 	if svg.hidden {
 		return
 	}
-	markup, ok := parser.drawnSVG(svg, data)
+	markup, title, ok := parser.drawnSVG(svg, data)
 	if !ok || decoder.Skip() != nil {
 		return
 	}
-	parser.addImage("data:image/svg+xml;base64,"+base64.StdEncoding.EncodeToString(markup), svg)
+	parser.addImage("data:image/svg+xml;base64,"+base64.StdEncoding.EncodeToString(markup), svg, title)
 	parser.end("svg")
 }
 
 // drawnSVG returns the markup of the <svg> just opened, from data, which starts with its start
 // tag, to its end tag: an image to draw, each element given what the chapter's stylesheets
-// declare for it in svgimage's DocumentStyleAttribute. It returns false for one that holds a
+// declare for it in svgimage's DocumentStyleAttribute. title is the text of its own <title>,
+// the drawing's text alternative. It returns false for one that holds a
 // raster image or HTML, which the chapter shows as its own content (its <image>, its
 // <foreignObject>'s text): an <image> in a data: SVG has nothing to read its file from.
-func (parser *builder) drawnSVG(svg *element, data []byte) ([]byte, bool) {
+func (parser *builder) drawnSVG(svg *element, data []byte) (markup []byte, title string, ok bool) {
 	decoder := container.NewDecoder(data)
-	var markup bytes.Buffer
-	copied := 0 // the bytes of data copied to markup so far
+	var drawn bytes.Buffer
+	var titleText strings.Builder
+	copied := 0 // the bytes of data copied to drawn so far
 	var open []*element
+	titleDepth := 0 // how many elements are open in the <svg>'s own <title>, the first one
 	for {
 		token, err := decoder.Token()
 		if err != nil {
-			return nil, false
+			return nil, "", false
 		}
 		switch token := token.(type) {
 		case xml.StartElement:
 			name := strings.ToLower(token.Name.Local)
 			if len(open) == 0 && name != "svg" || name == "image" || name == "foreignobject" {
-				return nil, false
+				return nil, "", false
+			}
+			if name == "title" && len(open) == 1 && titleText.Len() == 0 || titleDepth > 0 {
+				titleDepth++
 			}
 			opened := svg
 			if len(open) > 0 {
@@ -62,17 +68,22 @@ func (parser *builder) drawnSVG(svg *element, data []byte) ([]byte, bool) {
 				end--
 			}
 			if declarations := svgDeclarations(parser.cascade.Compute(opened, "")); declarations != "" && end > copied {
-				markup.Write(data[copied:end])
-				markup.WriteString(" " + svgimage.DocumentStyleAttribute + `="`)
-				_ = xml.EscapeText(&markup, []byte(declarations))
-				markup.WriteByte('"')
+				drawn.Write(data[copied:end])
+				drawn.WriteString(" " + svgimage.DocumentStyleAttribute + `="`)
+				_ = xml.EscapeText(&drawn, []byte(declarations))
+				drawn.WriteByte('"')
 				copied = end
 			}
+		case xml.CharData:
+			if titleDepth > 0 {
+				titleText.Write(token)
+			}
 		case xml.EndElement:
+			titleDepth = max(titleDepth-1, 0)
 			closed := open[len(open)-1]
 			if open = open[:len(open)-1]; len(open) == 0 {
-				markup.Write(data[copied:decoder.InputOffset()])
-				return markup.Bytes(), true
+				drawn.Write(data[copied:decoder.InputOffset()])
+				return drawn.Bytes(), titleText.String(), true
 			}
 			open[len(open)-1].lastChild = closed
 		}

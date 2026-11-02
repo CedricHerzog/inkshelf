@@ -122,7 +122,7 @@ func TestLetterSpacing(t *testing.T) {
 	right := func(page Page) int {
 		canvas := whiteCanvas(leftSettings)
 		page.Lines[0].Words = page.Lines[0].Words[:1] // abcd only
-		if err := page.Draw(canvas, faces, nil); err != nil {
+		if err := page.Draw(canvas, faces, nil, Elements{}); err != nil {
 			t.Fatal(err)
 		}
 		rightmost := 0
@@ -159,7 +159,7 @@ func TestStrokes(t *testing.T) {
 		t.Errorf("underline at %d, strike-through at %d, baseline %d", underline.Min.Y, strike.Min.Y, base)
 	}
 	canvas := whiteCanvas(leftSettings)
-	if err := page.Draw(canvas, faces, nil); err != nil {
+	if err := page.Draw(canvas, faces, nil, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	// In the space between the words.
@@ -392,7 +392,7 @@ func TestFamilies(t *testing.T) {
 			t.Errorf("%q is %d wide, want %d", test.word, got, test.want)
 		}
 	}
-	if err := page.Draw(whiteCanvas(leftSettings), faces, nil); err != nil {
+	if err := page.Draw(whiteCanvas(leftSettings), faces, nil, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -502,7 +502,7 @@ func TestEmphasisMarks(t *testing.T) {
 		if height := wordAt(t, page, "next").Top - leftSettings.Margins.Min.Y; height <= plainHeight {
 			t.Errorf("under %v: line with marks %d high, want more than %d", under, height, plainHeight)
 		}
-		if err := page.Draw(whiteCanvas(leftSettings), faces, nil); err != nil {
+		if err := page.Draw(whiteCanvas(leftSettings), faces, nil, Elements{}); err != nil {
 			t.Fatal(err)
 		}
 	}

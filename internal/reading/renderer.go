@@ -19,6 +19,7 @@ import (
 type renderer struct {
 	mu       sync.Mutex
 	book     *epub.Book // nil once closed
+	bookID   string     // names the book's elements in its settings' pool
 	settings layout.Settings
 	faces    *layout.Faces
 	chapters map[int][]layout.Page // the chapters laid out, by index
@@ -96,7 +97,9 @@ func (renderer *renderer) drawLocked(page layout.Page, height int) (*image.Gray,
 	for index := range canvas.Pix {
 		canvas.Pix[index] = 0xff // white
 	}
-	if err := page.Draw(canvas, renderer.faces, webimage.NewLoader(renderer.book.Resource, renderer.faces.SVGText())); err != nil {
+	elements := renderer.settings.Elements
+	elements.Book = renderer.bookID
+	if err := page.Draw(canvas, renderer.faces, webimage.NewLoader(renderer.book.Resource, renderer.faces.SVGText()), elements); err != nil {
 		return nil, err
 	}
 	return canvas, nil

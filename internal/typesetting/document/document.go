@@ -200,6 +200,9 @@ type Run struct {
 	// URI. It counts as one rune. ImageHeight is its height in hundredths of an em, 0 for its own.
 	Image       string
 	ImageHeight Hundredths
+	// Alt is an inline image's text alternative, drawn in its place when it cannot be shown in
+	// time. It is not counted in runes: the reader's positions do not move.
+	Alt string
 	// Orientation and Combine are how the run's characters are drawn in vertical text.
 	Orientation TextOrientation
 	Combine     TextCombine
@@ -249,6 +252,9 @@ type Block struct {
 	Footnote string
 	Runs     []Run
 	Image    string // the image's path in the book, for an Image block
+	// Alt is an Image block's text alternative, drawn in its place when it cannot be shown in
+	// time. It is not counted in runes: the reader's positions do not move.
+	Alt string
 	// ImageWidth is an Image block's width, in percent of the text's (0 is its own).
 	ImageWidth Percent
 	// Float takes the block out of the text, to its left or its right, the lines of the next

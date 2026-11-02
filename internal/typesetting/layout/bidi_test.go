@@ -149,7 +149,7 @@ func TestArabicShaped(t *testing.T) {
 		t.Errorf("%q %d wide, shaped %d, its letters alone %d", word, got, shaped, arabic.Width(word))
 	}
 	canvas := whiteCanvas(leftSettings)
-	if err := page.Draw(canvas, faces, nil); err != nil {
+	if err := page.Draw(canvas, faces, nil, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	if slices.Equal(canvas.Pix, whiteCanvas(leftSettings).Pix) {

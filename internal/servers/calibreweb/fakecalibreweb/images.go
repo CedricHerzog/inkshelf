@@ -8,6 +8,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"strings"
+	"sync"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/gobold"
@@ -23,6 +24,9 @@ var (
 	coverSize     = image.Pt(600, 900)
 	comicPageSize = image.Pt(1200, 1800) // a CBZ page
 	plateSize     = image.Pt(800, 500)   // the illustration of an EPUB
+	// largeSize is the showcase's large photograph: 30.7 M pixels, under pageimage's cap,
+	// some 0.3 s to decode on a computer and seconds on the reader.
+	largeSize = image.Pt(4800, 6400)
 )
 
 // jpegQuality is the quality of the covers and CBZ pages.
@@ -54,6 +58,18 @@ func drawPlate() ([]byte, error) {
 	}
 	return encoded.Bytes(), nil
 }
+
+// largeImage returns the showcase's large photograph, gray squares of 400 pixels in a JPEG, made
+// once: encoding it takes about a second.
+var largeImage = sync.OnceValues(func() ([]byte, error) {
+	img := image.NewGray(image.Rectangle{Max: largeSize})
+	for row := range largeSize.Y {
+		for column := range largeSize.X {
+			img.Pix[row*img.Stride+column] = uint8((column/400+row/400)%3*70 + 60)
+		}
+	}
+	return encodeJPEG(img)
+})
 
 // drawLines draws lines centred in rect, size pixels high, in black.
 func drawLines(img *image.RGBA, rect image.Rectangle, size float64, lines []string) error {

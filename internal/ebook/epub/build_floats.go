@@ -81,10 +81,10 @@ func (parser *builder) floatBlock(block *document.Block, blockElement *element) 
 	}
 }
 
-// floatImage adds the image at imagePath of an <img> that floats by itself, and reports whether
-// it does. The float is a single image block, as wide as the image; the text around it in its
+// floatImage adds the image at imagePath of an <img> that floats by itself, alt its text
+// alternative, and reports whether it does. The float is a single image block, as wide as the image; the text around it in its
 // block is split there.
-func (parser *builder) floatImage(imagePath string, img *element) bool {
+func (parser *builder) floatImage(imagePath string, img *element, alt string) bool {
 	group := img.floating
 	if group == nil || group.root != img {
 		return false
@@ -99,7 +99,7 @@ func (parser *builder) floatImage(imagePath string, img *element) bool {
 		parser.doc.Blocks[len(parser.doc.Blocks)-1].MarginBottom = 0
 	}
 	parser.doc.Add(document.Block{
-		Kind: document.Image, Image: imagePath, ImageWidth: 100, MarginBottom: imageMargin,
+		Kind: document.Image, Image: imagePath, Alt: alt, ImageWidth: 100, MarginBottom: imageMargin,
 		Float: group.side, FloatGroup: group.number, FloatWidth: group.width,
 		Clear: clearOf(img.style.clear, img.style.direction), Footnote: noteIDOf(parser.blockElement()),
 	})

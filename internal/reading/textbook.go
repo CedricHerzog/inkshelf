@@ -43,6 +43,7 @@ func Open(store shelf.Store, book shelf.Book, settings layout.Settings) (*TextBo
 		drawn: map[PagePosition]*image.Gray{},
 		renderer: &renderer{
 			book:     opened,
+			bookID:   book.ID,
 			settings: settings,
 			faces:    layout.NewFaces(fonts.Serif),
 			chapters: map[int][]layout.Page{},

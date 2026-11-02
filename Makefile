@@ -67,7 +67,8 @@ define run-script
 build/emulator -fake -fresh -frozen-status -script emulator/scripts/$(1).txt -out build/shots/$(1) $(call script-flags,$(1))
 
 endef
-script-flags = $(if $(filter servers,$(1)),-servers 2,$(if $(filter mealie,$(1)),-fake-type mealie,$(if $(filter calibreweb-%,$(1)),-fake-type calibreweb)))
+# calibreweb-slow waits 10 ms for a page's pictures, to show what shows past the wait.
+script-flags = $(if $(filter servers,$(1)),-servers 2,$(if $(filter mealie,$(1)),-fake-type mealie,$(if $(filter calibreweb-slow,$(1)),-fake-type calibreweb -element-limit 10ms,$(if $(filter calibreweb-%,$(1)),-fake-type calibreweb))))
 
 # The shots of shots-all, compared with those of make baseline: lists the PNGs that changed.
 shots-compare:

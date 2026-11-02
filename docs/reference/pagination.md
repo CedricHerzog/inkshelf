@@ -213,3 +213,28 @@ with the same line breaking, justification and pagination as horizontal text.
 
 `Settings.Horizontal` lays every document out across whatever its mode: a note's popup is a
 band across the page.
+
+## Slow elements
+
+`Page.Draw` draws a page's images and formulas when it draws the page, not when it lays it
+out: layout only needs their sizes, read from the image's header. Decoding a photograph or
+drawing an SVG can take seconds on the reader, and a crafted one longer. So a page waits for its
+elements 10 seconds in all (`PageBudget`), not each element 10 seconds.
+
+- `Settings.Elements` (an `Elements`) names the pool of workers that prepares them, the page's
+  budget (`Budget`, `PageBudget` if 0) and the book, which names each element's key with its
+  path and size. A nil pool prepares everything on the goroutine that draws, with no limit:
+  tests and tools.
+- `Draw` starts the budget (`Elements.Started`) and prepares each background image, image and
+  formula through `PrepareElement`, which waits at most what is left of it. Once the budget is
+  spent, every element left shows its fallback without a wait.
+- An element not ready in time shows its text alternative (`PlacedImage.Alt`, from the
+  document's `Alt`) in its box, in the text's font, broken into lines between words and cut at
+  the box's edges (`drawAlt`); without one the box stays empty. An image that cannot be decoded
+  at all is left out, as before.
+- A formula is laid out and drawn on the worker, on a white canvas of its own, then darkens the
+  page under it: the worker never touches the page, which may have moved on.
+- A fixed-layout page drawn at download (`fixedlayout.Page.Render`) shares one budget across its
+  regions, through `Elements.Started` as well.
+
+The workers, their pools and their locks are in [app-threading.md](app-threading.md#the-element-workers).

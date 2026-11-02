@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
+	"github.com/CedricHerzog/inkshelf/internal/typesetting/layout"
 	"github.com/CedricHerzog/inkshelf/internal/web/css"
 )
 
@@ -34,7 +35,7 @@ func BenchmarkPageRender(b *testing.B) {
 	screen := image.Pt(1404, 1872)
 	b.ReportAllocs()
 	for b.Loop() {
-		if _, err := page.Render(screen, files); err != nil {
+		if _, err := page.Render(screen, files, layout.Elements{}); err != nil {
 			b.Fatal(err)
 		}
 	}

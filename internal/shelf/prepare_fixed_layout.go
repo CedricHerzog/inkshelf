@@ -84,7 +84,9 @@ func (store Store) renderPage(opened *epub.Book, bookID string, number int, size
 	if store.pageOnDisk(bookID, number) {
 		return nil
 	}
-	drawn, err := opened.RenderPage(number-1, size)
+	elements := store.Elements
+	elements.Book = bookID
+	drawn, err := opened.RenderPage(number-1, size, elements)
 	if err != nil {
 		return err
 	}

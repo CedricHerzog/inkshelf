@@ -11,7 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/image/font/gofont/gobold"
+
 	"github.com/CedricHerzog/inkshelf/internal/ebook/epub/epubtest"
+	"github.com/CedricHerzog/inkshelf/internal/graphics/fonts"
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
 	"github.com/CedricHerzog/inkshelf/internal/web/uri"
 )
@@ -752,5 +755,103 @@ func TestDataImage(t *testing.T) {
 	}
 	if size, err := book.ImageSize(source); err != nil || size != image.Pt(4, 2) {
 		t.Errorf("ImageSize = %v, %v, want 4x2", size, err)
+	}
+}
+
+// Nothing a book carries runs, and nothing is fetched: a script and an event handler leave the
+// static text around them and add none of their own; a remote image is a missing one, its text
+// alternative kept; a remote font is skipped for the next source; an iframe, a form and a
+// WebAssembly object load nothing.
+func TestNothingRunsOrIsFetched(t *testing.T) {
+	book := openStyled(t, `
+@font-face { font-family: Remote; src: url(https://fonts.example.com/remote.ttf) }
+@font-face { font-family: Mirrored; src: url(https://fonts.example.com/mirrored.ttf), url(fonts/mirrored.ttf) }
+.remote { font-family: Remote, sans-serif } .mirrored { font-family: Mirrored, serif }`,
+		`<p>Before <script>document.write("Injected")</script>after.</p>
+<p onclick="alert('Clicked')">Click <a href="javascript:alert(1)" onmouseover="steal()">here</a>.</p>
+<p><img src="https://images.example.com/lighthouse.png" alt="A lighthouse
+  on a rock"/></p>
+<p class="remote">Remote font</p><p class="mirrored">Mirrored font</p>
+<iframe src="other.xhtml"></iframe>
+<form action="https://example.com/send"><input type="text" value="Typed"/><button>Send</button></form>
+<object type="application/wasm" data="module.wasm"><p>No module</p></object>`,
+		map[string]string{
+			"OEBPS/other.xhtml":        xhtml("<p>Framed</p>"),
+			"OEBPS/module.wasm":        "\x00asm",
+			"OEBPS/fonts/mirrored.ttf": string(gobold.TTF),
+		})
+	doc, err := book.Chapter(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := strings.Join(texts(doc), "|")
+	for _, own := range []string{"Injected", "Clicked", "alert", "Framed", "Typed", "asm"} {
+		if strings.Contains(all, own) {
+			t.Errorf("%q shows in %q", own, all)
+		}
+	}
+	for _, static := range []string{"Before after.", "Click here.", "Remote font", "Mirrored font", "No module"} {
+		if !strings.Contains(all, static) {
+			t.Errorf("%q missing from %q", static, all)
+		}
+	}
+
+	index := slices.IndexFunc(doc.Blocks, func(block document.Block) bool { return block.Kind == document.Image })
+	if index < 0 {
+		t.Fatalf("no image block in %q", all)
+	}
+	remote := doc.Blocks[index]
+	if remote.Alt != "A lighthouse on a rock" {
+		t.Errorf("the remote image's text alternative %q", remote.Alt)
+	}
+	if _, err := book.Resource(remote.Image); err == nil || strings.Contains(remote.Image, "://") {
+		t.Errorf("the remote image %q can be read (%v): want a missing image", remote.Image, err)
+	}
+
+	if doc.Fonts["remote"] != nil || runOf(t, doc, "Remote font").Family != "sans-serif" {
+		t.Errorf("a remote font was used: fonts %v", doc.Fonts)
+	}
+	if doc.Fonts["mirrored"][fonts.Regular] == nil || runOf(t, doc, "Mirrored font").Family != "mirrored" {
+		t.Errorf("the book's own source after a remote one was not used: fonts %v", doc.Fonts)
+	}
+}
+
+// An image's text alternative is kept, not counted in runes: <img alt>, an inline SVG's own
+// <title>, MathML's alttext.
+func TestImageAlt(t *testing.T) {
+	book := openPackage(t, "", "", `
+<item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+<item id="picture" href="picture.png" media-type="image/png"/>`,
+		`><itemref idref="chapter"/>`,
+		map[string]string{
+			"OEBPS/picture.png": pngOf(t, image.Pt(400, 300)),
+			"OEBPS/chapter.xhtml": xhtml(`<p><img src="picture.png" alt=" A  harbour "/></p>
+<p>Small <img src="picture.png" alt="an icon" style="height: 1em"/> inline.</p>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><title>A red <tspan>square</tspan></title><g><title>Not this</title><rect width="20" height="10"/></g></svg>
+<p>So <math alttext="x squared"><msup><mi>x</mi><mn>2</mn></msup></math>.</p>
+<math display="block" alttext="one over n"><mfrac><mn>1</mn><mi>n</mi></mfrac></math>`),
+		})
+	doc, err := book.Chapter(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var alts []string
+	for _, block := range doc.Blocks {
+		if block.Kind == document.Image {
+			alts = append(alts, block.Alt)
+		}
+		for _, run := range block.Runs {
+			if run.Image != "" {
+				alts = append(alts, run.Alt)
+			}
+		}
+	}
+	want := []string{"A harbour", "an icon", "A red square", "x squared", "one over n"}
+	if strings.Join(alts, "|") != strings.Join(want, "|") {
+		t.Errorf("text alternatives %q, want %q", alts, want)
+	}
+	// Each image counts one rune, its text alternative none.
+	if want := 1 + len([]rune("Small ")) + 1 + len([]rune(" inline.")) + 1 + len([]rune("So ")) + 1 + 1 + 1; doc.Chars != want {
+		t.Errorf("%d runes, want %d", doc.Chars, want)
 	}
 }

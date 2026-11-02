@@ -44,5 +44,5 @@ th, td { border: 1px solid black; padding: 0.2em 0.6em; }
 
 // makeVerticalEPUB returns the EPUB of the vertical book.
 func makeVerticalEPUB(item book) ([]byte, error) {
-	return chaptersEPUB(item, verticalChapters, verticalCSS, "ja")
+	return chaptersEPUB(item, verticalChapters, verticalCSS, "ja", nil)
 }

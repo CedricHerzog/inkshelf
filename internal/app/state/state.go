@@ -118,6 +118,9 @@ type Options struct {
 	WiFiConnected func() bool
 	// ConnectWiFi connects to a known network, as pocketbook.KeepWiFiOn does.
 	ConnectWiFi func(ctx context.Context) (stop func(), err error)
+	// ElementBudget is how long a page waits in all for its images, SVGs and formulas,
+	// layout.PageBudget if 0: the emulator shortens it to show what a page shows past it.
+	ElementBudget time.Duration
 }
 
 // New returns the state of an app that keeps its files in dir and connects to the servers of

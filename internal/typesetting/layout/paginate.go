@@ -31,6 +31,8 @@ type Settings struct {
 	// Horizontal lays every document out in horizontal lines, whatever its writing mode: a note
 	// shown in a popup across the bottom of the page.
 	Horizontal bool
+	// Elements bounds how long drawing a page waits for its images, SVGs and formulas.
+	Elements Elements
 }
 
 // content returns the rectangle the text goes in.
@@ -331,7 +333,8 @@ func (layout *paginator) placeImage(block document.Block) {
 	layout.placeBorder(block, false)
 	left += (width - scaled.X) / 2
 	page := &layout.pages[len(layout.pages)-1]
-	page.Images = append(page.Images, PlacedImage{Path: block.Image, Rect: image.Rect(left, layout.y, left+scaled.X, layout.y+scaled.Y)})
+	page.Images = append(page.Images, PlacedImage{Path: block.Image, Rect: image.Rect(left, layout.y, left+scaled.X, layout.y+scaled.Y),
+		Alt: block.Alt, altFormat: textFormat{size: layout.settings.FontSize}})
 	layout.y += scaled.Y
 	layout.recordUnit(layout.y-scaled.Y, block.Start)
 }
@@ -353,7 +356,8 @@ func (layout *paginator) placeFormula(block document.Block) {
 	layout.placeBorder(block, false)
 	left += (width - formula.Width) / 2
 	page := &layout.pages[len(layout.pages)-1]
-	page.Images = append(page.Images, PlacedImage{Path: block.Image, Rect: image.Rect(left, layout.y, left+formula.Width, layout.y+height), MathSize: size})
+	page.Images = append(page.Images, PlacedImage{Path: block.Image, Rect: image.Rect(left, layout.y, left+formula.Width, layout.y+height), MathSize: size,
+		Alt: block.Alt, altFormat: textFormat{family: mathFamily, size: layout.settings.FontSize}})
 	layout.y += height
 	layout.recordUnit(layout.y-height, block.Start)
 }

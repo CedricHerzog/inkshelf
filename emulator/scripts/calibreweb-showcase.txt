@@ -1,5 +1,6 @@
 # The showcase EPUB of the fake Calibre-Web, a chapter per topic: Arabic, Hebrew, both
-# directions, Chinese and Japanese, emphasis marks and underlines, backgrounds and SVG strokes:
+# directions, Chinese and Japanese, emphasis marks and underlines, backgrounds and SVG strokes,
+# and what a book cannot do (run a script, fetch from the web):
 #   make shots SCRIPT=emulator/scripts/calibreweb-showcase.txt EMUFLAGS="-fake-type calibreweb"
 # The series list's rows, 282 px high from y 292, are centred at y 433, 715, 997: Les Étoiles
 # (EPUB), Ruines (CBZ), No series. On the books screen of No series: Contes courts, Le voyage
@@ -21,6 +22,8 @@ tap 1200 900
 shot 06-emphasis            # marks over and under the characters as shapes (dots, sesames, circles, double circles, triangles), an underline under the descenders
 tap 1200 900
 shot 07-backgrounds         # a grid of tiled gradients, a radial gradient, two strokes as thick in viewBoxes 100 times apart
+tap 1200 900
+shot 08-safety              # no text from the script, no picture from the web, the large photograph drawn within the page's 10 s
 tap 700 900                 # the toolbar, for Back
 tap 150 84                  # ‹ Back to the list
-shot 08-books
+shot 09-books

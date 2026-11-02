@@ -139,7 +139,7 @@ func TestVerticalCombine(t *testing.T) {
 		t.Errorf("2026 %v, %d high; want combined in one em, %d", year.Vertical, after.Top-year.Top, testSettings.FontSize)
 	}
 	canvas := whiteCanvas(testSettings)
-	if err := pages[0].Draw(canvas, faces, nil); err != nil {
+	if err := pages[0].Draw(canvas, faces, nil, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	cell := image.Rect(year.X-testSettings.FontSize/2, year.Top, year.X+testSettings.FontSize/2, after.Top)

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
+	"github.com/CedricHerzog/inkshelf/internal/typesetting/layout"
 	"github.com/CedricHerzog/inkshelf/internal/web/css"
 	"github.com/CedricHerzog/inkshelf/internal/web/webimage"
 )
@@ -90,7 +91,7 @@ func darkIn(page *image.Gray, rect image.Rectangle) bool {
 func TestRenderImagePage(t *testing.T) {
 	book := files{"page.png": blackPNG(t, image.Pt(400, 400))}
 	page := &Page{Size: image.Pt(600, 800), EmPixels: 16, Regions: []*Region{{Rect: image.Rect(0, 0, 600, 800), Content: imageDocument("page.png")}}}
-	drawn, err := page.Render(image.Pt(300, 300), book)
+	drawn, err := page.Render(image.Pt(300, 300), book, layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +114,7 @@ func TestRenderPositionedText(t *testing.T) {
 		{Rect: box, Content: text},
 		{Rect: image.Rect(0, 700, 600, 800), Layers: layersOf(t, "background: url(dark.png) 0 0 / 100% 100% no-repeat")},
 	}}
-	drawn, err := page.Render(image.Pt(1200, 1600), files{"dark.png": blackPNG(t, image.Pt(10, 10))})
+	drawn, err := page.Render(image.Pt(1200, 1600), files{"dark.png": blackPNG(t, image.Pt(10, 10))}, layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +137,7 @@ func TestRenderPositionedText(t *testing.T) {
 func TestRenderSVGPage(t *testing.T) {
 	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="100" height="200" viewBox="0 0 100 200"><rect x="0" y="100" width="100" height="100" fill="black"/></svg>`)
 	page := &Page{Size: image.Pt(100, 200), EmPixels: 16, Regions: []*Region{{Rect: image.Rect(0, 0, 100, 200), Content: imageDocument("page.svg")}}}
-	drawn, err := page.Render(image.Pt(100, 100), files{"page.svg": svg})
+	drawn, err := page.Render(image.Pt(100, 100), files{"page.svg": svg}, layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +162,7 @@ func FuzzRenderBackground(f *testing.F) {
 			layers = append(layers, document.BackgroundLayer{BackgroundLayer: layer, ImageSize: image.Pt(4, 4)})
 		}
 		page := &Page{Size: image.Pt(64, 64), EmPixels: 16, Regions: []*Region{{Rect: image.Rect(-2, -2, width%64, height%64), Layers: layers}}}
-		if _, err := page.Render(image.Pt(32, 32), files); err != nil {
+		if _, err := page.Render(image.Pt(32, 32), files, layout.Elements{}); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -203,7 +204,7 @@ func TestRenderBackgrounds(t *testing.T) {
 		{Rect: image.Rect(0, 0, 100, 50), Color: css.Color{Gray: 0, Alpha: 128}},
 		{Rect: image.Rect(0, 50, 100, 100), Layers: layersOf(t, "background: url(half.png) 0 0 / 100% 100%, linear-gradient(to bottom, white, black)")},
 	}}
-	drawn, err := page.Render(image.Pt(100, 100), files{"half.png": transparentPNG(t, image.Pt(20, 20))})
+	drawn, err := page.Render(image.Pt(100, 100), files{"half.png": transparentPNG(t, image.Pt(20, 20))}, layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -65,7 +65,7 @@ func TestFormulas(t *testing.T) {
 	if err := page.Draw(canvas, faces, func(string, image.Point) (*image.Gray, error) {
 		t.Errorf("a formula drawn as an image")
 		return nil, nil
-	}); err != nil {
+	}, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, placed := range page.Images {

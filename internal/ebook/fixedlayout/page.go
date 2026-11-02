@@ -56,8 +56,10 @@ type Files interface {
 
 // Render draws page on white, scaled to fit in size keeping its aspect ratio: the backgrounds
 // of its regions, then their content, clipped to the page. An image that cannot be drawn is
-// left out.
-func (page *Page) Render(size image.Point, files Files) (*image.Gray, error) {
+// left out. Its images, SVGs and formulas are prepared through elements, the page's budget
+// shared by all its regions: one not ready in time is left out, or shows its text alternative
+// in a region of text.
+func (page *Page) Render(size image.Point, files Files, elements layout.Elements) (*image.Gray, error) {
 	if page.Size.X <= 0 || page.Size.Y <= 0 || size.X <= 0 || size.Y <= 0 {
 		return nil, errors.New("fixedlayout: empty page")
 	}
@@ -66,8 +68,20 @@ func (page *Page) Render(size image.Point, files Files) (*image.Gray, error) {
 	draw.Draw(canvas, canvas.Bounds(), image.White, image.Point{}, draw.Src)
 	faces := layout.NewFaces(fonts.Serif)
 	defer faces.Close()
+	elements = elements.Started()
 	tiles := func(imagePath string, size image.Point) (layout.Tile, error) {
-		return backgroundTile(imagePath, size, files, faces)
+		type prepared struct {
+			tile layout.Tile
+			err  error
+		}
+		result, ok := layout.PrepareElement(elements, "prepare background", imagePath, size, func() prepared {
+			tile, err := backgroundTile(imagePath, size, files, faces)
+			return prepared{tile: tile, err: err}
+		})
+		if !ok {
+			return layout.Tile{}, errNotReady
+		}
+		return result.tile, result.err
 	}
 	for _, region := range page.Regions {
 		area := scaledRect(region.Rect, scale)
@@ -83,7 +97,7 @@ func (page *Page) Render(size image.Point, files Files) (*image.Gray, error) {
 			continue
 		}
 		if blocks := region.Content.Blocks; len(blocks) == 1 && blocks[0].Kind == document.Image {
-			_ = drawImage(canvas, blocks[0].Image, area, files, faces) // left out if it fails
+			_ = drawImage(canvas, blocks[0].Image, area, files, faces, elements) // left out if it fails
 			continue
 		}
 		// The text's first page, laid out in area: what overflows its bottom is left out.
@@ -95,7 +109,7 @@ func (page *Page) Render(size image.Point, files Files) (*image.Gray, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := pages[0].Draw(canvas, faces, webimage.NewLoader(files.Resource, faces.SVGText())); err != nil {
+		if err := pages[0].Draw(canvas, faces, webimage.NewLoader(files.Resource, faces.SVGText()), elements); err != nil {
 			return nil, err
 		}
 	}
@@ -123,30 +137,47 @@ func scaledRect(rect image.Rectangle, scale float64) image.Rectangle {
 	return image.Rectangle{Min: scaled(rect.Min, scale), Max: scaled(rect.Max, scale)}
 }
 
+// errNotReady is the error of an image that was not ready within its page's budget.
+var errNotReady = errors.New("not ready in time")
+
 // drawImage draws the image at imagePath (a data: URI too) in area of canvas, fitted and
-// centred in it.
-func drawImage(canvas *image.Gray, imagePath string, area image.Rectangle, files Files, faces *layout.Faces) error {
+// centred in it, prepared through elements.
+func drawImage(canvas *image.Gray, imagePath string, area image.Rectangle, files Files, faces *layout.Faces, elements layout.Elements) error {
 	if area.Empty() {
 		return nil
 	}
+	type prepared struct {
+		picture *image.Gray
+		err     error
+	}
+	result, ok := layout.PrepareElement(elements, "prepare image", imagePath, area.Size(), func() prepared {
+		picture, err := fittedImage(imagePath, area.Size(), files, faces)
+		return prepared{picture: picture, err: err}
+	})
+	switch {
+	case !ok:
+		return errNotReady
+	case result.err != nil:
+		return result.err
+	}
+	paste(canvas, result.picture, area.Min.Add(area.Size().Sub(result.picture.Bounds().Size()).Div(2)))
+	return nil
+}
+
+// fittedImage returns the image at imagePath decoded, or the SVG drawn, fitted in size.
+func fittedImage(imagePath string, size image.Point, files Files, faces *layout.Faces) (*image.Gray, error) {
 	data, err := imageData(imagePath, files)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var picture *image.Gray
 	if svgimage.IsSVG(data) {
-		if picture, err = rasterize(data, imagePath, area.Size(), files, faces, true); err != nil {
-			return err
-		}
-	} else {
-		decoded, err := pageimage.DecodeGray(data)
-		if err != nil {
-			return err
-		}
-		picture = pageimage.Fit(decoded, area.Dx(), area.Dy())
+		return rasterize(data, imagePath, size, files, faces, true)
 	}
-	paste(canvas, picture, area.Min.Add(area.Size().Sub(picture.Bounds().Size()).Div(2)))
-	return nil
+	decoded, err := pageimage.DecodeGray(data)
+	if err != nil {
+		return nil, err
+	}
+	return pageimage.Fit(decoded, size.X, size.Y), nil
 }
 
 // paste copies src into dst with its top-left corner at topLeft, clipped to dst: row by row,

@@ -243,7 +243,7 @@ func TestImages(t *testing.T) {
 	for index := range canvas.Pix {
 		canvas.Pix[index] = 255
 	}
-	if err := pages[0].Draw(canvas, faces, webimage.NewLoader(readFrom(files), faces.SVGText())); err != nil {
+	if err := pages[0].Draw(canvas, faces, webimage.NewLoader(readFrom(files), faces.SVGText()), Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	if center := pages[0].Images[0].Rect.Min.Add(image.Pt(60, 30)); canvas.GrayAt(center.X, center.Y).Y > 64 {
@@ -293,7 +293,7 @@ func TestSVGImage(t *testing.T) {
 	for index := range canvas.Pix {
 		canvas.Pix[index] = 255
 	}
-	if err := pages[0].Draw(canvas, faces, webimage.NewLoader(read, faces.SVGText())); err != nil {
+	if err := pages[0].Draw(canvas, faces, webimage.NewLoader(read, faces.SVGText()), Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	if center := pages[0].Images[0].Rect.Min.Add(image.Pt(60, 30)); canvas.GrayAt(center.X, center.Y).Y > 64 {
@@ -339,7 +339,7 @@ func BenchmarkRenderPage(b *testing.B) {
 		for index := range canvas.Pix {
 			canvas.Pix[index] = 255
 		}
-		if err := pages[1].Draw(canvas, faces, nil); err != nil {
+		if err := pages[1].Draw(canvas, faces, nil, Elements{}); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -359,7 +359,7 @@ func BenchmarkRenderPageVertical(b *testing.B) {
 		for index := range canvas.Pix {
 			canvas.Pix[index] = 255
 		}
-		if err := pages[1].Draw(canvas, faces, nil); err != nil {
+		if err := pages[1].Draw(canvas, faces, nil, Elements{}); err != nil {
 			b.Fatal(err)
 		}
 	}

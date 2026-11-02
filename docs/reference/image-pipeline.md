@@ -69,9 +69,12 @@ Transparent pixels are often stored black. Shown as is, a transparent PNG would 
 black page, so transparency is composited over white, the paper. A row is first converted as if
 opaque, and converted again only if one of its pixels is not.
 
-A JPEG XL image's header can ask for any size, so one above `maxJXLPixels` (8.4 Mpx) is
-refused before decoding, and the decoder's panics are recovered. That is why the app decodes
-images through `pageimage.Decode` rather than `image.Decode`.
+An image's header can ask for any size, and a book or a server could use that to take the
+reader's memory. So `pageimage.Decode` reads the header first and refuses an image above its
+cap before decoding: `maxJXLPixels` (8.4 Mpx) for JPEG XL, whose decoder works in float32 planes,
+and `maxPixels` (33.5 Mpx, a double page scanned at 400 dpi) for the other formats. It also
+recovers the decoders' panics. That is why the app decodes images through `pageimage.Decode`
+rather than `image.Decode`.
 
 ### 2. Fit to the screen
 

@@ -143,6 +143,9 @@ func (part compound) specificity() int {
 type selectorParser struct {
 	tokens   []token
 	position int
+	// negated is set inside :not(), which takes no :not() of its own (Selectors 3): a crafted
+	// selector cannot nest them to any depth.
+	negated bool
 }
 
 func (parser *selectorParser) done() bool { return parser.position >= len(parser.tokens) }
@@ -289,6 +292,9 @@ func (parser *selectorParser) pseudo() (pseudoClass, string, bool) {
 		step, offset, ok := parseNth(serialize(arguments))
 		return pseudoClass{kind: nthChild, step: step, offset: offset}, "", ok
 	case "not":
+		if parser.negated {
+			return pseudoClass{}, "", false
+		}
 		negated, ok := parseCompoundList(arguments)
 		return pseudoClass{kind: not, negated: negated}, "", ok
 	}
@@ -299,7 +305,7 @@ func (parser *selectorParser) pseudo() (pseudoClass, string, bool) {
 func parseCompoundList(tokens []token) ([]compound, bool) {
 	var compounds []compound
 	for _, part := range splitAt(tokens, commaToken) {
-		parser := selectorParser{tokens: trimWhitespace(part)}
+		parser := selectorParser{tokens: trimWhitespace(part), negated: true}
 		parsed, pseudoElement, ok := parser.compound()
 		if !ok || pseudoElement != "" || !parser.done() {
 			return nil, false

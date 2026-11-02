@@ -324,15 +324,15 @@ func (parser *builder) addContent(opened *element) {
 		parser.lineBreak()
 		parser.clearAfter(opened)
 	case name == "img" || name == "image":
-		parser.addImage(cmp.Or(attributes["src"], attributes["href"]), opened)
+		parser.addImage(cmp.Or(attributes["src"], attributes["href"]), opened, attributes["alt"])
 	case name == "object":
 		// An <object> shows its image if the book has one to show, else its content.
 		if _, ok := parser.book.SupportedImage(resolve(parser.chapterPath, attributes["data"])); ok {
-			parser.addImage(attributes["data"], opened)
+			parser.addImage(attributes["data"], opened, "")
 			opened.hidden = true
 		}
 	case name == "video" && attributes["poster"] != "":
-		parser.addImage(attributes["poster"], opened)
+		parser.addImage(attributes["poster"], opened, "")
 		opened.hidden = true
 	case name == "hr":
 		parser.flush()

@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/CedricHerzog/inkshelf/internal/graphics/pageimage"
+	"github.com/CedricHerzog/inkshelf/internal/typesetting/layout"
 )
 
 // The files of a downloaded book, in its folder.
@@ -25,6 +26,9 @@ type Store struct {
 	Dir string
 	// Logf, if set, receives the time each download spent in each stage.
 	Logf func(format string, args ...any)
+	// Elements bounds how long a fixed-layout page drawn at download waits for its images, SVGs
+	// and formulas; with no pool, they are prepared on the downloading goroutine with no limit.
+	Elements layout.Elements
 }
 
 // logf logs through Logf, if set.

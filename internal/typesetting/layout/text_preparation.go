@@ -75,7 +75,7 @@ func (layout *paginator) makeFormats(block document.Block, size int, limit image
 		}
 		formats[index] = runFormat{
 			family: run.Family, style: run.Style, size: runSize, spacing: run.LetterSpacing * runSize / 100,
-			font: font, shift: run.Shift * size / 100, link: run.Link, gray: run.Gray, image: run.Image,
+			font: font, shift: run.Shift * size / 100, link: run.Link, gray: run.Gray, image: run.Image, alt: run.Alt,
 		}
 		if layout.mode.Vertical() {
 			// Vertical text is underlined on its right, unless the book says left: over the
@@ -186,6 +186,7 @@ type runFormat struct {
 	link      string
 	gray      uint8
 	image     string // the path of an inline image, "" for text
+	alt       string // the inline image's text alternative
 	imageSize image.Point
 	// imageDescent is how far the image goes under the baseline. Only a formula does, as it has
 	// a baseline of its own; mathSize is the font size it is laid out at.

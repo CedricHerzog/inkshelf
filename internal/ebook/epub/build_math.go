@@ -23,7 +23,7 @@ func (parser *builder) inlineMath(decoder *xml.Decoder, data []byte) {
 	root, err := mathml.Read(container.NewDecoder(data))
 	if err == nil && decoder.Skip() == nil {
 		if root.Display() {
-			parser.addImageBlock(mathml.Path(root), 0)
+			parser.addImageBlock(mathml.Path(root), 0, altText(formula.attributes["alttext"]))
 			block := &parser.doc.Blocks[len(parser.doc.Blocks)-1]
 			block.MarginTop, block.MarginBottom = max(block.MarginTop, formulaMargin), max(block.MarginBottom, formulaMargin)
 		} else {
@@ -33,7 +33,7 @@ func (parser *builder) inlineMath(decoder *xml.Decoder, data []byte) {
 				parser.appendRun(run)
 			}
 			parser.spaceNeeded = false
-			run.Text, run.Image, run.Style = "", mathml.Path(root), run.Style&document.Small
+			run.Text, run.Image, run.Alt, run.Style = "", mathml.Path(root), altText(formula.attributes["alttext"]), run.Style&document.Small
 			parser.appendRun(run)
 		}
 		parser.end("math")
@@ -41,7 +41,7 @@ func (parser *builder) inlineMath(decoder *xml.Decoder, data []byte) {
 	}
 	switch attributes := formula.attributes; {
 	case attributes["altimg"] != "":
-		parser.addImage(attributes["altimg"], formula)
+		parser.addImage(attributes["altimg"], formula, attributes["alttext"])
 		formula.hidden = true
 	case attributes["alttext"] != "":
 		parser.appendText(attributes["alttext"], formula, false)

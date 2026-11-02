@@ -36,7 +36,7 @@ const textFullEvery = 6
 
 // openTextLocked opens a Reflowable book, laid out at the reader's text size, at its location.
 func openTextLocked(app *state.State, book shelf.Book) (*state.TextReader, error) {
-	opened, err := reading.Open(app.Store, book, TextSettings(textSizeLocked(app)))
+	opened, err := reading.Open(app.Store, book, TextSettings(textSizeLocked(app), ReadingElements(app)))
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func ChangeTextSize(app *state.State, larger bool) {
 		}
 		app.Preferences.TextSize = textSizes[index]
 		saved, changed = app.Preferences, true
-		if err := text.Book.Relayout(TextSettings(app.Preferences.TextSize), location); err != nil {
+		if err := text.Book.Relayout(TextSettings(app.Preferences.TextSize, ReadingElements(app)), location); err != nil {
 			app.Reader.PageErr = err
 		}
 		app.Reader.Shown.Valid = false
@@ -193,9 +193,16 @@ func JumpTextLocked(app *state.State, location shelf.Location) {
 	NoteTextLocationLocked(app)
 }
 
-// TextSettings returns how book text is laid out on the screen at size, in InkPad 3 pixels.
-// The footnotes that a chapter links to are left out, as its links show them in a popup.
-func TextSettings(size int) layout.Settings {
+// ReadingElements returns how a page being read waits for its images, SVGs and formulas: on the
+// reading pool, the app's budget in all.
+func ReadingElements(app *state.State) layout.Elements {
+	return layout.Elements{Pool: app.ReadingPool, Budget: app.Options.ElementBudget}
+}
+
+// TextSettings returns how book text is laid out on the screen at size, in InkPad 3 pixels,
+// its pages' elements waited for as elements says. The footnotes that a chapter links to are
+// left out, as its links show them in a popup.
+func TextSettings(size int, elements layout.Elements) layout.Settings {
 	screenSize := pocketbook.ScreenSize()
 	return layout.Settings{
 		Width: screenSize.X, Height: screenSize.Y,
@@ -204,5 +211,6 @@ func TextSettings(size int) layout.Settings {
 		LineSpacing:   TextLineSpacing,
 		Justify:       true,
 		HideFootnotes: true,
+		Elements:      elements,
 	}
 }

@@ -57,11 +57,12 @@ func backgroundTile(imagePath string, size image.Point, files Files, faces *layo
 // premultiplied by its opacity, and its opacity. It returns false if the image is opaque or
 // cannot be decoded, for backgroundTile to draw it as other images are.
 func transparentTile(data []byte, size image.Point) (layout.Tile, bool) {
-	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	// pageimage's decoders, which recover from a malformed JPEG XL's panic.
+	config, err := pageimage.DecodeConfig(bytes.NewReader(data))
 	if err != nil || config.Width*config.Height > maxTransparentPixels {
 		return layout.Tile{}, false
 	}
-	decoded, _, err := image.Decode(bytes.NewReader(data))
+	decoded, err := pageimage.Decode(data)
 	if err != nil {
 		return layout.Tile{}, false
 	}

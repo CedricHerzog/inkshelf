@@ -35,6 +35,11 @@ type PlacedImage struct {
 	Path     string
 	Rect     image.Rectangle
 	MathSize int
+	// Alt is the image's text alternative, drawn in Rect when the image is not ready in time,
+	// in the format and gray of the text around it.
+	Alt       string
+	altFormat textFormat
+	altGray   uint8
 }
 
 // PlacedLink is the area of a link's text on a line, which the reader turns into a tap target.

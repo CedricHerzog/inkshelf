@@ -28,6 +28,14 @@ const maxJXLPixels = 1 << 23
 // errJXLTooLarge is returned for a JPEG XL image larger than maxJXLPixels.
 var errJXLTooLarge = errors.New("jxl: image too large")
 
+// maxPixels is the largest image of another format decoded, in pixels (33.5 M, a double page
+// scanned at 400 dpi): decoded, it takes up to 4 bytes a pixel, and a header may ask for any
+// size, which a book could use to take the reader's memory.
+const maxPixels = 1 << 25
+
+// errTooLarge is returned for an image larger than maxPixels.
+var errTooLarge = errors.New("image too large")
+
 // DecodeGray decodes a JPEG, PNG, WebP or JPEG XL image to grayscale, what is transparent in
 // it composited over white, the page.
 func DecodeGray(data []byte) (*image.Gray, error) {
@@ -40,12 +48,21 @@ func DecodeGray(data []byte) (*image.Gray, error) {
 
 // Decode decodes an image of any registered format, a JPEG XL one through decodeJXL. It is
 // what decodes the images of books and servers: the JPEG XL decoder that image.Decode picks
-// has no size cap, and a panic in its goroutines could not be recovered.
-func Decode(data []byte) (image.Image, error) {
+// has no size cap, and a panic in its goroutines could not be recovered. An image whose header
+// gives more than maxPixels is not decoded, and a decoder's panic is returned as an error.
+func Decode(data []byte) (img image.Image, err error) {
 	if isJXL(data) {
 		return decodeJXL(data)
 	}
-	img, _, err := image.Decode(bytes.NewReader(data))
+	defer recoverError(&err)
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	if int64(config.Width)*int64(config.Height) > maxPixels {
+		return nil, fmt.Errorf("%w: %d×%d", errTooLarge, config.Width, config.Height)
+	}
+	img, _, err = image.Decode(bytes.NewReader(data))
 	return img, err
 }
 

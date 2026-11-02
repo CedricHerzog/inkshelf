@@ -29,7 +29,7 @@ func TestEmphasisMarkShapes(t *testing.T) {
 	for mark, want := range keywordMarks {
 		page := paginateOne(t, oneBlock(document.Block{Runs: []document.Run{{Text: "ab, c", Emphasis: document.Emphasis{Mark: mark}}}}), leftSettings, faces, noImages)
 		canvas := whiteCanvas(leftSettings)
-		if err := page.Draw(canvas, faces, nil); err != nil {
+		if err := page.Draw(canvas, faces, nil, Elements{}); err != nil {
 			t.Fatal(err)
 		}
 		var marks []PlacedWord

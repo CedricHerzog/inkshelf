@@ -174,7 +174,7 @@ func drawFixedLayout(book *epub.Book, outDir string, pages int) error {
 		fmt.Fprintf(&words, "a roll of %d pages\n", book.PageCount(screenSize))
 	}
 	for index := range min(pages, book.PageCount(screenSize)) {
-		drawn, err := book.RenderPage(index, screenSize)
+		drawn, err := book.RenderPage(index, screenSize, layout.Elements{})
 		if err != nil {
 			fmt.Fprintf(&words, "page %d: error: %v\n", index+1, err)
 			continue

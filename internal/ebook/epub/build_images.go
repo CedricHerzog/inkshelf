@@ -1,6 +1,8 @@
 package epub
 
 import (
+	"strings"
+
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
 	"github.com/CedricHerzog/inkshelf/internal/web/uri"
 )
@@ -14,13 +16,14 @@ const (
 )
 
 // addImage adds the image at source (the src of an <img>, the href of an SVG <image>…) of the
-// element img: the first image of its manifest fallback chain that the book can show, else
-// source itself; a data: URI as it is. A small image in a line of text goes in it; another
-// is a block of its own.
-func (parser *builder) addImage(source string, img *element) {
+// element img, alt its text alternative: the first image of its manifest fallback chain that
+// the book can show, else source itself; a data: URI as it is. A small image in a line of text
+// goes in it; another is a block of its own.
+func (parser *builder) addImage(source string, img *element, alt string) {
 	if source == "" {
 		return
 	}
+	alt = altText(alt)
 	imagePath := source
 	if !uri.IsData(source) {
 		imagePath = resolve(parser.chapterPath, source)
@@ -28,7 +31,7 @@ func (parser *builder) addImage(source string, img *element) {
 			imagePath = fallback
 		}
 	}
-	if parser.floatImage(imagePath, img) {
+	if parser.floatImage(imagePath, img, alt) {
 		return
 	}
 	width, height, sized := parser.imageSize(imagePath, img)
@@ -39,7 +42,7 @@ func (parser *builder) addImage(source string, img *element) {
 			parser.appendRun(run)
 		}
 		parser.spaceNeeded = false
-		run.Text, run.Image = "", imagePath
+		run.Text, run.Image, run.Alt = "", imagePath, alt
 		if sized {
 			run.ImageHeight = height * 100 / parser.blockElement().block.fontSize
 		}
@@ -50,8 +53,12 @@ func (parser *builder) addImage(source string, img *element) {
 	if sized {
 		widthPercent = min(max(width*100/textWidth, 1), 100)
 	}
-	parser.addImageBlock(imagePath, widthPercent)
+	parser.addImageBlock(imagePath, widthPercent, alt)
 }
+
+// altText returns an image's text alternative as it is drawn: its spaces and line breaks
+// collapsed, as in the text around it.
+func altText(alt string) string { return strings.Join(strings.Fields(alt), " ") }
 
 // imageSize returns the size of an image in hundredths of an em, 0 if unknown: from its
 // element's CSS (or its width and height attributes, for an <img>) and its own size in CSS
@@ -85,13 +92,14 @@ func (parser *builder) imageSize(imagePath string, img *element) (width, height 
 	return width, height, sized
 }
 
-// addImageBlock adds an image as a block, widthPercent wide (0 for its own width).
-func (parser *builder) addImageBlock(imagePath string, widthPercent int) {
+// addImageBlock adds an image as a block, widthPercent wide (0 for its own width), alt its text
+// alternative.
+func (parser *builder) addImageBlock(imagePath string, widthPercent int, alt string) {
 	parser.flush()
 	blockElement := parser.blockElement()
 	props := blockElement.block
 	block := document.Block{
-		Kind: document.Image, Image: imagePath, ImageWidth: widthPercent,
+		Kind: document.Image, Image: imagePath, Alt: alt, ImageWidth: widthPercent,
 		Align: props.align, Left: props.left, Right: props.right,
 		MarginTop: max(parser.pending.marginTop, imageMargin), MarginBottom: imageMargin,
 		PageBreak: parser.pending.pageBreak, BorderTop: parser.pending.borderTop, Footnote: noteIDOf(blockElement),

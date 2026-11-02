@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/CedricHerzog/inkshelf/internal/typesetting/layout"
 )
 
 // openRoll opens a book of layout roll whose chapters are bodies, in order.
@@ -39,7 +41,7 @@ func TestRollPages(t *testing.T) {
 		t.Fatalf("%d pages, want ceil(1140/300) = 4", pages)
 	}
 	for index := range 4 {
-		page, err := book.RenderPage(index, screen)
+		page, err := book.RenderPage(index, screen, layout.Elements{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -52,7 +54,7 @@ func TestRollPages(t *testing.T) {
 			}
 		}
 	}
-	if _, err := book.RenderPage(4, screen); err == nil {
+	if _, err := book.RenderPage(4, screen, layout.Elements{}); err == nil {
 		t.Error("a fifth page was drawn")
 	}
 }

@@ -43,6 +43,7 @@ text looks as it does on the reader. The app's own CJK fonts are decompressed on
 | `-out DIR` | `build/shots` | where the script's shots go |
 | `-frozen-status` | off | a fixed clock and free space, and fixed addresses for the fake servers, so that two runs give byte-identical shots |
 | `-profile DIR` | none | write the run's CPU profile, execution trace and other profiles to `DIR` ([profiling.md](profiling.md)) |
+| `-element-limit D` | `10s` | how long a page waits in all for its images, SVGs and formulas before it shows their text alternatives ([pagination.md](pagination.md#slow-elements)): shorter, it shows a slow element's fallback on any computer |
 
 Pass flags through make with `EMUFLAGS`, e.g. `make emu-fake EMUFLAGS="-servers 2 -fake-type komga,mealie"`.
 
@@ -103,6 +104,7 @@ Each script needs the fake servers it was written for. `shots-all` passes them f
 | `servers.txt` | `-servers 2` |
 | `mealie.txt` | `-fake-type mealie` |
 | `calibreweb-comics.txt`, `calibreweb-epub.txt`, `calibreweb-fxl.txt`, `calibreweb-links.txt`, `calibreweb-mathml.txt`, `calibreweb-showcase.txt`, `calibreweb-toc.txt`, `calibreweb-vertical.txt` | `-fake-type calibreweb` |
+| `calibreweb-slow.txt` | `-fake-type calibreweb -element-limit 10ms` |
 
 For example: `make shots SCRIPT=emulator/scripts/calibreweb-epub.txt EMUFLAGS="-fake-type calibreweb"`.
 

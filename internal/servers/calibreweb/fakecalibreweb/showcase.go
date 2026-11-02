@@ -3,6 +3,8 @@ package fakecalibreweb
 import (
 	"fmt"
 	"html"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -17,7 +19,8 @@ type showcaseChapter struct {
 
 // showcaseChapters are the chapters of the showcase EPUB: Arabic, Hebrew, text in both
 // directions, Chinese and Japanese lines and their punctuation, the emphasis marks and
-// underlines of CSS Text, and backgrounds and SVG strokes.
+// underlines of CSS Text, backgrounds and SVG strokes, and what a book cannot do: run a script,
+// fetch from the web, or keep a page waiting for a slow image.
 var showcaseChapters = []showcaseChapter{
 	{file: "arabic.xhtml", title: "العربية", language: "ar", direction: "rtl", body: `<h1>العربية</h1>
 <p>مرحبا بكم في هذا الكتاب. تكتب اللغة العربية من اليمين إلى اليسار، وتتصل حروفها ببعضها البعض داخل الكلمة، فيتغير شكل الحرف بحسب موضعه في أولها أو وسطها أو آخرها.</p>
@@ -45,7 +48,16 @@ var showcaseChapters = []showcaseChapter{
 <p>The same square drawn in a viewBox 10 wide, its stroke 0.5, and in one 1000 wide, its stroke 50: both lines are as thick.</p>
 <p class="strokes"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" width="80" height="80"><rect x="1" y="1" width="8" height="8" fill="none" stroke="black" stroke-width="0.5"/></svg>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="80" height="80"><rect x="100" y="100" width="800" height="800" fill="none" stroke="black" stroke-width="50"/></svg></p>`},
+	{file: "safety.xhtml", title: "Safety", language: "en", body: `<h1>Safety</h1>
+<p>Nothing in a book runs.<script>document.write(" This sentence was written by a script.")</script> The script after the first sentence wrote nothing, and <span onclick="this.textContent = 'clicked'">this text has a click handler</span> that never runs.</p>
+<p>A picture on the web is never fetched: the one after this paragraph is left out.</p>
+<p><img src="https://images.example.com/harbour.jpg" alt="A harbour at dusk, on the web"/></p>
+<p>A photograph of 30 megapixels follows, slow to decode. A page waits 10 seconds in all for its pictures; with a shorter wait, its description shows in its place.</p>
+<p><img src="large.jpg" alt="A large photograph of gray squares, too slow for this page" style="width: 40%"/></p>`},
 }
+
+// largeImagePath is the showcase's large photograph, in the book.
+const largeImagePath = "large.jpg"
 
 // showcaseCSS is the stylesheet of the showcase: prefixed properties among them.
 const showcaseCSS = `body { margin: 0; }
@@ -70,16 +82,24 @@ h1 { text-align: center; margin: 1em 0; }
 // makeShowcaseEPUB returns the EPUB of the showcase book: a chapter per topic of
 // showcaseChapters.
 func makeShowcaseEPUB(item book) ([]byte, error) {
-	return chaptersEPUB(item, showcaseChapters, showcaseCSS, "en")
+	large, err := largeImage()
+	if err != nil {
+		return nil, err
+	}
+	return chaptersEPUB(item, showcaseChapters, showcaseCSS, "en", map[string][]byte{largeImagePath: large})
 }
 
-// chaptersEPUB returns the EPUB of a book of chapters styled by css, in language.
-func chaptersEPUB(item book, chapters []showcaseChapter, css, language string) ([]byte, error) {
+// chaptersEPUB returns the EPUB of a book of chapters styled by css, in language, with the JPEG
+// images of images by path.
+func chaptersEPUB(item book, chapters []showcaseChapter, css, language string, images map[string][]byte) ([]byte, error) {
 	files := map[string][]byte{
 		"META-INF/container.xml": []byte(containerXML),
 		"OEBPS/style.css":        []byte(css),
-		"OEBPS/content.opf":      []byte(chaptersOPF(item, chapters, language)),
+		"OEBPS/content.opf":      []byte(chaptersOPF(item, chapters, language, slices.Sorted(maps.Keys(images)))),
 		"OEBPS/nav.xhtml":        []byte(chaptersNav(chapters)),
+	}
+	for imagePath, data := range images {
+		files["OEBPS/"+imagePath] = data
 	}
 	for _, chapter := range chapters {
 		attributes, bodyAttributes := "", ""
@@ -101,12 +121,16 @@ func chaptersEPUB(item book, chapters []showcaseChapter, css, language string) (
 	return zipFiles([]storedFile{{"mimetype", []byte("application/epub+zip")}}, files)
 }
 
-// chaptersOPF returns the package document of a book of chapters, in language.
-func chaptersOPF(item book, chapters []showcaseChapter, language string) string {
+// chaptersOPF returns the package document of a book of chapters, in language, with JPEG
+// images at imagePaths.
+func chaptersOPF(item book, chapters []showcaseChapter, language string, imagePaths []string) string {
 	var manifest, spine strings.Builder
 	for index, chapter := range chapters {
 		fmt.Fprintf(&manifest, "    <item id=\"chapter%d\" href=\"%s\" media-type=\"application/xhtml+xml\"/>\n", index+1, chapter.file)
 		fmt.Fprintf(&spine, "    <itemref idref=\"chapter%d\"/>\n", index+1)
+	}
+	for index, imagePath := range imagePaths {
+		fmt.Fprintf(&manifest, "    <item id=\"image%d\" href=\"%s\" media-type=\"image/jpeg\"/>\n", index+1, imagePath)
 	}
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid">

@@ -200,7 +200,7 @@ func (parser *builder) flush() {
 	runs := parser.runs
 	parser.runs, parser.pendingRunes, parser.spaceNeeded, parser.lastRune = nil, 0, false, 0
 	if len(runs) == 1 && runs[0].Image != "" && !mathml.Is(runs[0].Image) {
-		parser.addImageBlock(runs[0].Image, 0)
+		parser.addImageBlock(runs[0].Image, 0, runs[0].Alt)
 		return
 	}
 	blockElement := parser.blockElement()

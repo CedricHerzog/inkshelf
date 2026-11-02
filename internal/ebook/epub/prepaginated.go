@@ -13,6 +13,7 @@ import (
 	"github.com/CedricHerzog/inkshelf/internal/ebook/epub/container"
 	"github.com/CedricHerzog/inkshelf/internal/ebook/fixedlayout"
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
+	"github.com/CedricHerzog/inkshelf/internal/typesetting/layout"
 	"github.com/CedricHerzog/inkshelf/internal/web/css"
 	"github.com/CedricHerzog/inkshelf/internal/web/uri"
 )
@@ -53,8 +54,9 @@ func (book *Book) FixedLayout() bool {
 }
 
 // RenderPage draws chapter index (counted from 0) as a fixed-layout page fitted in size, or a
-// roll's page index for a screen of size.
-func (book *Book) RenderPage(index int, size image.Point) (*image.Gray, error) {
+// roll's page index for a screen of size. A page's images, SVGs and formulas are prepared through
+// elements.
+func (book *Book) RenderPage(index int, size image.Point, elements layout.Elements) (*image.Gray, error) {
 	if book.Roll() {
 		return book.renderRollPage(index, size)
 	}
@@ -65,17 +67,19 @@ func (book *Book) RenderPage(index int, size image.Point) (*image.Gray, error) {
 	if err != nil {
 		return nil, err
 	}
-	return page.Render(size, book)
+	return page.Render(size, book, elements)
 }
 
 // renderedPage returns the page of the spine item at itemPath, drawn at renderedPageSize, as
-// a PNG: the image of its document.
+// a PNG: the image of its document. It is drawn as one image of a reflowable page, which that
+// page's own elements bound already: its own elements are prepared where it is, with no limit
+// of their own, as a worker waiting for the pool's other workers could wait for itself.
 func (book *Book) renderedPage(itemPath string) ([]byte, error) {
 	page, err := book.fixedPageAt(itemPath)
 	if err != nil {
 		return nil, err
 	}
-	drawn, err := page.Render(renderedPageSize, book)
+	drawn, err := page.Render(renderedPageSize, book, layout.Elements{})
 	if err != nil {
 		return nil, err
 	}

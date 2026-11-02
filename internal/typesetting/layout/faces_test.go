@@ -65,7 +65,7 @@ func TestGlyphFallback(t *testing.T) {
 	}
 
 	canvas := whiteCanvas(leftSettings)
-	if err := page.Draw(canvas, faces, nil); err != nil {
+	if err := page.Draw(canvas, faces, nil, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	// The lozenge as the fallback draws it, at its place.
@@ -101,7 +101,7 @@ func TestGlyphFallbackStyles(t *testing.T) {
 		if got := wordAt(t, page, "end").X - wordAt(t, page, "a◊").X; got != test.want {
 			t.Errorf("%+v: %d wide with its space, want %d", test.run, got, test.want)
 		}
-		if err := page.Draw(whiteCanvas(leftSettings), faces, nil); err != nil {
+		if err := page.Draw(whiteCanvas(leftSettings), faces, nil, Elements{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -111,7 +111,7 @@ func TestGlyphFallbackStyles(t *testing.T) {
 func TestNoFallbackForASCII(t *testing.T) {
 	faces := newTestFaces(t)
 	page := paginateOne(t, asciiDocument(t, document.Run{Text: "Plain text, ", Family: "Ascii"}, document.Run{Text: "and the book's."}), leftSettings, faces, noImages)
-	if err := page.Draw(whiteCanvas(leftSettings), faces, nil); err != nil {
+	if err := page.Draw(whiteCanvas(leftSettings), faces, nil, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	if len(faces.fallbacks) != 0 {

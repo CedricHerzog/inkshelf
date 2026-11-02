@@ -64,7 +64,7 @@ func TestBox(t *testing.T) {
 		t.Errorf("borders %+v", placed)
 	}
 	canvas := whiteCanvas(leftSettings)
-	if err := page.Draw(canvas, faces, noImageLoader); err != nil {
+	if err := page.Draw(canvas, faces, noImageLoader, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	middle := (placed.Rect.Min.Y + placed.Rect.Max.Y) / 2
@@ -119,7 +119,7 @@ func TestNestedBoxes(t *testing.T) {
 		t.Errorf("outer %+v, inner %+v", outer, inner)
 	}
 	canvas := whiteCanvas(leftSettings)
-	if err := page.Draw(canvas, faces, noImageLoader); err != nil {
+	if err := page.Draw(canvas, faces, noImageLoader, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	if gray := canvas.GrayAt(inner.Rect.Max.X-2, inner.Rect.Min.Y+10).Y; gray != 0xF0 {
@@ -201,7 +201,7 @@ func TestTextGray(t *testing.T) {
 		t.Errorf("word %+v, underline %+v", word, page.Strokes[0])
 	}
 	canvas := whiteCanvas(leftSettings)
-	if err := page.Draw(canvas, faces, noImageLoader); err != nil {
+	if err := page.Draw(canvas, faces, noImageLoader, Elements{}); err != nil {
 		t.Fatal(err)
 	}
 	darkest := uint8(0xFF)

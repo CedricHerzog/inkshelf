@@ -235,7 +235,8 @@ func placeWords(words []word, lines *blockLines, fit lineFit) laidOutLine {
 					// Upright in its column, as the characters around it: centred where they are.
 					bottom = itemBaseline - (format.font.Ascent()-format.font.Descent())/2 + size.Y/2
 				}
-				line.images = append(line.images, PlacedImage{Path: format.image, Rect: image.Rect(x, bottom-size.Y, x+size.X, bottom), MathSize: format.mathSize})
+				line.images = append(line.images, PlacedImage{Path: format.image, Rect: image.Rect(x, bottom-size.Y, x+size.X, bottom), MathSize: format.mathSize,
+					Alt: format.alt, altFormat: altFormatOf(format.textFormat), altGray: format.gray})
 			}
 		} else {
 			text := fragment.text

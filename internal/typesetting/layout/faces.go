@@ -6,6 +6,7 @@ import (
 	"log"
 	"slices"
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -22,7 +23,8 @@ const smallCapsScale = 75
 // Faces are the fonts of a book, opened when layout or drawing first asks for them: the reader's
 // typeface, the generic families and the fonts the book embeds. Opening a font at a size is
 // costly, so each stays open until Close. Faces are not safe for concurrent use: one layout or
-// one drawing at a time.
+// one drawing at a time. The elements that workers prepare for a page (the text of its SVGs, its
+// formulas) are drawn with fonts of their own, which their lock guards.
 type Faces struct {
 	typeface fonts.Family
 	// embedded are the fonts of the documents laid out so far, by lowercase family name.
@@ -31,6 +33,23 @@ type Faces struct {
 	// fallbacks are the fonts that draw the characters a font lacks, by style and size (keys have
 	// no family), in the order to try them.
 	fallbacks map[faceKey][]*fonts.Font
+	// elements are the faces of the page's elements. A worker may still be drawing an element
+	// that its page gave up waiting for while the page goes on with its words: the two must not
+	// share a font, whose caches are not safe for concurrent use.
+	elements *elementFaces
+}
+
+// elementFaces are faces that several goroutines use, one at a time.
+type elementFaces struct {
+	mu    sync.Mutex
+	faces *Faces
+}
+
+// with calls use with the faces, their lock held.
+func (elements *elementFaces) with(use func(faces *Faces)) {
+	elements.mu.Lock()
+	defer elements.mu.Unlock()
+	use(elements.faces)
 }
 
 // faceKey names a font of Faces: a family's style at a size.
@@ -42,6 +61,13 @@ type faceKey struct {
 
 // NewFaces returns the faces of a book whose text is in typeface, none opened yet.
 func NewFaces(typeface fonts.Family) *Faces {
+	faces := newFaces(typeface)
+	faces.elements = &elementFaces{faces: newFaces(typeface)}
+	return faces
+}
+
+// newFaces returns faces with no element faces.
+func newFaces(typeface fonts.Family) *Faces {
 	return &Faces{typeface: typeface, embedded: map[string]map[fonts.Style]*fonts.File{},
 		fonts: map[faceKey]*fonts.Font{}, fallbacks: map[faceKey][]*fonts.Font{}}
 }
@@ -107,10 +133,18 @@ func (faces *Faces) embed(families map[string]map[fonts.Style]*fonts.File) {
 			faces.embedded[family] = styles
 		}
 	}
+	if faces.elements != nil {
+		faces.elements.with(func(elementFaces *Faces) { elementFaces.embed(families) })
+	}
 }
 
-// Close closes the fonts opened.
+// Close closes the fonts opened. The elements' fonts are left to the garbage collector while a
+// worker still draws with them.
 func (faces *Faces) Close() {
+	if elements := faces.elements; elements != nil && elements.mu.TryLock() {
+		elements.faces.Close()
+		elements.mu.Unlock()
+	}
 	for key, opened := range faces.fonts {
 		opened.Close()
 		delete(faces.fonts, key)

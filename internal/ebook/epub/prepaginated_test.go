@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/CedricHerzog/inkshelf/internal/typesetting/document"
+	"github.com/CedricHerzog/inkshelf/internal/typesetting/layout"
 	"github.com/CedricHerzog/inkshelf/internal/web/css"
 )
 
@@ -109,7 +110,7 @@ p { background-color: red }
 	if dim.Color != css.Black {
 		t.Errorf("dim box %+v, want black", dim)
 	}
-	drawn, err := book.RenderPage(0, image.Pt(600, 800))
+	drawn, err := book.RenderPage(0, image.Pt(600, 800), layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +138,7 @@ html { background-color: white;
 	if html := page.Regions[1]; len(html.Layers) != 2 || html.Layers[0].Size.Width != (css.Length{Value: 50, Unit: "px"}) {
 		t.Errorf("the grid's layers %+v", html.Layers)
 	}
-	drawn, err := book.RenderPage(0, image.Pt(600, 800))
+	drawn, err := book.RenderPage(0, image.Pt(600, 800), layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +172,7 @@ func TestFixedPageSize(t *testing.T) {
 			t.Errorf("page %d is %v, want %v", index, page.Size, want)
 		}
 	}
-	drawn, err := book.RenderPage(1, image.Pt(100, 100))
+	drawn, err := book.RenderPage(1, image.Pt(100, 100), layout.Elements{})
 	if err != nil {
 		t.Fatal(err)
 	}

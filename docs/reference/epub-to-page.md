@@ -165,6 +165,16 @@ An inline `<svg>` in the XHTML becomes an image whose path is a `data:image/svg+
 markup, styled by the chapter's CSS first. Layout only needs an image's size, which
 `epub.Book.ImageSize` reads from the file's header without decoding it.
 
+Each image keeps its text alternative (`Alt`): `<img alt>`, an inline SVG's own `<title>`, a
+formula's `alttext`. A page waits 10 seconds in all for its images and formulas; one not ready
+by then shows its text alternative in its box ([pagination.md](pagination.md#slow-elements)).
+
+Nothing is fetched. A `src` with a scheme (`https:`) is resolved as a path inside the book,
+which holds no such file: the image is missing and left out. An `@font-face` source that the
+book does not hold is skipped for the next one, then for the next family of `font-family`.
+Scripts (`<script>`, `on*` attributes, `javascript:` links) never run: their text is not shown,
+and a spine item marked `scripted` shows its manifest fallback when it has one.
+
 ## Formulas
 
 A `<math>` element is read by `mathml.Read` into a tree of nodes. It cannot be laid out yet:
@@ -173,7 +183,8 @@ stores it as an *image* whose path is `mathml:` followed by its markup (`mathml.
 When layout meets such a path (`mathml.Is`), it lays the formula out with `mathml.Layout` at
 the size of the surrounding text, using the serif fonts of `Faces`, and places it on the line's
 baseline. Formulas past mathml's size limits fall back to the book's `altimg`, then its
-`alttext`.
+`alttext`. A formula laid out also keeps its `alttext` as its `Alt`, drawn in its place when it
+is not ready in time.
 
 ## Fixed-layout pages
 
