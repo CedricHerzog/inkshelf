@@ -289,8 +289,10 @@ the page's budget before its layout. The stylesheet's 6.56 s were memory, not ma
 chapter allocated 212 MB, as the tokenizer grew its slice by copies over a megabyte of rules. The
 tokenizer now sizes it at once, a stylesheet is cut at 256 KB (the largest of 345 real ones is
 24 KB), a book parses 1 MB of linked sheets in all, and a cascade keeps 10,000 rules: the chapter
-builds in 22 ms with 28 MB on the host (65 ms, 212 MB before). The reader was unreachable when
-this was done; both pages remain to re-time there.
+builds in 22 ms with 28 MB on the host (65 ms, 212 MB before). On the reader the stylesheet
+chapter lays out in 0.80 s (6.56 s before), the hostile book downloads in 3 s (10 s), and the SVG
+page appears after 10.0 s: 1.42 s of layout, then the 8.59 s left of its budget (11.45 s
+before). SC-006 holds.
 
 **Alternatives.** Cooperative cancellation (a context checked inside decoders): third-party
 decoders (JPEG XL, AVIF, WebP) take none. Running each element on a fresh goroutine: breaks
