@@ -139,9 +139,13 @@ generic `serif`/`sans-serif`/`monospace`, and the reader's typeface (the firmwar
 and DejaVu fonts, else Go's fonts compiled in).
 
 No font has every character. When a font lacks one, `Faces` draws that character with a
-**fallback** (`fonts.OpenFallbacks`): the reader's typeface, DejaVu Sans, then a CJK font, then
-Go's. The CJK fonts are the app's own, as the firmware has none: Noto Serif CJK JP for serif
-text, Noto Sans CJK JP otherwise, which have Chinese and Korean too. They are compiled into the
+**fallback** (`fonts.OpenFallbacks`): the reader's typeface, DejaVu Sans, the firmware's Noto
+Sans Arabic UI, then a CJK font, then Go's. A letter of a joining script (Arabic) also goes to a
+fallback when its font has it without the rules that join it: the firmware's Liberation Sans has
+Arabic letters but no Arabic shaping rules, and HarfBuzz's stand-in forms put their dots beside
+their place, so the first fallback that has both draws it (`Font.ShapesScriptOf`). The CJK fonts
+are the app's own (the firmware's Noto CJK collections are not used yet): Noto Serif CJK JP for
+serif text, Noto Sans CJK JP otherwise, which have Chinese and Korean too. They are compiled into the
 program compressed with Brotli (27.5 MB for both), decompressed the first time a character needs
 one into `inkshelf/fonts/` (0.2 to 0.3 s each on the Mac), and read from there at later starts
 ([on-disk-formats.md](on-disk-formats.md#fonts)). They have one weight: their bold is the

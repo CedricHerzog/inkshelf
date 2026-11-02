@@ -318,10 +318,11 @@ func (faces *Faces) forEachFontPart(format textFormat, text string, each func(fo
 
 // forEachCoveredPart calls each with text in font, of family, top pixels lower, but for the
 // characters font lacks: those go, a part per font, to the first fallback that has them (else stay
-// in font, to be drawn as boxes), lowered to share font's baseline. Text that font covers costs
-// one check.
+// in font, to be drawn as boxes), lowered to share font's baseline. So do the letters of a joining
+// script (Arabic) that font has without the rules to join them, when a fallback has both. Text
+// that font covers costs one check.
 func (faces *Faces) forEachCoveredPart(font *fonts.Font, family string, style fonts.Style, text string, top int, each func(font *fonts.Font, part string, top int)) error {
-	if font.Covers(text) {
+	if font.Covers(text) && font.ShapesScriptsOf(text) {
 		each(font, text, top)
 		return nil
 	}
@@ -332,8 +333,14 @@ func (faces *Faces) forEachCoveredPart(font *fonts.Font, family string, style fo
 	current, start := font, 0 // the part from start is in current
 	for index, character := range text {
 		chosen := font
-		if !font.Has(character) {
-			if found := slices.IndexFunc(fallbacks, func(fallback *fonts.Font) bool { return fallback.Has(character) }); found >= 0 {
+		if !font.Has(character) || !font.ShapesScriptOf(character) {
+			found := slices.IndexFunc(fallbacks, func(fallback *fonts.Font) bool {
+				return fallback.Has(character) && fallback.ShapesScriptOf(character)
+			})
+			if found < 0 && !font.Has(character) {
+				found = slices.IndexFunc(fallbacks, func(fallback *fonts.Font) bool { return fallback.Has(character) })
+			}
+			if found >= 0 {
 				chosen = fallbacks[found]
 			}
 		}

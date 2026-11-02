@@ -2,6 +2,8 @@ package layout
 
 import (
 	"image"
+	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/tdewolff/font"
@@ -78,6 +80,25 @@ func TestGlyphFallback(t *testing.T) {
 				t.Fatalf("pixel (%d, %d) is %d, want the fallback's %d", x, y, got, wanted)
 			}
 		}
+	}
+}
+
+// Arabic in a sans-serif run is drawn in the firmware's Arabic font, which joins its letters, not
+// in Liberation Sans, which has them without the rules to join them; the space between the words
+// stays in Liberation Sans.
+func TestJoiningScriptFallback(t *testing.T) {
+	faces := newTestFaces(t)
+	format := textFormat{family: "sans-serif", size: 44, shaping: &Shaping{RightToLeft: true, Language: "ar"}}
+	var parts []string
+	err := faces.forEachFontPart(format, "كنت في", func(font *fonts.Font, part string, top int) {
+		parts = append(parts, filepath.Base(font.Name)+": "+part)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"NotoSansArabicUI-Regular.ttf: كنت", "LiberationSans.ttf:  ", "NotoSansArabicUI-Regular.ttf: في"}
+	if !slices.Equal(parts, want) {
+		t.Errorf("parts %q, want %q", parts, want)
 	}
 }
 

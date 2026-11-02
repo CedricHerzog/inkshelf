@@ -100,3 +100,34 @@ func TestDrawGlyphs(t *testing.T) {
 		t.Error("Arabic not drawn")
 	}
 }
+
+// The firmware's Liberation Sans has Arabic letters but no rules to join them, its Arabic font
+// has both; Latin and Han characters need no rules of their own.
+func TestShapesScriptOf(t *testing.T) {
+	open := func(name string) *Font {
+		data, err := os.ReadFile(emulatorFonts + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed, err := Parse(name, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		font, err := parsed.Open(40)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { font.Close() })
+		return font
+	}
+	liberation, arabic := open("LiberationSans.ttf"), open("NotoSansArabicUI-Regular.ttf")
+	if !liberation.Has('ن') || liberation.ShapesScriptOf('ن') {
+		t.Errorf("Liberation Sans has ن: %v, shapes it: %v; want true, false", liberation.Has('ن'), liberation.ShapesScriptOf('ن'))
+	}
+	if !arabic.ShapesScriptsOf("كنت في") {
+		t.Error("the Arabic font does not shape Arabic")
+	}
+	if !liberation.ShapesScriptsOf("a 中 é") {
+		t.Error("Latin and Han characters want rules of their own")
+	}
+}

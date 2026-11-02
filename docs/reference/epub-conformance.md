@@ -101,11 +101,8 @@ book pair).
 
 ## Remaining work, by value for reading books on this reader
 
-1. Arabic in the book's text: in Gibran's *The Broken Wings*, the dots of initial and medial
-   letters (ب ت ن ي) are drawn beside their place, on the reader and in the emulator alike, while
-   the fake book's Arabic chapter draws them right. Book titles in the lists are neither shaped
-   nor given the CJK fonts: Arabic titles show their letters apart and in logical order, Japanese
-   ones as boxes.
+1. Book titles in the lists are neither shaped nor given the CJK fonts: Arabic titles show their
+   letters apart and in logical order, Japanese ones as boxes.
 2. The first CJK page waits 6.3 s on the reader for its font's decompression (once per install),
    with nothing on the panel; the firmware has Noto Sans and Serif CJK of its own, which would
    need none. Measured on the reader on 2 November 2026: vertical page turns 0.11 to 0.94 s, a
@@ -132,7 +129,9 @@ in vertical Japanese (the IDPF's `kusamakura-japanese-vertical-writing.epub`, 15
 pages) and Gibran's *The Broken Wings* in Arabic (Wikisource's EPUB 3 export of «الأجنحة
 المتكسرة», 14 chapters, 87 pages). Neither draws a missing glyph or leaves a rune off its pages,
 and both turn right to left: Sōseki from the spine, Gibran, whose spine gives no direction, from
-the language.
+the language. Read on the reader, Gibran's letters first had their dots beside their place: the
+book sets its text in sans-serif, and the firmware's Liberation Sans has Arabic letters but no
+rules to join them. Arabic now goes to the firmware's Noto Sans Arabic UI, which has both.
 
 ## A real library
 

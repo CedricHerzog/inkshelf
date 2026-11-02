@@ -122,7 +122,10 @@ So layout uses a <Term id="font-fallback" />: `layout.Faces` asks the font first
 `Covers` the whole text, one check that almost always says yes. When it does not,
 `forEachCoveredPart` walks the text and gives each missing character to the first font of a
 list that has it (`fallbacksOf`): the reader's own typeface, then DejaVu Sans (the firmware's
-font with the most characters, from `fonts.OpenFallbacks`), then a CJK font, then Go's.
+font with the most characters, from `fonts.OpenFallbacks`), the firmware's Arabic font, then a
+CJK font, then Go's. Arabic needs more than its letters: each takes its form from its neighbours,
+by rules the font carries. A font that has the letters but not the rules (the firmware's Liberation
+Sans) joins them badly, so those letters go to the first fallback that has both.
 Neighbouring characters with the same font make one **part**, measured and drawn with that font,
 lowered so that all the parts share one baseline. A character no font has stays in the first
 font, as a box.

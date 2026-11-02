@@ -73,6 +73,15 @@ var fallbackFiles = map[Style][]string{
 	BoldItalic: {"DejaVuSans-BoldOblique.ttf"},
 }
 
+// arabicFiles are the firmware's Arabic font of each style, which has the rules that join Arabic
+// letters, as DejaVu Sans and Liberation do not. It has no italic.
+var arabicFiles = map[Style][]string{
+	Regular:    {"NotoSansArabicUI-Regular.ttf"},
+	Bold:       {"NotoSansArabicUI-Bold.ttf"},
+	Italic:     {"NotoSansArabicUI-Regular.ttf"},
+	BoldItalic: {"NotoSansArabicUI-Bold.ttf"},
+}
+
 // goFonts are Go's fonts of each style, compiled into the program: the last resort, which
 // always opens. Go has no serif font, nor Arabic or Hebrew letters.
 var goFonts = map[Style][]byte{
@@ -137,13 +146,15 @@ func Open(family Family, style Style, size int) (*Font, error) {
 }
 
 // OpenFallbacks opens the fonts to try, in order, for the characters a font of style lacks, size
-// pixels high: the firmware's DejaVu Sans, if it opens, then a CJK font (Noto Serif CJK for a serif
-// text, Noto Sans CJK otherwise) for Chinese, Japanese and Korean, then Go's font. The CJK fonts
-// have one weight: their bold is the regular emboldened.
+// pixels high: the firmware's DejaVu Sans and its Arabic font, those that open, then a CJK font
+// (Noto Serif CJK for a serif text, Noto Sans CJK otherwise) for Chinese, Japanese and Korean,
+// then Go's font. The CJK fonts have one weight: their bold is the regular emboldened.
 func OpenFallbacks(style Style, size int, serif bool) ([]*Font, error) {
 	var fallbacks []*Font
-	if opened := openFirmwareFont(fallbackFiles[style], size); opened != nil {
-		fallbacks = append(fallbacks, opened)
+	for _, files := range []map[Style][]string{fallbackFiles, arabicFiles} {
+		if opened := openFirmwareFont(files[style], size); opened != nil {
+			fallbacks = append(fallbacks, opened)
+		}
 	}
 	cjk := cjkSans
 	if serif {

@@ -11,7 +11,8 @@ import (
 )
 
 // TestMain makes the fonts of the emulator, the reader's, the first to try: DejaVu Sans is the
-// fallback that has Arabic and Hebrew, which Go's fonts lack.
+// fallback that has Hebrew and Noto Sans Arabic UI the one that joins Arabic, which Go's fonts
+// lack.
 func TestMain(m *testing.M) {
 	fonts.AddDir("../../../emulator/fonts")
 	os.Exit(m.Run())
@@ -143,7 +144,7 @@ func TestArabicShaped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	arabic := fallbacks[slices.IndexFunc(fallbacks, func(font *fonts.Font) bool { return font.Covers(word) })]
+	arabic := fallbacks[slices.IndexFunc(fallbacks, func(font *fonts.Font) bool { return font.Covers(word) && font.ShapesScriptsOf(word) })]
 	shaped := fonts.WidthOf(arabic.Shape(word, true, ""))
 	if got := faces.width(placed.format(), word); got != shaped || shaped >= arabic.Width(word) {
 		t.Errorf("%q %d wide, shaped %d, its letters alone %d", word, got, shaped, arabic.Width(word))

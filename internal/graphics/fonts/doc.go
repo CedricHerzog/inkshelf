@@ -23,14 +23,15 @@
 //
 // No font has every character. A book in French may quote Greek, or a title may hold an
 // arrow. OpenFallbacks opens the fonts to try for the characters a font lacks (Has, Covers
-// and Measure tell): DejaVu Sans, the firmware's font with the most characters, then a CJK font,
-// then Go's.
+// and Measure tell): DejaVu Sans, the firmware's font with the most characters, its Arabic
+// font, then a CJK font, then Go's. Arabic letters take their form from their neighbours, by
+// rules in the font; ShapesScriptOf tells whether a font has them, so that a font with the
+// letters but not the rules (the firmware's Liberation Sans) gives way to one with both.
 //
-// The firmware has no font for Chinese, Japanese or Korean, so the program carries two, Noto
-// Serif CJK and Noto Sans CJK, compressed with Brotli (cjk.go). A font is decompressed the
-// first time a character needs it, into the folder SetCacheDir gives, where later starts find
-// it. They have one weight: a bold CJK font is the regular emboldened, its glyphs widened as
-// they are rasterized. Every font file is parsed once, whatever the sizes it is opened at.
+// The program carries two fonts for Chinese, Japanese and Korean, Noto Serif CJK and Noto Sans
+// CJK, compressed with Brotli (cjk.go). A font is decompressed the first time a character needs
+// it, into the folder SetCacheDir gives, where later starts find it. They have one weight: a
+// bold CJK font is the regular emboldened, its glyphs widened as they are rasterized. Every font file is parsed once, whatever the sizes it is opened at.
 //
 // # Shaping
 //
