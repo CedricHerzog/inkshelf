@@ -13,13 +13,13 @@ cnt-xhtml-support	XHTML and resources	pass
 css-epub-hyphens	CSS	pass	
 css-epub-line-break	CSS	pass	
 css-epub-text-align-last	CSS	pass	
-css-epub-text-combine-horizontal	CSS	fail	vertical writing
-css-epub-text-emphasis	CSS	fail	vertical writing: the marks of its vertical text (those of horizontal text, sesames included, are drawn)
-css-epub-text-orientation	CSS	fail	vertical writing
+css-epub-text-combine-horizontal	CSS	pass	
+css-epub-text-emphasis	CSS	pass	
+css-epub-text-orientation	CSS	pass	
 css-epub-text-transform	CSS	pass	
-css-epub-text-underline-position	CSS	fail	the vertical half of text-underline-position
+css-epub-text-underline-position	CSS	pass	
 css-epub-word-break	CSS	pass	
-css-epub-writing-mode	CSS	fail	vertical writing
+css-epub-writing-mode	CSS	pass	
 fxl-layout-duplication	Fixed layout	deprecated	deprecated by the suite
 fxl-page-spread-break	Fixed layout	deprecated	deprecated by the suite
 fxl-page-spread-center	Fixed layout	deprecated	deprecated by the suite

@@ -168,3 +168,48 @@ the blocks with the same code:
 
 The parent then copies the child's result onto its own page, moved to where it goes. A table
 in a cell is laid out by the cell's paginator, so nesting works the same way.
+
+## Vertical writing
+
+Chinese and Japanese books are often set in vertical lines: each line is a column that goes
+down, and the next column is to its left (`vertical-rl`), or to its right in Mongolian
+(`vertical-lr`). The document's `WritingMode` (its body's) decides; `vertical.go` does the rest
+with the same line breaking, justification and pagination as horizontal text.
+
+- **Laid out turned.** `paginateIn` lays a vertical document out in *logical* coordinates: the
+  page's width and height swapped (`Settings.turned`), its top and bottom margins at the start
+  and end of the lines, and the margin of the side columns stack from at the top. A line is
+  then as long as the page is high, and a page ends when the columns fill its width. Images are
+  sized with their width and height swapped too (`turnedSizer`), so that they stand upright.
+- **Turned back.** When the pages are done, `pageTurner.turnPage` moves everything onto the
+  page: a logical x becomes a y, and a logical y an x, from the right in `vertical-rl`. A word of
+  vertical text ends with its column's centre line as its `X` and the top of its text as its
+  `Top`. Offsets do not change, so a reading position means the same text in both directions.
+- **Upright or sideways.** Each character is drawn one of two ways (`characterForm`):
+  ideographs and kana upright, one under the other, shaped top to bottom (`Font.ShapeVertical`)
+  so that brackets, the long vowel mark and small kana take their vertical forms; Latin words
+  as a horizontal line turned a quarter turn clockwise (`Font.DrawTurned`). Which is Unicode's
+  `Vertical_Orientation` (UAX #50), generated from the UCD into `vertical_orientation.go`, and
+  `text-orientation` can make everything upright or everything sideways. A fragment never mixes
+  the two: `splitFragments` ends one where the form changes, as it does at a change of bidi
+  level.
+- **Combined.** A run of `text-combine-upright` (a year, a number) is one fragment one em long,
+  drawn across, squeezed into the cell if it is wider (`drawCombined`). Each element of it is a
+  cell of its own.
+- **Marks and lines to the side.** Emphasis marks and underlines go to the right of the column,
+  or to its left when `text-emphasis-position` or `text-underline-position` say `left`: above
+  the logical line in `vertical-rl`, under it in `vertical-lr`. A strike-through goes down the
+  column's middle. An inline image is centred on the column, as the characters around it.
+- **Other directions inside.** A block whose lines go the other way than the page's (a
+  horizontal table in a vertical book, or vertical text in a horizontal one) is an *orthogonal
+  box*: `placeOrthogonal` lays its blocks out apart, in their own mode, on a page of the
+  screen's size (a child paginator of its own), and places each resulting page as one box where
+  the next block goes, as long as its content along the line and as wide as it across. Images
+  and rules have no direction and stay in the page's.
+- Not followed in vertical text: drop caps (merged into their paragraph), and the physical
+  margins of CSS, which keep the meaning they have across: `margin-top` is the space before a
+  block, at the right of a `vertical-rl` page, not the space above its lines. A formula is laid
+  out as across.
+
+`Settings.Horizontal` lays every document out across whatever its mode: a note's popup is a
+band across the page.

@@ -139,7 +139,7 @@ func TestArabicShaped(t *testing.T) {
 	if placed.Shaping == nil || !placed.Shaping.RightToLeft {
 		t.Fatalf("%q not shaped right to left: %+v", word, placed)
 	}
-	fallbacks, err := faces.fallbacksOf(fonts.Regular, 24)
+	fallbacks, err := faces.fallbacksOf("", fonts.Regular, 24)
 	if err != nil {
 		t.Fatal(err)
 	}

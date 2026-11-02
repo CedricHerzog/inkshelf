@@ -144,9 +144,30 @@ func TestDownloadProgress(t *testing.T) {
 	}
 }
 
+// waitingServer is a server whose pages after the first wait until the download is cancelled,
+// so that a download cancelled from its progress cannot finish first: progress reaches its
+// callback from a goroutine of its own, by which time ten small pages may be done.
+type waitingServer struct{ *servertest.Fake }
+
+// waitingPages are the pages of a waitingServer.
+type waitingPages struct{ servers.Pages }
+
+func (server waitingServer) OpenBook(ctx context.Context, bookID string, pages int) (servers.Pages, error) {
+	opened, err := server.Fake.OpenBook(ctx, bookID, pages)
+	return waitingPages{opened}, err
+}
+
+func (pages waitingPages) Page(ctx context.Context, number int) ([]byte, error) {
+	if number > 1 {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	return pages.Pages.Page(ctx, number)
+}
+
 // A cancelled download leaves no book.
 func TestDownloadCancelled(t *testing.T) {
-	server := newTestServer(t)
+	server := waitingServer{newTestServer(t)}
 	store := Store{Dir: t.TempDir()}
 	book := Book{ID: "alpha-01", Pages: 10}
 	ctx, cancel := context.WithCancel(t.Context())

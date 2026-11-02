@@ -37,6 +37,7 @@ make baseline   # shots-all, saved as build/baseline/shots for shots-compare
 make bench      # every benchmark x6 -> build/bench/new.txt (BENCH=Pattern PKG=./internal/...); bench-baseline, bench-compare (benchstat)
 make profile SCRIPT=emulator/scripts/calibreweb-epub.txt   # a script with -profile -> build/profile/<script>/ (cpu.pprof, trace.out, ...)
 make epub-tests # the W3C's EPUB 3 tests (EPUB_TESTS=a checkout of w3c/epub-tests) -> build/epub-tests/, what changed, results by area
+make cjk-fonts  # Noto Serif and Sans CJK, downloaded and Brotli-compressed into internal/graphics/fonts/cjk (committed)
 make docs       # the documentation site (docs, Docusaurus, Node 20+), http://localhost:3000/inkshelf/
 make docs-build # its typecheck and build, which fail on a broken link
 ```
@@ -71,7 +72,7 @@ Domains go bottom to top: a package imports only from its own domain or lower on
 internal/
   device/pocketbook     the reader without its SDK: framebuffer, e-ink refresh, firmware IPC, event loop, Wi-Fi, emulator  -> docs/reference/eink-and-firmware.md
   device/pocketbook/script   scripts of taps, buttons, waits and shots, run on the emulator or the reader  -> docs/reference/emulator.md
-  graphics/fonts        TrueType fonts, fallbacks, HarfBuzz shaping, drawing text in gray
+  graphics/fonts        TrueType fonts, fallbacks and the CJK fonts compiled in, HarfBuzz shaping, drawing text in gray, upright or turned
   graphics/pageimage    page images: decode, fit, tone, dither to 16 grays, .pg4  -> docs/reference/image-pipeline.md
   web/css               CSS parsing and cascade for EPUB stylesheets
   web/svgimage          SVG images, styled and rasterized
@@ -80,7 +81,7 @@ internal/
   web/webimage          a book's images, raster or SVG, sized and prepared
   web/uri               relative links and data: URIs
   typesetting/document  the document model: blocks of styled runs, tables, border boxes  -> docs/reference/document-model.md
-  typesetting/layout    line breaking, bidi, justification, floats, tables, pagination, drawing  -> docs/reference/pagination.md
+  typesetting/layout    line breaking, bidi, vertical writing, justification, floats, tables, pagination, drawing  -> docs/reference/pagination.md
   typesetting/hyphen    Liang hyphenation with embedded patterns
   ebook/epub/container  an EPUB's zip, OPF, spine, navigation, resources, DRM
   ebook/epub            chapters to documents (XHTML+CSS), fixed-layout pages, the index  -> docs/reference/epub-to-page.md, docs/reference/epub-conformance.md

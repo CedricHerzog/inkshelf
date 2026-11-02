@@ -18,6 +18,9 @@ type Page struct {
 	Strokes    []Stroke // underlines and strike-throughs
 	Links      []PlacedLink
 	Boxes      []PlacedBorderBox // borders and backgrounds
+	// orthogonal are boxes of text laid out in the other direction, moved onto the page when
+	// pagination ends.
+	orthogonal []orthogonalBox
 }
 
 // Stroke is an underline or a strike-through, in the gray of its text.
@@ -54,7 +57,8 @@ func PageAt(pages []Page, offset int) int {
 
 // PlacedWord is text placed on a line: X from the left of the page, and Top the top of its font's
 // line, which puts its baseline on the line's. Its text is in logical order, as in the document,
-// even in right-to-left text: shaping draws it in its direction.
+// even in right-to-left text: shaping draws it in its direction. In vertical text, X is the
+// centre line of the word's column and Top where its text starts, going down.
 type PlacedWord struct {
 	X, Top  int
 	Text    string
@@ -65,6 +69,8 @@ type PlacedWord struct {
 	Spacing int // the letter spacing, in pixels
 	// Shaping, if not nil, draws the word as its fonts shape it.
 	Shaping *Shaping
+	// Vertical is how a word of vertical text is drawn, Horizontal for horizontal text.
+	Vertical VerticalText
 	// Mark, if set, makes the word an emphasis mark drawn as a shape, filled or MarkOpen, in a
 	// square of side Size at X, Top; its Text is empty.
 	Mark     MarkShape
@@ -81,7 +87,7 @@ type Shaping struct {
 }
 
 func (word PlacedWord) format() textFormat {
-	return textFormat{family: word.Family, style: word.Style, size: word.Size, spacing: word.Spacing, shaping: word.Shaping}
+	return textFormat{family: word.Family, style: word.Style, size: word.Size, spacing: word.Spacing, shaping: word.Shaping, vertical: word.Vertical}
 }
 
 // Line is a line of text placed on a page.

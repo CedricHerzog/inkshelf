@@ -71,16 +71,25 @@ func (font *Font) Shape(text string, rightToLeft bool, languageTag string) []Gly
 	return glyphs
 }
 
-// shape shapes text, as Shape does, without the cache.
-func (font *Font) shape(text string, rightToLeft bool, tag string) []Glyph {
-	runes := []rune(text)
+// canShape makes the font's shaper on first use, and reports whether it could: a font that the
+// shaper cannot read is drawn a glyph per character.
+func (font *Font) canShape() bool {
 	if font.textFace == nil {
 		parsed, err := font.file.textFont()
 		if err != nil {
-			return font.unshaped(runes, rightToLeft)
+			return false
 		}
 		font.textFace = textfont.NewFace(parsed)
 		font.shaper = &shaping.HarfbuzzShaper{}
+	}
+	return true
+}
+
+// shape shapes text, as Shape does, without the cache.
+func (font *Font) shape(text string, rightToLeft bool, tag string) []Glyph {
+	runes := []rune(text)
+	if !font.canShape() {
+		return font.unshaped(runes, rightToLeft)
 	}
 	direction := di.DirectionLTR
 	if rightToLeft {

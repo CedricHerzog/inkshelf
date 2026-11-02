@@ -384,6 +384,7 @@ func (parser *builder) currentCell() *document.TableCell {
 // addBlock adds block to the document, in the cell it is in. The first block of a table gives
 // the table its margin and page break.
 func (parser *builder) addBlock(block document.Block) {
+	block.WritingMode = parser.blockElement().style.writingMode
 	if len(parser.tables) > 0 {
 		block.Cell = parser.currentCell()
 	}

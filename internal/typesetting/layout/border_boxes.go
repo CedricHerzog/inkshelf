@@ -26,10 +26,10 @@ type borderBoxPart struct {
 	placed int
 }
 
-// placedItemCount returns how many lines, images and rules the last page holds.
+// placedItemCount returns how many lines, images, rules and orthogonal boxes the last page holds.
 func (layout *paginator) placedItemCount() int {
 	page := layout.pages[len(layout.pages)-1]
-	return len(page.Lines) + len(page.Images) + len(page.Rules)
+	return len(page.Lines) + len(page.Images) + len(page.Rules) + len(page.orthogonal)
 }
 
 // borderPixels returns the width of a border in pixels: at least one if it is drawn at all, so

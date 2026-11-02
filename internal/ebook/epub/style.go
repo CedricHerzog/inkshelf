@@ -96,12 +96,19 @@ type inherited struct {
 	whiteSpace string
 	listStyle  string // list-style-type
 	hyphenate  bool
-	// underlineUnder is text-underline-position: under.
-	underlineUnder bool
-	emphasis       document.Emphasis // text-emphasis-style and text-emphasis-position
-	direction      document.Direction
-	wordBreak      document.WordBreak
-	lineBreak      document.LineBreak
+	// underlineUnder is text-underline-position: under, and underlineLeft its left, for
+	// vertical text.
+	underlineUnder, underlineLeft bool
+	emphasis                      document.Emphasis // text-emphasis-style and text-emphasis-position
+	// emphasisShapeless is set when text-emphasis-style gives no shape, which is then a circle in
+	// horizontal text but a sesame in vertical text.
+	emphasisShapeless bool
+	direction         document.Direction
+	wordBreak         document.WordBreak
+	lineBreak         document.LineBreak
+	writingMode       document.WritingMode
+	textOrientation   document.TextOrientation
+	textCombine       document.TextCombine // text-combine-upright
 }
 
 // style is an element's computed style: the CSS properties the app follows.
@@ -228,12 +235,27 @@ func (computed *style) setTextProperty(property, value, keyword string) {
 		computed.alignLast = alignLastOf(keyword, computed.alignLast)
 	case "text-underline-position":
 		computed.underlineUnder = strings.Contains(keyword, "under")
+		computed.underlineLeft = strings.Contains(keyword, "left")
 	case "text-emphasis", "text-emphasis-style":
 		if mark, ok := emphasisMarkOf(value); ok || property == "text-emphasis" {
 			computed.emphasis.Mark = mark
+			computed.emphasisShapeless = !hasEmphasisShape(keyword)
 		}
 	case "text-emphasis-position":
 		computed.emphasis.Under = strings.Contains(keyword, "under")
+		computed.emphasis.Left = strings.Contains(keyword, "left")
+	case "writing-mode":
+		if mode, ok := writingModes[keyword]; ok {
+			computed.writingMode = mode
+		}
+	case "text-orientation":
+		if orientation, ok := textOrientations[keyword]; ok {
+			computed.textOrientation = orientation
+		}
+	case "text-combine-upright", "text-combine-horizontal", "text-combine":
+		if combine, ok := textCombineOf(keyword); ok {
+			computed.textCombine = combine
+		}
 	case "direction":
 		computed.direction = directions[keyword]
 	case "word-break":
@@ -351,6 +373,60 @@ func emphasisMarkOf(value string) (rune, bool) {
 		return emphasisMarks[shape][1], true
 	}
 	return emphasisMarks[shape][0], true
+}
+
+// hasEmphasisShape reports whether a text-emphasis-style value (in lower case) names a shape, or
+// is a string.
+func hasEmphasisShape(value string) bool {
+	if strings.ContainsAny(value, `"'`) {
+		return true
+	}
+	for word := range strings.FieldsSeq(value) {
+		if _, isShape := emphasisMarks[word]; isShape {
+			return true
+		}
+	}
+	return false
+}
+
+// writingModes are the values of writing-mode, with the SVG 1.1 values that EPUB 3.0 books give
+// -epub-writing-mode. A sideways mode is read as its vertical one, which differs only in turning
+// ideographs too.
+var writingModes = map[string]document.WritingMode{
+	"horizontal-tb": document.HorizontalTB, "lr": document.HorizontalTB, "lr-tb": document.HorizontalTB,
+	"rl": document.HorizontalTB, "rl-tb": document.HorizontalTB,
+	"vertical-rl": document.VerticalRL, "tb": document.VerticalRL, "tb-rl": document.VerticalRL,
+	"sideways-rl": document.VerticalRL,
+	"vertical-lr": document.VerticalLR, "tb-lr": document.VerticalLR, "sideways-lr": document.VerticalLR,
+}
+
+// textOrientations are the values of text-orientation, with those of EPUB 3.0's
+// -epub-text-orientation (vertical-right, rotate-right) and sideways-right, an old name of
+// sideways.
+var textOrientations = map[string]document.TextOrientation{
+	"mixed": document.OrientationMixed, "vertical-right": document.OrientationMixed,
+	"upright":  document.OrientationUpright,
+	"sideways": document.OrientationSideways, "sideways-right": document.OrientationSideways,
+	"rotate-right": document.OrientationSideways,
+}
+
+// textCombineOf returns the TextCombine of a text-combine-upright value (once named
+// text-combine-horizontal, which EPUB 3.1 books prefix), or of EPUB 3.0's -epub-text-combine
+// (horizontal), and false for a value it does not know.
+func textCombineOf(value string) (document.TextCombine, bool) {
+	switch fields := strings.Fields(value); {
+	case len(fields) == 1 && fields[0] == "none":
+		return document.CombineNone, true
+	case len(fields) >= 1 && (fields[0] == "all" || fields[0] == "horizontal"):
+		return document.CombineAll, true
+	case len(fields) == 1 && fields[0] == "digits":
+		return 2, true
+	case len(fields) == 2 && fields[0] == "digits":
+		if digits, err := strconv.Atoi(fields[1]); err == nil && digits >= 2 && digits <= 4 {
+			return document.TextCombine(digits), true
+		}
+	}
+	return document.CombineNone, false
 }
 
 // directions are the values of direction.

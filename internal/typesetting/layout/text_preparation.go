@@ -41,7 +41,8 @@ func (layout *paginator) prepareText(block document.Block, size int) (preparedTe
 	if !found.Scanned {
 		found = document.ScanScripts(block.Runs)
 	}
-	text := blockText{start: block.Start, breaks: breakOpportunities(block, found.Wide), shaped: found.Shaped, doc: layout.doc}
+	text := blockText{start: block.Start, breaks: breakOpportunities(block, found.Wide), shaped: found.Shaped, doc: layout.doc,
+		vertical: layout.mode.Vertical()}
 	var rightToLeft bool
 	text.levels, rightToLeft = bidiLevels(block, found.RightToLeft)
 	block.Direction = document.LeftToRight
@@ -76,6 +77,11 @@ func (layout *paginator) makeFormats(block document.Block, size int, limit image
 			family: run.Family, style: run.Style, size: runSize, spacing: run.LetterSpacing * runSize / 100,
 			font: font, shift: run.Shift * size / 100, link: run.Link, gray: run.Gray, image: run.Image,
 		}
+		if layout.mode.Vertical() {
+			// Vertical text is underlined on its right, unless the book says left: over the
+			// logical line in vertical-rl, whose lines stack from the right.
+			formats[index].underlineOver = (run.Style&document.UnderlineLeft != 0) != (layout.mode == document.VerticalRL)
+		}
 		switch {
 		case mathml.Is(run.Image):
 			if run.Style&document.Small != 0 {
@@ -92,7 +98,13 @@ func (layout *paginator) makeFormats(block document.Block, size int, limit image
 			formats[index].imageSize = layout.inlineImageSize(run, runSize, limit)
 		}
 		if run.Emphasis.Mark != 0 {
-			marks, err := layout.emphasisMarksOf(run.Emphasis, font.Size())
+			emphasis := run.Emphasis
+			if layout.mode.Vertical() {
+				// Marks go to the right of vertical text, unless the book says left: above the
+				// logical line in vertical-rl, under it in vertical-lr.
+				emphasis.Under = emphasis.Left == (layout.mode == document.VerticalRL)
+			}
+			marks, err := layout.emphasisMarksOf(emphasis, font.Size())
 			if err != nil {
 				return nil, err
 			}
@@ -159,6 +171,9 @@ func (layout *paginator) emphasisMarksOf(emphasis document.Emphasis, size int) (
 		return marks, nil
 	}
 	marks.format = &runFormat{size: marks.size, font: markFont}
+	if layout.mode.Vertical() {
+		marks.format.vertical, marks.format.shaping = Upright, &Shaping{}
+	}
 	return marks, nil
 }
 
@@ -178,8 +193,32 @@ type runFormat struct {
 	marks                  *emphasisMarks // nil for a run without emphasis marks
 	space                  int            // the width of a space, measured once for every gap
 	// shapedFormats are the variants of the format for shaped text, left to right then right to
-	// left, made when a fragment first needs one.
-	shapedFormats *[2]*runFormat
+	// left, made when a fragment first needs one; verticalFormats those for vertical text, by
+	// VerticalText from Upright.
+	shapedFormats   *[2]*runFormat
+	verticalFormats *[3]*runFormat
+	// underlineOver draws the underline over the line rather than under it: the right of vertical
+	// text.
+	underlineOver bool
+}
+
+// verticalFormat returns the variant of the format for vertical text drawn as form, in a
+// language: upright text is shaped top to bottom.
+func (format *runFormat) verticalFormat(form VerticalText, language string) *runFormat {
+	if format.verticalFormats == nil {
+		format.verticalFormats = &[3]*runFormat{}
+	}
+	slot := &format.verticalFormats[form-Upright]
+	if *slot == nil {
+		variant := *format
+		variant.vertical = form
+		variant.shapedFormats, variant.verticalFormats = nil, nil
+		if form == Upright {
+			variant.shaping = &Shaping{Language: language}
+		}
+		*slot = &variant
+	}
+	return *slot
 }
 
 // shapedFormat returns the variant of the format for text shaped in a direction and a language.
@@ -203,7 +242,7 @@ func (format *runFormat) shapedFormat(rightToLeft bool, language string) *runFor
 // width returns the width of text in the format. Text that its font covers, unshaped and without
 // small capitals, is measured by the font directly, which is much quicker than through Faces.
 func (format *runFormat) width(faces *Faces, text string) int {
-	if format.style&document.SmallCaps != 0 || format.shaping != nil {
+	if format.style&document.SmallCaps != 0 || format.shaping != nil || format.vertical == Combined {
 		return faces.width(format.textFormat, text)
 	}
 	width, covers := format.font.Measure(text)
@@ -226,6 +265,8 @@ type blockText struct {
 	levels []int8
 	shaped bool
 	doc    *document.Document // for the languages of runs
+	// vertical is set for vertical text, whose characters are drawn upright or sideways.
+	vertical bool
 }
 
 // languageOf returns the language tag of run, which shaping needs.

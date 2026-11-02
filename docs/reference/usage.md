@@ -154,10 +154,15 @@ the book you are, and the lists show "~N pages" (of 1500 characters) and "At n%"
 Contents lists the book's table of contents (its chapters, by their headings, when it lists
 only one), the part being read marked, and, if the book has them, its printed pages and
 landmarks as tabs; a tap goes there, and the toolbar then shows ‹ Return, back to the page
-left. A book written right to left (its `page-progression-direction`, else its language) turns
-its pages as manga do. Arabic and Hebrew text runs right to left, joined and mixed with left-to-right
+left. A book written right to left (its `page-progression-direction`, else its language, else its
+vertical text) turns its pages as manga do. Arabic and Hebrew text runs right to left, joined and mixed with left-to-right
 text as in a browser; Chinese and Japanese lines break between ideographs, never before a closing
-mark; formulas (MathML) are laid out with the text, at its size; SVG illustrations get their
+mark, and are drawn with the app's own CJK fonts (Noto Serif or Sans CJK, which have Korean too).
+A book in vertical lines (`writing-mode: vertical-rl`) reads in columns from the right, its
+ideographs upright, its Latin words turned, a year across one column (`text-combine-upright`),
+its emphasis marks and underlines to the right; a horizontal table in it keeps its rows across.
+The first page with Chinese, Japanese or Korean takes about a second more once, while the app
+decompresses its font. Formulas (MathML) are laid out with the text, at its size; SVG illustrations get their
 styles and their text, their strokes as thick as the drawing says. Borders and backgrounds of
 paragraphs and boxes (colors, images, gradients, tiled patterns) are drawn in grays, and
 colored text as its gray, kept legible: light text is darkened, but on a dark box. Emphasis
@@ -179,8 +184,8 @@ and the pages turn as the EPUB's `page-progression-direction` (else its language
 the server says otherwise. Each page is drawn at the size its viewport gives (else its first image's), fitted
 in the screen and clipped to it: a page that is one image shows it whole; otherwise the
 backgrounds (colors, gradients, images, tiled patterns), the images and the text that `position: absolute`
-places (in px, %, em), and the rest of the text laid out from the top. Floats, flexbox, grids,
-transforms and vertical writing are left out, and two-page spreads show one page at a time. In an EPUB that is
+places (in px, %, em), and the rest of the text laid out from the top, vertically if its body is.
+Floats, flexbox, grids and transforms are left out, and two-page spreads show one page at a time. In an EPUB that is
 reflowable but for some pages (often its cover), each such page is drawn the same way, as an
 image filling a page of the text. A roll of pictures (`rendition:layout` roll, as webtoons are)
 is drawn at download time too, as one strip as wide as the screen cut into pages, and read as a

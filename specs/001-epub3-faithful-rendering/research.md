@@ -169,6 +169,15 @@ by the usual `sfnt` path; the go-text fallback above is not needed. Brotli at qu
 serif 24.6 → 16.8 MB, so the binary grows by about 28 MB, not 16. Decompressing takes 0.2 and
 0.3 s on the Mac (compressing, done once by `make cjk-fonts`, about a minute each).
 
+**Implementation (T034–T038, 2026-11-01).** With a 16 MB window (`LGWin` 24) the compression
+does better than the spike's: sans 16.5 → 11.2 MB, serif 24.6 → 16.4 MB, 27.5 MB for both (`make
+cjk-fonts` compresses them in Go, as there is no `brotli` command here). The stripped app grows
+from 16,187,552 to 43,712,672 bytes. Decompressing in the emulator (arm64 host) takes 0.2 s for
+the sans and 0.3 s for the serif. Parsing each file once makes opening a second size 3 times
+quicker on the host (4.8 → 1.6 µs for Go's fonts, which are compiled in; on the reader the read
+of the file is saved too). Times on the reader (first CJK page, a vertical page turn) are still
+to measure: the reader under remote control was not reachable from the build machine (T050).
+
 **Alternatives.** Separate font files copied by `deploy.sh`: users install the app by copying
 one file, and a missing font would fail silently. Japan-only subsets: fail FR-005 for Korean and
 much Chinese. The variable fonts: larger, and lose `VORG`.

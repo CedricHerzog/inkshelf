@@ -220,12 +220,12 @@ Then `make epub-tests`: the vertical-writing tests pass.
 
 ### Tests for User Story 2
 
-- [ ] T031 [P] [US2] Font fallback tests in `internal/graphics/fonts/cjk_test.go`: with the cache in `t.TempDir()`:
+- [X] T031 [P] [US2] Font fallback tests in `internal/graphics/fonts/cjk_test.go`: with the cache in `t.TempDir()`:
   - 永, 한 and 中 resolve to the CJK sans for a sans family and to the CJK serif for a serif family;
   - the cache file is written once and reused;
   - a cache file of the wrong size is rewritten;
   - a second size reuses the parsed font (no new read).
-- [ ] T032 [P] [US2] Vertical layout tests in `internal/typesetting/layout/vertical_test.go`:
+- [X] T032 [P] [US2] Vertical layout tests in `internal/typesetting/layout/vertical_test.go`:
   - a `vertical-rl` paragraph lays out as columns from right to left that fill the content width before the page ends;
   - `vertical-lr` goes from left to right;
   - an upright CJK glyph is not turned and a Latin word is turned a quarter turn clockwise (`text-orientation: mixed`);
@@ -233,41 +233,41 @@ Then `make epub-tests`: the vertical-writing tests pass.
   - `text-combine-upright: all` puts "2026" in one em cell;
   - emphasis marks sit to the right;
   - a horizontal table inside a vertical chapter keeps its own direction as one box.
-- [ ] T033 [P] [US2] Position test in `internal/reading/textbook_test.go`: the same chapter in horizontal and in vertical writing has the same rune count, and `GoTo(Location)` reaches the same text, so saved positions stay valid (no `IndexVersion` bump for vertical writing)
+- [X] T033 [P] [US2] Position test in `internal/reading/textbook_test.go`: the same chapter in horizontal and in vertical writing has the same rune count, and `GoTo(Location)` reaches the same text, so saved positions stay valid (no `IndexVersion` bump for vertical writing)
 
 ### Implementation for User Story 2
 
-- [ ] T034 [US2] Add the compressed CJK fonts:
+- [X] T034 [US2] Add the compressed CJK fonts:
   - A Makefile target `cjk-fonts` downloads NotoSerifCJKjp-Regular.otf and NotoSansCJKjp-Regular.otf (notofonts/noto-cjk, pinned release).
   - It compresses each with `brotli -q 11` into `internal/graphics/fonts/cjk/NotoSerifCJKjp-Regular.otf.br` and `internal/graphics/fonts/cjk/NotoSansCJKjp-Regular.otf.br`, and records each decompressed size in `internal/graphics/fonts/cjk/sizes.txt`.
   - Commit them with `internal/graphics/fonts/cjk/OFL.txt` (SIL OFL 1.1 and the copyright notice).
-- [ ] T035 [US2] Embed and unpack the fonts in a new `internal/graphics/fonts/cjk.go`:
+- [X] T035 [US2] Embed and unpack the fonts in a new `internal/graphics/fonts/cjk.go`:
   - `go:embed` the `.br` files.
   - Add `SetCacheDir(dir string)`.
   - On the first lookup that needs a CJK font, under a `sync.Once` per font, decompress with `github.com/andybalholm/brotli` (moved from indirect to direct in go.mod) into `<cache>/fonts/<name>.otf`, written atomically. "A file whose size differs from the embedded font's recorded size is written again".
   - Wrap the work in `timing.Start("unpack font")`.
-- [ ] T036 [US2] Set the font cache: in `cmd/inkshelf/main.go` call `fonts.SetCacheDir("/mnt/ext1/applications/inkshelf")`, and in `cmd/emulator/main.go` call `fonts.SetCacheDir("build/emulator-cache")`
-- [ ] T037 [US2] Parse each font file once in `internal/graphics/fonts/open.go`: keep the parsed `sfnt.Font` (or the go-text face, per T005's outcome) per file and build each size's face from it, instead of `os.ReadFile` + `Parse` per size (open.go:156,175). Benchmark the opening of a second size in `internal/graphics/fonts/open_test.go`.
-- [ ] T038 [US2] Extend the fallback chain:
+- [X] T036 [US2] Set the font cache: in `cmd/inkshelf/main.go` call `fonts.SetCacheDir("/mnt/ext1/applications/inkshelf")`, and in `cmd/emulator/main.go` call `fonts.SetCacheDir("build/emulator-cache")`
+- [X] T037 [US2] Parse each font file once in `internal/graphics/fonts/open.go`: keep the parsed `sfnt.Font` (or the go-text face, per T005's outcome) per file and build each size's face from it, instead of `os.ReadFile` + `Parse` per size (open.go:156,175). Benchmark the opening of a second size in `internal/graphics/fonts/open_test.go`.
+- [X] T038 [US2] Extend the fallback chain:
   - In `internal/graphics/fonts/open.go` (`fallbackFiles`) and `internal/typesetting/layout/faces.go` (`fallbacksOf`), use the order reader typeface → DejaVu Sans → Noto CJK (serif for a serif family, sans otherwise) → Go fonts.
   - Synthesize bold for the CJK fonts (emboldened outline) instead of shipping a bold weight.
-- [ ] T039 [P] [US2] Generate the Unicode Vertical_Orientation table:
+- [X] T039 [P] [US2] Generate the Unicode Vertical_Orientation table:
   - The generator `internal/typesetting/layout/gen_vertical_orientation.go` (`//go:build ignore`) reads VerticalOrientation.txt (UCD, pinned version, downloaded into build/) and writes the compact range table `internal/typesetting/layout/vertical_orientation.go`.
   - Add the `//go:generate` line and a lookup function with its test.
-- [ ] T040 [US2] Add the vertical style fields to `internal/typesetting/document/document.go`:
+- [X] T040 [US2] Add the vertical style fields to `internal/typesetting/document/document.go`:
   - WritingMode: horizontal-tb, vertical-rl, vertical-lr ("`sideways-*` read as their vertical forms"); default horizontal-tb.
   - TextOrientation: mixed, upright, sideways; default mixed.
   - TextCombineUpright: none, all, digits(2..4); default none.
   - EmphasisPosition: over/under, right/left; default "over right".
   - All inherited as CSS says.
-- [ ] T041 [US2] Compute those properties in `internal/ebook/epub/style.go`:
+- [X] T041 [US2] Compute those properties in `internal/ebook/epub/style.go`:
   - Add cases in the setter switches (style.go ~180–260) for `writing-mode`, `text-orientation`, `text-combine-upright` and `text-emphasis-position`, plus the vertical values of `text-underline-position`.
   - Read the `-epub-` and `-webkit-` forms through `unprefixed`.
-- [ ] T042 [US2] Shape and draw vertical text in `internal/graphics/fonts`:
+- [X] T042 [US2] Shape and draw vertical text in `internal/graphics/fonts`:
   - Shaping, in `shape.go`: shape upright runs top to bottom with go-text `di.DirectionTTB`, so `vert`/`vrt2` and `vmtx` apply.
   - Drawing, in `draw.go`: add a separate entry for glyphs turned a quarter turn clockwise. Leave the horizontal HOT PATH unchanged.
   - Run `make bench-compare` and compare the `-gcflags=-m` inlining list with build/bench/inlining-before.txt; both must be unchanged.
-- [ ] T043 [US2] Paginate vertical chapters in a new `internal/typesetting/layout/vertical.go`, with hooks in `internal/typesetting/layout/paginate.go` and `internal/typesetting/layout/line_placement.go`:
+- [X] T043 [US2] Paginate vertical chapters in a new `internal/typesetting/layout/vertical.go`, with hooks in `internal/typesetting/layout/paginate.go` and `internal/typesetting/layout/line_placement.go`:
   - Run the same line breaker with the inline size set to the content height.
   - Stack lines as columns, right to left for `vertical-rl` and left to right for `vertical-lr`; the page ends when the columns fill the content width.
   - Map logical to physical coordinates when placing words.
@@ -276,20 +276,20 @@ Then `make epub-tests`: the vertical-writing tests pass.
   - Put underlines and emphasis marks on the side `EmphasisPosition` and `text-underline-position` say.
   - Lay out a block whose writing mode differs from its parent's in its own mode, as one box at a width that fits the page, placed as one column.
   - Wrap the work in a `timing.Start("paginate vertical")` span.
-- [ ] T044 [P] [US2] Benchmark vertical pages in `internal/typesetting/layout/paginate_test.go`: `BenchmarkRenderPageVertical` (a page of Japanese text built in code, next to `BenchmarkRenderPage`)
-- [ ] T045 [US2] Turn vertical books right to left: in `internal/ebook/epub/index.go` (`BuildIndex`), when the spine has no `page-progression-direction` and the first chapter's root style is `vertical-rl`, set `Index.PageProgression` to `rtl`. Test it in `internal/ebook/epub/index_test.go`. Bump `epub.IndexVersion` from 7 to 8 in this commit, so that indexes already on the reader are rebuilt with the new direction; move `internal/shelf/testdata/golden/index.json` to version 8 and keep the version-7 file as a test that it is rebuilt.
-- [ ] T046 [US2] Add a fake vertical book in a new `internal/servers/calibreweb/fakecalibreweb/vertical.go`, listed in `catalog.go`:
+- [X] T044 [P] [US2] Benchmark vertical pages in `internal/typesetting/layout/paginate_test.go`: `BenchmarkRenderPageVertical` (a page of Japanese text built in code, next to `BenchmarkRenderPage`)
+- [X] T045 [US2] Turn vertical books right to left: in `internal/ebook/epub/index.go` (`BuildIndex`), when the spine has no `page-progression-direction` and the first chapter's root style is `vertical-rl`, set `Index.PageProgression` to `rtl`. Test it in `internal/ebook/epub/index_test.go`. Bump `epub.IndexVersion` from 7 to 8 in this commit, so that indexes already on the reader are rebuilt with the new direction; move `internal/shelf/testdata/golden/index.json` to version 8 and keep the version-7 file as a test that it is rebuilt.
+- [X] T046 [US2] Add a fake vertical book in a new `internal/servers/calibreweb/fakecalibreweb/vertical.go`, listed in `catalog.go`:
   - a Japanese `vertical-rl` chapter with ruby-free text, a Latin word, the number 2026 under `text-combine-upright: all`, sesame marks and a horizontal table;
   - an Arabic chapter.
-- [ ] T047 [US2] Add the script `emulator/scripts/calibreweb-vertical.txt`: open the vertical book, `shot` the first page, tap left, `shot`, open the Arabic chapter, `shot`. Add it with its flags to `shots-all` in the Makefile.
-- [ ] T048 [US2] Update the docs this story makes wrong (constitution VII):
+- [X] T047 [US2] Add the script `emulator/scripts/calibreweb-vertical.txt`: open the vertical book, `shot` the first page, tap left, `shot`, open the Arabic chapter, `shot`. Add it with its flags to `shots-all` in the Makefile.
+- [X] T048 [US2] Update the docs this story makes wrong (constitution VII):
   - docs/reference/pagination.md: vertical columns, orthogonal blocks;
   - docs/reference/document-model.md: the writing-mode fields;
   - docs/reference/epub-to-page.md: vertical styles, the page direction of vertical books;
   - docs/reference/on-disk-formats.md: the `fonts/` cache, index version 8;
   - docs/learn/books/lines.mdx, docs/learn/books/pages.mdx, docs/learn/books/fonts.mdx.
   - Run `make docs-build`.
-- [ ] T049 [US2] Run `make verify` and `make epub-tests`:
+- [X] T049 [US2] Run `make verify` and `make epub-tests`:
   - Open each changed shot.
   - Update `cmd/epubtests/judgments.tsv` for the vertical-writing tests and the re-judged internationalization tests.
   - Update docs/reference/epub-conformance.md in the same change (constitution VII): the CSS and Internationalization rows, the Total row and the "Of the N tests in scope, M pass" sentence; remove vertical writing and the CJK fonts from "Remaining work".

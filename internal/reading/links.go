@@ -30,6 +30,8 @@ func (popup PopupPage) settings(book layout.Settings) layout.Settings {
 	book.Height = popup.Height
 	book.Margins.Min.Y, book.Margins.Max.Y = popup.MarginTop, popup.MarginBottom
 	book.HideFootnotes = false
+	// A popup is a band across the page: a note of a vertical book is read across it too.
+	book.Horizontal = true
 	return book
 }
 

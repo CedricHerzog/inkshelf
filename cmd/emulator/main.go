@@ -126,6 +126,8 @@ func run(opts options) error {
 		return err
 	}
 	fonts.AddDir(filepath.Join(opts.dir, "fonts"))
+	// The CJK fonts are decompressed once, outside the reader's files that -fresh deletes.
+	fonts.SetCacheDir("build/emulator-cache")
 
 	emulator := pocketbook.NewEmulator(size, opts.eink)
 	emulator.SetDarkMode(opts.dark)

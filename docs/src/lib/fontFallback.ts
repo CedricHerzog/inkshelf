@@ -1,7 +1,7 @@
 // Which font draws each character of a text, as forEachCoveredPart
 // (internal/typesetting/layout/faces.go) decides: text the font covers is one part, in one
 // check; otherwise each character the font lacks goes to the first fallback that has it
-// (fallbacksOf: the reader's typeface, then fonts.OpenFallbacks's DejaVu Sans and Go), or stays
+// (fallbacksOf: the reader's typeface, then fonts.OpenFallbacks's DejaVu Sans, Noto CJK and Go), or stays
 // in the font, to be drawn as its .notdef box. Neighbouring characters with the same font make
 // one part. The fonts' coverage here is a simplified picture, by Unicode blocks, not their
 // real tables.
@@ -32,6 +32,12 @@ export const readerSerif: ToyFont = {name: 'Liberation Serif', ranges: [...latin
 export const dejaVuSans: ToyFont = {
   name: 'DejaVu Sans',
   ranges: [...latin, ...punctuation, ...greekCyrillic, [0x20ac, 0x20ac], [0x590, 0x5ff], [0x600, 0x6ff], [0x2190, 0x21ff], [0x2200, 0x22ff], [0x2600, 0x26ff]],
+};
+
+/** Noto Serif CJK JP, compiled into the program for serif text: Chinese, Japanese and Korean. */
+export const notoSerifCJK: ToyFont = {
+  name: 'Noto Serif CJK',
+  ranges: [...latin, ...punctuation, ...greekCyrillic, [0x3000, 0x30ff], [0x4e00, 0x9fff], [0xac00, 0xd7af], [0xff00, 0xffef]],
 };
 
 /** Go's font, compiled into the program: the last resort, which always opens. */

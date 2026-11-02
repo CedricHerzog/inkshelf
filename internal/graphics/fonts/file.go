@@ -33,7 +33,15 @@ func Parse(name string, data []byte) (*File, error) {
 
 // Open returns the file's font at size pixels high. Unlike the package's Open, which finds
 // one of the reader's own fonts by family and style, it opens this file.
-func (file *File) Open(size int) (*Font, error) {
+func (file *File) Open(size int) (*Font, error) { return file.open(size, false) }
+
+// emboldenScale is how much an emboldened font thickens its strokes: a 24th of its size, as
+// FreeType's synthetic bold does.
+const emboldenScale = 24
+
+// open returns the file's font at size pixels high, emboldened if bold: a bold synthesized
+// from the regular, for a font that has no bold of its own.
+func (file *File) open(size int, bold bool) (*Font, error) {
 	name := file.name
 	// Sizes are in pixels, and at 72 DPI a point is a pixel.
 	face, err := opentype.NewFace(file.parsed, &opentype.FaceOptions{Size: float64(size), DPI: 72, Hinting: imagefont.HintingFull})
@@ -47,8 +55,13 @@ func (file *File) Open(size int) (*Font, error) {
 	}
 	// The baseline is the font's ascent below the top of the line, as libinkview (through
 	// FreeType) placed it.
+	embolden := 0
+	if bold {
+		embolden = max(size/emboldenScale, 1)
+	}
 	return &Font{
 		Name:      name,
+		embolden:  embolden,
 		face:      face,
 		ascent:    face.Metrics().Ascent.Ceil(),
 		capHeight: capHeight,

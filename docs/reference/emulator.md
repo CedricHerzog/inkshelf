@@ -22,7 +22,8 @@ firmware's own behavior. Those need the reader (see the end of this page).
 
 The emulated reader keeps its files in `emulator/` (`-dir`): `config.json`, `servers/<name>/`, and
 with `-fake`, everything under `emulator/fake/`. `emulator/fonts/` holds the reader's fonts, so
-text looks as it does on the reader. It has no CJK font: Chinese and Japanese show as boxes.
+text looks as it does on the reader. The app's own CJK fonts are decompressed once into
+`build/emulator-cache/fonts/`, outside what `-fresh` deletes.
 
 ## Flags
 
@@ -101,7 +102,7 @@ Each script needs the fake servers it was written for. `shots-all` passes them f
 | `smoke.txt` | none (fake Komga) |
 | `servers.txt` | `-servers 2` |
 | `mealie.txt` | `-fake-type mealie` |
-| `calibreweb-comics.txt`, `calibreweb-epub.txt`, `calibreweb-fxl.txt`, `calibreweb-links.txt`, `calibreweb-mathml.txt`, `calibreweb-showcase.txt`, `calibreweb-toc.txt` | `-fake-type calibreweb` |
+| `calibreweb-comics.txt`, `calibreweb-epub.txt`, `calibreweb-fxl.txt`, `calibreweb-links.txt`, `calibreweb-mathml.txt`, `calibreweb-showcase.txt`, `calibreweb-toc.txt`, `calibreweb-vertical.txt` | `-fake-type calibreweb` |
 
 For example: `make shots SCRIPT=emulator/scripts/calibreweb-epub.txt EMUFLAGS="-fake-type calibreweb"`.
 

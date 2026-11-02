@@ -1,0 +1,21 @@
+# The vertical book of the fake Calibre-Web: Japanese in columns from the right, its pages
+# turning from right to left, then an Arabic chapter in horizontal lines:
+#   make shots SCRIPT=emulator/scripts/calibreweb-vertical.txt EMUFLAGS="-fake-type calibreweb"
+# The series list's rows, 282 px high from y 292, are centred at y 433, 715, 997: No series is
+# the third. On its books screen, Written down is the fourth row, at y 1279. Its contents screen
+# has no tabs: the chapters' lines are 141 px high from y 166, the Arabic one, the second, at y
+# 375.
+
+tap 700 997                 # No series
+tap 700 1279                # download Written down
+idle 60s
+tap 700 433                 # read it: downloaded books come first
+shot 01-vertical            # columns from the right, a Latin word turned, 2026 in one cell, sesame marks and an underline to the right, a horizontal table as one box, no missing glyph
+tap 200 900                 # left third: the next page, as a vertical book's pages turn from right to left
+shot 02-next-page           # the text goes on from the right
+tap 1200 900                # right third: back to the first page
+shot 03-back
+tap 700 900                 # the toolbar
+tap 720 84                  # Contents
+tap 700 375                 # the Arabic chapter: horizontal lines again, right to left
+shot 04-arabic

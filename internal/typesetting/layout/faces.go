@@ -123,11 +123,15 @@ func (faces *Faces) Close() {
 	}
 }
 
-// fallbacksOf returns the fonts to try for the characters a font of style at size pixels lacks,
-// opening them on first use: the reader's typeface, then fonts.OpenFallbacks's, but not a font
-// already in the list.
-func (faces *Faces) fallbacksOf(style fonts.Style, size int) ([]*fonts.Font, error) {
+// fallbacksOf returns the fonts to try for the characters a font of family (a Run's), style and
+// size pixels lacks, opening them on first use: the reader's typeface, then fonts.OpenFallbacks's
+// (with a serif CJK font for serif text), but not a font already in the list.
+func (faces *Faces) fallbacksOf(family string, style fonts.Style, size int) ([]*fonts.Font, error) {
+	serif := faces.isSerif(family)
 	key := faceKey{style: style, size: size}
+	if serif {
+		key.family = "serif"
+	}
 	if fallbacks, ok := faces.fallbacks[key]; ok {
 		return fallbacks, nil
 	}
@@ -135,7 +139,7 @@ func (faces *Faces) fallbacksOf(style fonts.Style, size int) ([]*fonts.Font, err
 	if err != nil {
 		return nil, err
 	}
-	others, err := fonts.OpenFallbacks(style, size)
+	others, err := fonts.OpenFallbacks(style, size, serif)
 	if err != nil {
 		typeface.Close()
 		return nil, err
@@ -154,27 +158,44 @@ func (faces *Faces) fallbacksOf(style fonts.Style, size int) ([]*fonts.Font, err
 	return fallbacks, nil
 }
 
+// isSerif reports whether text in family (a Run's) is serif: the generic serif family, or the
+// book font, an embedded one included, when the reader's typeface is serif.
+func (faces *Faces) isSerif(family string) bool {
+	switch strings.ToLower(family) {
+	case "serif":
+		return true
+	case "sans-serif", "monospace":
+		return false
+	}
+	return faces.typeface == fonts.Serif
+}
+
 // canDraw reports whether font, or one of its fallbacks, has character.
 func (faces *Faces) canDraw(font *fonts.Font, character rune) bool {
 	if font.Has(character) {
 		return true
 	}
-	fallbacks, err := faces.fallbacksOf(fonts.Regular, font.Size())
+	fallbacks, err := faces.fallbacksOf("", fonts.Regular, font.Size())
 	return err == nil && slices.ContainsFunc(fallbacks, func(fallback *fonts.Font) bool { return fallback.Has(character) })
 }
 
-// textFormat is how text is drawn: its font, its letter spacing, and how it is shaped, if it is.
+// textFormat is how text is drawn: its font, its letter spacing, how it is shaped, if it is,
+// and how it is drawn in vertical text.
 type textFormat struct {
-	family  string
-	style   document.Style
-	size    int // before Small shrinks it
-	spacing int // pixels added after each character, but not to shaped text
-	shaping *Shaping
+	family   string
+	style    document.Style
+	size     int // before Small shrinks it
+	spacing  int // pixels added after each character, but not to shaped text
+	shaping  *Shaping
+	vertical VerticalText
 }
 
 // width returns the width of text drawn in format. Text whose font cannot be opened measures 0:
 // drawing it reports the error.
 func (faces *Faces) width(format textFormat, text string) int {
+	if format.vertical == Upright || format.vertical == Combined {
+		return faces.verticalWidth(format, text)
+	}
 	width := 0
 	_ = faces.forEachFontPart(format, text, func(font *fonts.Font, part string, top int) {
 		if shaping := format.shaping; shaping != nil {
@@ -196,9 +217,13 @@ type shapedPart struct {
 	top    int
 }
 
-// draw draws text in format into dst, in gray, the top-left corner of its line at topLeft.
-// Right-to-left text in several fonts has its parts drawn from right to left.
+// draw draws text in format into dst, in gray, the top-left corner of its line at topLeft (for
+// vertical text, see drawVertical). Right-to-left text in several fonts has its parts drawn from
+// right to left.
 func (faces *Faces) draw(dst *image.Gray, format textFormat, topLeft image.Point, text string, gray color.Gray) error {
+	if format.vertical != Horizontal {
+		return faces.drawVertical(dst, format, topLeft, text, gray)
+	}
 	if shaping := format.shaping; shaping != nil {
 		var parts []shapedPart
 		err := faces.forEachFontPart(format, text, func(font *fonts.Font, part string, top int) {
@@ -231,7 +256,7 @@ func (faces *Faces) forEachFontPart(format textFormat, text string, each func(fo
 	}
 	style := fontStyle(format.style)
 	if format.style&document.SmallCaps == 0 || format.shaping != nil {
-		return faces.forEachCoveredPart(font, style, text, 0, each)
+		return faces.forEachCoveredPart(font, format.family, style, text, 0, each)
 	}
 	small, err := faces.FamilyFont(format.family, format.style, format.size*smallCapsScale/100)
 	if err != nil {
@@ -245,9 +270,9 @@ func (faces *Faces) forEachFontPart(format textFormat, text string, each func(fo
 			end = len(text)
 		}
 		if lower {
-			err = faces.forEachCoveredPart(small, style, strings.ToUpper(text[:end]), font.Ascent()-small.Ascent(), each)
+			err = faces.forEachCoveredPart(small, format.family, style, strings.ToUpper(text[:end]), font.Ascent()-small.Ascent(), each)
 		} else {
-			err = faces.forEachCoveredPart(font, style, text[:end], 0, each)
+			err = faces.forEachCoveredPart(font, format.family, style, text[:end], 0, each)
 		}
 		if err != nil {
 			return err
@@ -257,15 +282,16 @@ func (faces *Faces) forEachFontPart(format textFormat, text string, each func(fo
 	return nil
 }
 
-// forEachCoveredPart calls each with text in font, top pixels lower, but for the characters font
-// lacks: those go, a part per font, to the first fallback that has them (else stay in font, to be
-// drawn as boxes), lowered to share font's baseline. Text that font covers costs one check.
-func (faces *Faces) forEachCoveredPart(font *fonts.Font, style fonts.Style, text string, top int, each func(font *fonts.Font, part string, top int)) error {
+// forEachCoveredPart calls each with text in font, of family, top pixels lower, but for the
+// characters font lacks: those go, a part per font, to the first fallback that has them (else stay
+// in font, to be drawn as boxes), lowered to share font's baseline. Text that font covers costs
+// one check.
+func (faces *Faces) forEachCoveredPart(font *fonts.Font, family string, style fonts.Style, text string, top int, each func(font *fonts.Font, part string, top int)) error {
 	if font.Covers(text) {
 		each(font, text, top)
 		return nil
 	}
-	fallbacks, err := faces.fallbacksOf(style, font.Size())
+	fallbacks, err := faces.fallbacksOf(family, style, font.Size())
 	if err != nil {
 		return err
 	}

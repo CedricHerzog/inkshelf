@@ -84,6 +84,9 @@ All paths are paths inside the zip. A link in a file is relative to that file, a
   `<span>` inside an italic `<p>` is italic) and converts lengths to hundredths of an em.
 - Text is gathered into **runs** of one style, whitespace collapsed as HTML does. A block
   element (`<p>`, `<h1>`, `<li>`) ends the current **block** and starts another.
+- `html` opens before the stylesheets of its head are read, so its style is computed again
+  when its `<body>` opens (`restyleRoot`): a writing mode or a font size set on `html` reaches
+  the body and the rest, as in a browser.
 
 Some elements produce more than plain blocks: a border or background becomes a border box, a
 CSS float a float group, a `<table>` a grid of cells, `epub:type="footnote"` (or a link back to
@@ -98,6 +101,18 @@ in pixels or percentages. The builder converts every length of a layer into the 
 (`build_backgrounds.go`), and one routine, `layout.PaintBackground`, paints them for both kinds
 of page: it sizes a tile (`cover`, `contain`, lengths, `auto` from the image's own size),
 places it, and tiles it (`repeat`, `space`, `round`), up to 4096 tiles a layer.
+
+**Vertical text.** `writing-mode` gives the direction of the lines: `horizontal-tb`,
+`vertical-rl` or `vertical-lr`, with the SVG 1.1 values EPUB 3.0 books give `-epub-writing-mode`
+(`tb-rl` and the like), and `sideways-rl`/`-lr` read as their vertical forms. The body's is the
+chapter's (`Document.WritingMode`), as CSS takes it for HTML; each block keeps its own. With it
+come `text-orientation` (`mixed`, `upright`, `sideways`, and EPUB 3.0's `vertical-right` and
+`rotate-right`), `text-combine-upright` (`all`, `digits` 2 to 4; once named
+`text-combine-horizontal`, and `-epub-text-combine: horizontal` in EPUB 3.0) and the `left` and
+`right` of `text-emphasis-position` and `text-underline-position`. All are read with their
+`-epub-` and `-webkit-` forms. In vertical text, a mark without a shape (`text-emphasis: filled`)
+is a sesame, and each element of combined text stays a run of its own, a cell each. Margins and
+paddings keep their horizontal meaning (see [pagination.md](pagination.md#vertical-writing)).
 
 ## 3. Layout and drawing
 
@@ -122,8 +137,14 @@ generic `serif`/`sans-serif`/`monospace`, and the reader's typeface (the firmwar
 and DejaVu fonts, else Go's fonts compiled in).
 
 No font has every character. When a font lacks one, `Faces` draws that character with a
-**fallback** (`fonts.OpenFallbacks`: DejaVu Sans, then Go's). A word its own font covers costs
-nothing extra.
+**fallback** (`fonts.OpenFallbacks`): the reader's typeface, DejaVu Sans, then a CJK font, then
+Go's. The CJK fonts are the app's own, as the firmware has none: Noto Serif CJK JP for serif
+text, Noto Sans CJK JP otherwise, which have Chinese and Korean too. They are compiled into the
+program compressed with Brotli (27.5 MB for both), decompressed the first time a character needs
+one into `inkshelf/fonts/` (0.2 to 0.3 s each on the Mac), and read from there at later starts
+([on-disk-formats.md](on-disk-formats.md#fonts)). They have one weight: their bold is the
+regular emboldened. A word its own font covers costs nothing extra, and every font file is parsed
+once, whatever the sizes it is opened at.
 
 Latin text is drawn one glyph per character. Arabic letters change shape with their neighbours,
 Hebrew stacks points, and so on. For those scripts `fonts.Font.Shape` runs **shaping** with
@@ -195,6 +216,8 @@ length for progress, and where each table-of-contents entry leads, as soon as th
 `Index` as `index.json` next to the book: each chapter's length, the table of contents, page
 list and landmarks (each as a chapter and an offset), the language and page progression.
 `IndexVersion` is bumped when the index changes; `shelf.Store.LoadIndex` rebuilds a stale one.
+A book whose spine gives no `page-progression-direction` turns its pages from right to left when
+its first chapter with text is `vertical-rl`, as its columns go (version 8).
 
 Every position is a **rune offset** in its chapter's document: a count of characters, an image
 or a rule counting as one. Offsets come from the document, not the layout, so they never

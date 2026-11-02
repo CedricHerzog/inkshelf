@@ -219,6 +219,11 @@ explains why). The background goroutine lays out and draws while holding only th
   to (they open in a popup). The other blocks keep their offsets, so a Location means the same
   text with or without them.
 - **Forced page breaks.** CSS `page-break-before` or `break-before` (`always`, `page`, `left`, `right`…) on a block starts a new page, unless the page is still empty.
+- **Columns fill the page.** In a vertical book the lines are columns, stacked from the right,
+  and a page ends when they reach its left edge: the same rule as lines reaching the bottom,
+  on the page turned (`Settings.turned`). The offsets are the same as across, so a position
+  saved in a vertical book is still good if its CSS changes. Its pages turn from right to left,
+  as its columns go, when the book does not say otherwise (`BuildIndex`).
 
 </details>
 

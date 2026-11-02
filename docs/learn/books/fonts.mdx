@@ -122,13 +122,30 @@ So layout uses a <Term id="font-fallback" />: `layout.Faces` asks the font first
 `Covers` the whole text, one check that almost always says yes. When it does not,
 `forEachCoveredPart` walks the text and gives each missing character to the first font of a
 list that has it (`fallbacksOf`): the reader's own typeface, then DejaVu Sans (the firmware's
-font with the most characters, from `fonts.OpenFallbacks`), then Go's. Neighbouring characters
-with the same font make one **part**, measured and drawn with that font, lowered so that all the
-parts share one baseline. A character no font has stays in the first font, as a box.
+font with the most characters, from `fonts.OpenFallbacks`), then a CJK font, then Go's.
+Neighbouring characters with the same font make one **part**, measured and drawn with that font,
+lowered so that all the parts share one baseline. A character no font has stays in the first
+font, as a box.
 
-<Figure title="One line, several fonts" tryThis="Pick the Greek sample: the book's font lacks the Greek, the reader's serif has it, and only DejaVu has the arrow. Switch to the reader's serif and see the parts merge. Try Kanji: no font on the reader has it.">
+<Figure title="One line, several fonts" tryThis="Pick the Greek sample: the book's font lacks the Greek, the reader's serif has it, and only DejaVu has the arrow. Switch to the reader's serif and see the parts merge. Try Kanji and Hangul: only the app's own CJK font has them.">
   <FontFallback />
 </Figure>
+
+The firmware has no font for Chinese, Japanese or Korean, so the app brings two: Noto Serif CJK
+for serif text and Noto Sans CJK for the rest, each with tens of thousands of glyphs. They are
+large (25 and 16 MB), so they travel inside the program compressed with Brotli, and the first
+page that needs one decompresses it into a folder of the reader (`inkshelf/fonts/`), where the
+next starts find it: a cost of about a second, once. They have no bold: a bold CJK character is
+the regular one with its strokes widened by a 24th of its size (`embolden`).
+
+<details>
+<summary>Going deeper: one parse per file</summary>
+
+A page opens its fonts at several sizes: the text, its headings, its notes, its small capitals.
+Each size is a `Font` of its own, with its own caches, but they share one `File`: `parsedFile`
+reads and parses a font file once, whatever the sizes, which matters for a 25 MB CJK font.
+
+</details>
 
 ## Shaping
 
@@ -178,7 +195,9 @@ or holds one of their characters. Latin text never pays.
 
 <CodeMap entries={[
   {path: 'internal/graphics/fonts/file.go', symbol: 'Parse, File.Open', what: 'A font file parsed once; a Font at one size, fully hinted, 72 DPI.'},
-  {path: 'internal/graphics/fonts/open.go', symbol: 'Open, OpenFallbacks', what: 'The reader’s fonts in /ebrmain/fonts, then Go’s; the fallback list.'},
+  {path: 'internal/graphics/fonts/open.go', symbol: 'Open, OpenFallbacks, parsedFile', what: 'The reader’s fonts in /ebrmain/fonts, then Go’s; the fallback list; each file parsed once.'},
+  {path: 'internal/graphics/fonts/cjk.go', symbol: 'SetCacheDir, unpackFont', what: 'The CJK fonts compiled in, decompressed once into a cache.'},
+  {path: 'internal/graphics/fonts/vertical.go', symbol: 'ShapeVertical, DrawTurned', what: 'Glyphs upright down a column, or turned a quarter turn.'},
   {path: 'internal/graphics/fonts/draw.go', symbol: 'DrawSpaced, glyph, blend', what: 'HOT PATH: glyphs rasterized once, blended into an *image.Gray.'},
   {path: 'internal/graphics/fonts/font.go', symbol: 'Font, Measure, Covers', what: 'Measuring, and the caches that make a Font single-goroutine.'},
   {path: 'internal/graphics/fonts/shape.go', symbol: 'Shape, DrawGlyphs', what: 'Shaping with go-text’s HarfBuzz port.'},
@@ -211,7 +230,7 @@ Next: with every fragment measurable, a paragraph can be cut into lines: [Breaki
     question: 'A book’s embedded font has no Greek letters, and a paragraph quotes Greek. What happens?',
     choices: ['The Greek is drawn as boxes', 'Those letters become a part drawn with the first fallback that has them, on the same baseline', 'The whole paragraph switches to DejaVu Sans'],
     answer: 1,
-    why: 'forEachCoveredPart gives each missing character to the first of the reader’s typeface, DejaVu Sans and Go’s font that has it.',
+    why: 'forEachCoveredPart gives each missing character to the first of the reader’s typeface, DejaVu Sans, the CJK font and Go’s font that has it.',
   },
   {
     question: 'Why is Latin text not shaped?',

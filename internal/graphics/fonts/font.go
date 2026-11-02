@@ -24,6 +24,8 @@ type Font struct {
 	capHeight int
 	// size is the size the font was opened at, in pixels.
 	size int
+	// embolden is how many pixels a synthesized bold widens each glyph by, 0 for none.
+	embolden int
 	// glyphs caches the glyphs rasterized so far by character, advances and kerns the
 	// measures taken so far.
 	glyphs   map[rune]glyph
@@ -40,6 +42,12 @@ type Font struct {
 	masks      map[sfnt.GlyphIndex]glyph
 	buffer     sfnt.Buffer
 	rasterizer *vector.Rasterizer
+	// shapedVertical caches the text shaped top to bottom, and turned and turnedMasks the glyphs
+	// drawn turned a quarter turn, by character and by glyph index, made on first use: only
+	// vertical text needs them.
+	shapedVertical map[shapedKey][]Glyph
+	turned         map[rune]glyph
+	turnedMasks    map[sfnt.GlyphIndex]glyph
 }
 
 // advance is how far a character moves the dot, and whether the font has it.

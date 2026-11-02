@@ -407,7 +407,7 @@ func (layout *paginator) layOutApart(group []document.Block, width int, startAli
 	settings := layout.settings
 	settings.Width, settings.Height, settings.Margins = width, layout.content.Dy(), image.Rectangle{}
 	inside := &paginator{settings: settings, faces: layout.faces, sizer: layout.sizer, hyphenator: layout.hyphenator,
-		doc: layout.doc, content: settings.content(), pageHeight: layout.pageHeight}
+		doc: layout.doc, content: settings.content(), pageHeight: layout.pageHeight, mode: layout.mode}
 	inside.newPage(group[0].Start)
 	blocks := make([]document.Block, len(group))
 	for index, block := range group {
@@ -547,6 +547,11 @@ func (layout *paginator) runSize(block document.Block, run document.Run) int {
 // to that one go beside it. A cap less than two lines high, or with no room beside it, goes into
 // the paragraph instead, as its first runs.
 func (layout *paginator) placeDropCap(capBlock document.Block, next *document.Block) error {
+	if layout.mode.Vertical() {
+		// Vertical books have no drop caps: a float with a large letter goes into its paragraph.
+		layout.mergeDropCap(capBlock, next)
+		return nil
+	}
 	width, err := layout.floatGroupWidth([]document.Block{capBlock})
 	if err != nil {
 		return err

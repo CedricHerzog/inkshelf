@@ -19,6 +19,7 @@ classDiagram
         +Language string
         +Fonts embedded fonts
         +Boxes List~BorderBox~
+        +WritingMode
         +Add(block) int
     }
     class Block {
@@ -27,7 +28,7 @@ classDiagram
         +Start int
         +Indent, Left, Right Hundredths
         +MarginTop, MarginBottom Hundredths
-        +Align, Direction
+        +Align, Direction, WritingMode
         +KeepWithNext, PageBreak bool
         +Float, FloatGroup, FloatWidth
         +Footnote string
@@ -40,6 +41,7 @@ classDiagram
         +Family string
         +Link string
         +Image string
+        +Emphasis, Orientation, Combine
     }
     class BorderBox {
         +Start, End int
@@ -84,6 +86,19 @@ A **Run** is text in one style inside a block: bold, italic, a size relative to 
 (`FontScale`), a font family, a link target, a gray. `<em>`, `<a>` and `<span>` become runs.
 A run with `Image` set is an **inline image** (a small picture in a line of text, or a formula,
 see [epub-to-page.md](epub-to-page.md#formulas)); its `Text` is empty.
+
+## Vertical text
+
+`WritingMode` says which way lines go: `HorizontalTB` (across, the next one below), `VerticalRL`
+(down, the next one to the left: Chinese and Japanese) or `VerticalLR` (down, the next one to
+the right). The document's is its body's, which its pages follow; a block's is its own, and a
+block whose lines go the other way than the document's is laid out apart, as one box
+([pagination.md](pagination.md#vertical-writing)). A run says how its characters are drawn in
+vertical text: `Orientation` (`OrientationMixed`, Unicode's choice of upright or sideways;
+`OrientationUpright`; `OrientationSideways`) and `Combine` (`CombineNone`, `CombineAll`, or the
+most digits of a number drawn across in one cell, 2 to 4). `Emphasis.Left` puts its marks to the
+left of vertical text, and the style bit `UnderlineLeft` its underline; the right is the default.
+None of them changes a rune count.
 
 ## Offsets: where things are
 

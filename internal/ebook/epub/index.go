@@ -13,8 +13,9 @@ import (
 )
 
 // IndexVersion is the version of the parser that builds an Index. Offsets in a chapter depend
-// on the parser: an index of another version is built again.
-const IndexVersion = 7
+// on the parser: an index of another version is built again. Version 8 finds the page
+// progression of vertical books.
+const IndexVersion = 8
 
 // Index is what the reader needs of a book before laying out its chapters: their lengths, for
 // the progress, the table of contents and the navigation document's other lists. It is saved
@@ -28,7 +29,8 @@ type Index struct {
 	Total int        `json:"total"`
 	TOC   []TOCEntry `json:"toc"`
 	// PageProgression is the book's page-progression-direction: "ltr", "rtl", or "" for the
-	// default of its language.
+	// default of its language. A book that gives none but whose text is vertical-rl turns its
+	// pages from right to left, as its columns go.
 	PageProgression string `json:"pageProgression,omitempty"`
 	// PageList is the pages of the printed book, if the navigation document lists them.
 	PageList []TOCEntry `json:"pageList,omitempty"`
@@ -71,6 +73,7 @@ func BuildIndex(book *Book) (Index, error) {
 	ids := make([]map[string]int, book.Chapters())
 	var firstErr error
 	parsed := 0
+	textFound := false // a chapter with text was read: the first gives the page progression
 	for chapter := range book.Chapters() {
 		index.Chapters[chapter].Path = book.ChapterItem(chapter).Path
 		doc, err := book.chapterWithoutFonts(chapter)
@@ -80,6 +83,12 @@ func BuildIndex(book *Book) (Index, error) {
 			continue
 		}
 		parsed++
+		if !textFound && holdsText(doc) {
+			textFound = true
+			if index.PageProgression == "" && doc.WritingMode == document.VerticalRL {
+				index.PageProgression = "rtl"
+			}
+		}
 		index.Chapters[chapter].Chars = doc.Chars
 		index.Chapters[chapter].Title = firstHeading(doc)
 		index.Total += doc.Chars
@@ -124,6 +133,17 @@ func entriesOf(book *Book, links []container.Link, ids []map[string]int) []TOCEn
 		found = append(found, TOCEntry{Title: link.Title, Level: link.Level, Chapter: chapter, Offset: offset, Type: link.Kind})
 	}
 	return found
+}
+
+// holdsText reports whether doc has a paragraph or a heading: a chapter of text, not a cover
+// image.
+func holdsText(doc *document.Document) bool {
+	for _, block := range doc.Blocks {
+		if block.Kind != document.Image && block.Kind != document.Rule && len(block.Runs) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // firstHeading returns the text of a document's first heading, on one line and without soft

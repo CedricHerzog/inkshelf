@@ -9,6 +9,7 @@ import (
 
 	"github.com/CedricHerzog/inkshelf/internal/app"
 	"github.com/CedricHerzog/inkshelf/internal/device/pocketbook"
+	"github.com/CedricHerzog/inkshelf/internal/graphics/fonts"
 	"github.com/CedricHerzog/inkshelf/internal/servers/httpclient"
 	"github.com/CedricHerzog/inkshelf/internal/servers/registry"
 )
@@ -26,6 +27,8 @@ func main() {
 	log.Printf("inkshelf starting (%s, pid %d, %d cores)", runtime.Version(), os.Getpid(), runtime.NumCPU())
 
 	stopProfiling := startProfiling()
+	// The CJK fonts are decompressed once, into appDir/fonts, for the next starts.
+	fonts.SetCacheDir(appDir)
 	application := app.New(appDir, registry.Opener(httpclient.New()), registry.KindOf, app.Options{})
 	// Run returns the error that stopped loading, already logged and shown.
 	var err error

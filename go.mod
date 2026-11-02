@@ -3,6 +3,7 @@ module github.com/CedricHerzog/inkshelf
 go 1.27.2
 
 require (
+	github.com/andybalholm/brotli v1.2.6
 	github.com/gen2brain/jxl v0.2.0
 	github.com/go-text/typesetting v0.3.5
 	github.com/rivo/uniseg v0.4.7
@@ -16,7 +17,6 @@ require (
 )
 
 require (
-	github.com/andybalholm/brotli v1.2.6 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/tdewolff/parse/v2 v2.8.16 // indirect
 )

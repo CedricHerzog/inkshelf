@@ -17,6 +17,7 @@ guard it (see the end of this page).
 └── inkshelf/
     ├── config.json                      the servers, written by the user
     ├── profile, remote                  markers written by the user: profiling, remote control
+    ├── fonts/                           the CJK fonts, decompressed from the program (a cache)
     └── servers/<name>/                  one folder per server, named after its "name"
         ├── filters.json                 the lists' filters and the reader's settings
         ├── covers/
@@ -98,8 +99,21 @@ and the page progression. It carries `version`, `epub.IndexVersion`: an index of
 is built again when the book opens (`Store.LoadIndex`).
 
 Bump `IndexVersion` when a change to [ebook/epub](../../internal/ebook/epub) changes how many runes a
-chapter has. Note that the reading positions saved in `book.json` are rune offsets too: a change
-that moves offsets moves the readers' places in their books a little.
+chapter has, or what else the index says. Note that the reading positions saved in `book.json` are
+rune offsets too: a change that moves offsets moves the readers' places in their books a little.
+Version 8 (from 7) gives a vertical-rl book without a `page-progression-direction` the right to left
+page progression; its rune counts are those of version 7, so saved positions keep their place. The
+golden `testdata/golden/index.json` is version 8, and `index-7.json` checks that an older index is
+built again.
+
+## fonts
+
+`fonts/NotoSansCJKjp-Regular.otf` and `fonts/NotoSerifCJKjp-Regular.otf` are the CJK fonts of
+[graphics/fonts](../../internal/graphics/fonts) (`cjk.go`), decompressed from the program the first
+time a page needs a Chinese, Japanese or Korean character, so that later starts skip the
+decompression. A cache: deleting the folder is safe, and a file whose size is not the font's (written
+in part when the reader went off, or by another version) is written again. Each is written to a
+temporary file renamed over it. The emulator keeps its copy in `build/emulator-cache/fonts/`.
 
 ## inkshelf.log
 

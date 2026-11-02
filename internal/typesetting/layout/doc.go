@@ -32,6 +32,11 @@
 //     which open fonts as they are needed and fall back to other fonts for the characters a font
 //     lacks.
 //
+// Vertical text (Chinese and Japanese in columns, writing-mode vertical-rl) goes through the
+// same steps, on the page turned a quarter turn: a line is a column as long as the page is high,
+// and the pages are turned back once laid out. Its characters are drawn upright or sideways, as
+// Unicode's Vertical_Orientation says (vertical.go).
+//
 // Positions in a document are offsets in runes: each block's text counts its runes, spaces
 // included, and an image or a rule counts as one. Layout never changes them, and every page
 // knows the offsets it shows, so that a reading position survives a new layout at another font

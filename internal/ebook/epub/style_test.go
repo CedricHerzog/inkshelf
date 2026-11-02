@@ -560,3 +560,43 @@ func BenchmarkChapter(b *testing.B) {
 		}
 	}
 }
+
+// Vertical text is read from writing-mode, its -epub- and -webkit- forms and the values of SVG
+// 1.1, set on html in a stylesheet of the head as well as on the body; text-orientation,
+// text-combine-upright and the positions of marks and underlines go with it.
+func TestVerticalStyles(t *testing.T) {
+	for _, test := range []struct {
+		css  string
+		want document.WritingMode
+	}{
+		{"", document.HorizontalTB},
+		{"html { writing-mode: vertical-rl }", document.VerticalRL},
+		{"html { -epub-writing-mode: tb-rl }", document.VerticalRL},
+		{"body { -webkit-writing-mode: vertical-lr }", document.VerticalLR},
+		{"body { writing-mode: sideways-rl }", document.VerticalRL},
+		{"body { writing-mode: vertical-rl } p { writing-mode: horizontal-tb }", document.VerticalRL},
+	} {
+		doc := styledChapter(t, test.css+`
+span.up { -epub-text-orientation: upright } span.side { text-orientation: sideways-right }
+span.year { -epub-text-combine: horizontal } span.digits { -epub-text-combine-horizontal: digits 4 }
+span.left { text-emphasis: filled; text-emphasis-position: over left; text-decoration: underline; text-underline-position: left }`,
+			`<p>縦<span class="up">A</span><span class="side">B</span><span class="year">2026</span><span class="digits">12</span><span class="left">傍</span></p>
+<p><span class="year">10</span><span class="year">11</span></p>`)
+		if doc.WritingMode != test.want {
+			t.Errorf("%q: writing mode %d, want %d", test.css, doc.WritingMode, test.want)
+		}
+		runs := doc.Blocks[0].Runs
+		if len(runs) != 6 || runs[1].Orientation != document.OrientationUpright || runs[2].Orientation != document.OrientationSideways ||
+			runs[3].Combine != document.CombineAll || runs[4].Combine != 4 || !runs[5].Emphasis.Left || runs[5].Style&document.UnderlineLeft == 0 {
+			t.Errorf("%q: runs %+v", test.css, runs)
+		}
+		// Combined text is a cell per element, never joined.
+		if years := doc.Blocks[1].Runs; len(years) != 2 || years[0].Text != "10" {
+			t.Errorf("%q: combined runs %+v", test.css, years)
+		}
+		// A filled mark without a shape is a sesame in vertical text, a circle across.
+		if mark := runs[5].Emphasis.Mark; test.want.Vertical() && mark != '﹅' && !strings.Contains(test.css, "horizontal-tb") || !test.want.Vertical() && mark != '●' {
+			t.Errorf("%q: mark %c", test.css, mark)
+		}
+	}
+}

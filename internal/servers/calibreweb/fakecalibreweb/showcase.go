@@ -6,12 +6,13 @@ import (
 	"strings"
 )
 
-// showcaseChapter is a chapter of the showcase EPUB: a topic of its own.
+// showcaseChapter is a chapter of the showcase EPUB (or of the vertical one): a topic of its own.
 type showcaseChapter struct {
 	file, title string
-	// language and direction are the html element's lang and dir ("" for none).
-	language, direction string
-	body                string
+	// language and direction are the html element's lang and dir ("" for none), bodyClass the
+	// body's class.
+	language, direction, bodyClass string
+	body                           string
 }
 
 // showcaseChapters are the chapters of the showcase EPUB: Arabic, Hebrew, text in both
@@ -69,33 +70,41 @@ h1 { text-align: center; margin: 1em 0; }
 // makeShowcaseEPUB returns the EPUB of the showcase book: a chapter per topic of
 // showcaseChapters.
 func makeShowcaseEPUB(item book) ([]byte, error) {
+	return chaptersEPUB(item, showcaseChapters, showcaseCSS, "en")
+}
+
+// chaptersEPUB returns the EPUB of a book of chapters styled by css, in language.
+func chaptersEPUB(item book, chapters []showcaseChapter, css, language string) ([]byte, error) {
 	files := map[string][]byte{
 		"META-INF/container.xml": []byte(containerXML),
-		"OEBPS/style.css":        []byte(showcaseCSS),
-		"OEBPS/content.opf":      []byte(showcaseOPF(item)),
-		"OEBPS/nav.xhtml":        []byte(showcaseNav()),
+		"OEBPS/style.css":        []byte(css),
+		"OEBPS/content.opf":      []byte(chaptersOPF(item, chapters, language)),
+		"OEBPS/nav.xhtml":        []byte(chaptersNav(chapters)),
 	}
-	for _, chapter := range showcaseChapters {
-		attributes := ""
+	for _, chapter := range chapters {
+		attributes, bodyAttributes := "", ""
 		if chapter.direction != "" {
 			attributes = fmt.Sprintf(` dir="%s"`, chapter.direction)
+		}
+		if chapter.bodyClass != "" {
+			bodyAttributes = fmt.Sprintf(` class="%s"`, chapter.bodyClass)
 		}
 		files["OEBPS/"+chapter.file] = []byte(fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="%s" lang="%s"%s>
 <head><title>%s</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
-<body>
+<body%s>
 %s
 </body>
 </html>
-`, chapter.language, chapter.language, attributes, chapter.title, chapter.body))
+`, chapter.language, chapter.language, attributes, chapter.title, bodyAttributes, chapter.body))
 	}
 	return zipFiles([]storedFile{{"mimetype", []byte("application/epub+zip")}}, files)
 }
 
-// showcaseOPF returns the package document of the showcase book.
-func showcaseOPF(item book) string {
+// chaptersOPF returns the package document of a book of chapters, in language.
+func chaptersOPF(item book, chapters []showcaseChapter, language string) string {
 	var manifest, spine strings.Builder
-	for index, chapter := range showcaseChapters {
+	for index, chapter := range chapters {
 		fmt.Fprintf(&manifest, "    <item id=\"chapter%d\" href=\"%s\" media-type=\"application/xhtml+xml\"/>\n", index+1, chapter.file)
 		fmt.Fprintf(&spine, "    <itemref idref=\"chapter%d\"/>\n", index+1)
 	}
@@ -105,7 +114,7 @@ func showcaseOPF(item book) string {
     <dc:identifier id="uid">urn:calibre:%d</dc:identifier>
     <dc:title>%s</dc:title>
     <dc:creator>%s</dc:creator>
-    <dc:language>en</dc:language>
+    <dc:language>%s</dc:language>
     <meta property="dcterms:modified">2026-10-01T12:00:00Z</meta>
   </metadata>
   <manifest>
@@ -115,13 +124,13 @@ func showcaseOPF(item book) string {
   <spine>
 %s  </spine>
 </package>
-`, item.ID, html.EscapeString(item.Title), html.EscapeString(item.Author), manifest.String(), spine.String())
+`, item.ID, html.EscapeString(item.Title), html.EscapeString(item.Author), language, manifest.String(), spine.String())
 }
 
-// showcaseNav returns the navigation document of the showcase book: a chapter per topic.
-func showcaseNav() string {
+// chaptersNav returns the navigation document of a book of chapters: an entry per chapter.
+func chaptersNav(chapters []showcaseChapter) string {
 	var entries strings.Builder
-	for _, chapter := range showcaseChapters {
+	for _, chapter := range chapters {
 		fmt.Fprintf(&entries, "    <li><a href=\"%s\">%s</a></li>\n", chapter.file, chapter.title)
 	}
 	return `<?xml version="1.0" encoding="UTF-8"?>

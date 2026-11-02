@@ -194,6 +194,9 @@ func (parser *builder) blockElement() *element {
 // makes of the document (a block, a table's part, a float, a region of a page).
 func (parser *builder) start(token xml.StartElement) {
 	parent := parser.top()
+	if parent.name == "html" && strings.EqualFold(token.Name.Local, "body") {
+		parser.restyleRoot(parent)
+	}
 	opened := childOf(parent, token)
 	parser.stack = append(parser.stack, opened)
 	parser.readHeadElement(opened)
@@ -233,6 +236,16 @@ func (parser *builder) start(token xml.StartElement) {
 	}
 	opened.run = parser.runOf(opened)
 	parser.addContent(opened)
+}
+
+// restyleRoot computes again what the root element's children inherit when its body opens.
+// Books often style html in a stylesheet of their head (its writing mode, its font size), which
+// is read after html opened; its body and the rest follow it, as in a browser.
+func (parser *builder) restyleRoot(root *element) {
+	if root.hidden {
+		return
+	}
+	root.style.inherited = computeStyle(&root.parent.style, parser.cascade.Compute(root, ""), parser.familyOf, parser.page != nil).inherited
 }
 
 // childOf returns the element that token opens in parent, with what it inherits from it.
@@ -278,6 +291,10 @@ func (parser *builder) record(opened *element) {
 	name, attributes := opened.name, opened.attributes
 	if (name == "html" || name == "body") && parser.doc.Language == "" {
 		parser.doc.Language = attributes["lang"] // or xml:lang
+	}
+	if name == "html" || name == "body" {
+		// The body's writing mode is the page's, as CSS takes it for HTML.
+		parser.doc.WritingMode = opened.style.writingMode
 	}
 	id := attributes["id"]
 	if name == "a" {

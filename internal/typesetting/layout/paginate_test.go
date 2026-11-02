@@ -345,6 +345,39 @@ func BenchmarkRenderPage(b *testing.B) {
 	}
 }
 
+// BenchmarkRenderPageVertical draws a page of vertical Japanese text, as BenchmarkRenderPage
+// draws one of horizontal text: what a page turn of a vertical book costs.
+func BenchmarkRenderPageVertical(b *testing.B) {
+	faces := newTestFaces(b)
+	pages, err := Paginate(verticalDocument(document.VerticalRL, 40), benchmarkSettings, faces, noImages)
+	if err != nil {
+		b.Fatal(err)
+	}
+	canvas := whiteCanvas(benchmarkSettings)
+	b.ReportAllocs()
+	for b.Loop() {
+		for index := range canvas.Pix {
+			canvas.Pix[index] = 255
+		}
+		if err := pages[1].Draw(canvas, faces, nil); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkPaginateVertical lays out a vertical Japanese chapter, as BenchmarkPaginateChapter
+// does a horizontal one.
+func BenchmarkPaginateVertical(b *testing.B) {
+	doc := verticalDocument(document.VerticalRL, 60)
+	faces := newTestFaces(b)
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := Paginate(doc, benchmarkSettings, faces, noImages); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 // An SVG's text is drawn with the faces: dark pixels where it is, none without faces.
 func TestSVGText(t *testing.T) {
 	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">` +
