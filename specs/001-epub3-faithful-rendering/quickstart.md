@@ -77,7 +77,7 @@ script. Watch the emulator's network: no request but to the fake server.
 
 ## The 10-second limit
 
-`go test ./internal/deadline ./internal/typesetting/layout -run Deadline` runs a job that sleeps
+`go test ./internal/deadline && go test ./internal/typesetting/layout -run 'TestDraw(ShowsAlt|Budget|WithoutPool)'` runs a job that sleeps
 past the limit (a short limit in tests): the page is drawn, the element's alt text is in its
 box, and the next draw does not wait. On the reader, a test book with a 30-megapixel AVIF shows
 its page within the limit.

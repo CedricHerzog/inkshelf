@@ -118,15 +118,27 @@ footnotes kept in the text, and reports per book: the characters drawn as the mi
 (`layout.Faces.MissingCharacters`), the runes that no page shows, and which way the pages turn
 against the spine's `page-progression-direction` and the language. The books stay where they
 are; nothing is committed. `TestReadWholeBooks` runs it on a vertical Japanese and an Arabic book
-made in code: no missing glyph, no rune left out, pages turning right to left. A real vertical
-Japanese novel and a real Arabic novel remain to be read this way (SC-003).
+made in code: no missing glyph, no rune left out, pages turning right to left.
+
+Two real novels were read this way on 2 November 2026 (SC-003): Natsume Sōseki's *Kusamakura*
+in vertical Japanese (the IDPF's `kusamakura-japanese-vertical-writing.epub`, 15 chapters, 334
+pages) and Gibran's *The Broken Wings* in Arabic (Wikisource's EPUB 3 export of «الأجنحة
+المتكسرة», 14 chapters, 87 pages). Neither draws a missing glyph or leaves a rune off its pages,
+and both turn right to left: Sōseki from the spine, Gibran, whose spine gives no direction, from
+the language.
 
 ## A real library
 
-The 60 EPUBs of a Calibre library (French and English novels, EPUB 3 after conversion) were read
-as the app does, before and after this work: every chapter laid out and every page drawn, every
-link followed. 58 read and 2 are refused for their LCP DRM, as they should be. Both runs agree
-on every book: 37,279 pages, the same characters, notes and links, no failed image, no missing
-glyph, no text left out (the pages cover each chapter but its hidden footnotes), and 244 sample
-pages identical to the pixel. The only defects are four links, in three books, to a cover page
-the conversion left out of the spine.
+The EPUBs of a Calibre library (French and English novels, EPUB 3 after conversion; 60 at the
+previous run, 61 now) were read as the app does on 2 November 2026, with the build before this
+work and the build after it: through `reading.TextBook` at the default text size, every page
+turned to and drawn, every link on it followed. 59 read and 2 are refused for their LCP DRM, as
+they should be. Both builds agree on every book in pages (40,927, each with the same first and
+last rune), characters, notes (288) and links (3,429, each to the same place or the same popup).
+
+Drawn, 40,920 pages are identical to the pixel. The other 7, in four books, show a character
+that the build before drew as the missing-glyph box: an en space (U+2002) or an em space
+(U+2003) after a note's number or before a list's dash, and a row of black diamonds (U+25C6) as
+a section break. They are drawn now; in one note the en space, narrower than the box, lets a
+word up onto the line before, within the same page. The only other defects, in both builds, are links in four
+books to a cover or title page that the conversion left out of the spine.

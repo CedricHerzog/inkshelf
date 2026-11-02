@@ -311,7 +311,7 @@ Then `make epub-tests`: the vertical-writing tests pass.
 - no code runs and nothing is fetched (locked in by tests);
 - every image, SVG and formula bounded to 10 seconds, with its alt text shown past it.
 
-**Independent Test**: `go test ./internal/deadline ./internal/typesetting/layout -run Deadline`,
+**Independent Test**: `go test ./internal/deadline && go test ./internal/typesetting/layout -run 'TestDraw(ShowsAlt|Budget|WithoutPool)'`,
 the scripting tests of `make epub-tests`, and the fake chapter with a script and an `https:`
 image in the showcase script.
 
@@ -561,8 +561,8 @@ shows a poster and a fallback.
   - write "Done since the previous run";
   - record the run's w3c/epub-tests commit and date.
   - Expected: every in-scope test passes but the two deliberate departures, and `pub-cmt-avif` if AVIF falls back (SC-001); every out-of-scope line names scripts, network, audio or video (SC-002).
-- [ ] T096 Read the 60-book Calibre library of the previous run as the app does (every chapter laid out, every page drawn, every link followed) with the build before and after this feature. Compare pages, characters, notes, links and 244 sample pages to the pixel; explain each difference as a fixed defect (SC-004). Record the result in docs/reference/epub-conformance.md ("A real library").
-- [ ] T097 Check SC-003 on two real books:
+- [X] T096 Read the 60-book Calibre library of the previous run as the app does (every chapter laid out, every page drawn, every link followed) with the build before and after this feature. Compare pages, characters, notes, links and 244 sample pages to the pixel; explain each difference as a fixed defect (SC-004). Record the result in docs/reference/epub-conformance.md ("A real library").
+- [X] T097 Check SC-003 on two real books:
   - Add a `-whole` mode to `cmd/epubtests/main.go`: for each EPUB given by `-books` (paths outside the repository; nothing is committed), lay out every chapter and draw every page.
   - Report missing glyphs (a .notdef drawn), runes left out (each chapter's coverage by its pages), and the page order against the spine's direction.
   - Run it on a real vertical Japanese novel and a real Arabic novel. Expected: zero of each. Record the result in docs/reference/epub-conformance.md.
