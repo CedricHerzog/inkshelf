@@ -537,18 +537,18 @@ content.
 **Independent Test**: the media-overlay tests of `make epub-tests` read as text; the fake chapter
 shows a poster and a fallback.
 
-- [ ] T092 [P] [US6] Media tests in `internal/ebook/epub/epub_test.go`:
+- [X] T092 [P] [US6] Media tests in `internal/ebook/epub/epub_test.go`:
   - a book with a media overlay (`media-overlay` on items, SMIL in the manifest) builds the same documents as without it;
   - a `<video poster>` becomes an image of its poster;
   - a `<video>` without a poster shows its fallback content;
   - an `<audio>` with fallback content shows that content.
-- [ ] T093 [US6] Make the media elements show their poster or fallback in `internal/ebook/epub/build_images.go` (and the element dispatch in `internal/ebook/epub/build.go`):
+- [X] T093 [US6] Make the media elements show their poster or fallback in `internal/ebook/epub/build_images.go` (and the element dispatch in `internal/ebook/epub/build.go`):
   - `<video poster>` → `document.Image` of the poster;
   - otherwise the element's fallback children;
   - `<audio>` → its fallback children;
   - media overlays ignored.
   - Compare each fake chapter's rune count (`document.Chars`) before and after. If it changes, bump `epub.IndexVersion` in this commit, and add a case to `internal/reading/textbook_test.go` showing that a `Location` saved before the change still reaches the same text (constitution III).
-- [ ] T094 [US6] Add a chapter with a video (poster), a video (no poster, fallback text) and an audio element (fallback text) to the fake showcase book, `internal/servers/calibreweb/fakecalibreweb/showcase.go`, with a step and `shot` in `emulator/scripts/calibreweb-showcase.txt`. Update docs/reference/epub-to-page.md (posters, media fallbacks, overlays ignored; constitution VII). Then run `make verify` and `make baseline`.
+- [X] T094 [US6] Add a chapter with a video (poster), a video (no poster, fallback text) and an audio element (fallback text) to the fake showcase book, `internal/servers/calibreweb/fakecalibreweb/showcase.go`, with a step and `shot` in `emulator/scripts/calibreweb-showcase.txt`. Update docs/reference/epub-to-page.md (posters, media fallbacks, overlays ignored; constitution VII). Then run `make verify` and `make baseline`.
 
 **Checkpoint**: all stories work.
 

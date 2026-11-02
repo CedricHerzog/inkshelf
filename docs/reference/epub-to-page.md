@@ -176,6 +176,14 @@ book does not hold is skipped for the next one, then for the next family of `fon
 Scripts (`<script>`, `on*` attributes, `javascript:` links) never run: their text is not shown,
 and a spine item marked `scripted` shows its manifest fallback when it has one.
 
+Audio and video never play: the reader has no sound and its panel cannot show motion. A
+`<video>` shows its `poster`, an image like any other, when the book holds one (a `data:` URI,
+or a file whose header reads as an image: `builder.canShowImage`); otherwise, and for
+`<audio>`, the element's fallback content shows, the children between its tags. Its `<source>`
+and `<track>` children show nothing (the user-agent stylesheet hides them), and no control is
+drawn. A media overlay (read-aloud: SMIL documents named by `media-overlay`) is ignored: the
+chapters read as their text alone, with the same runes as without it.
+
 ## Formulas
 
 A `<math>` element is read by `mathml.Read` into a tree of nodes. It cannot be laid out yet:

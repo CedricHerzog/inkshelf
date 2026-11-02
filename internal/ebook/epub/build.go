@@ -331,7 +331,8 @@ func (parser *builder) addContent(opened *element) {
 			parser.addImage(attributes["data"], opened, "")
 			opened.hidden = true
 		}
-	case name == "video" && attributes["poster"] != "":
+	case name == "video" && parser.canShowImage(attributes["poster"]):
+		// A video shows its poster, a still the book holds; else its fallback content.
 		parser.addImage(attributes["poster"], opened, "")
 		opened.hidden = true
 	case name == "hr":

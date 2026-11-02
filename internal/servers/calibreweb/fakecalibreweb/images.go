@@ -27,6 +27,8 @@ var (
 	// largeSize is the showcase's large photograph: 30.7 M pixels, under pageimage's cap,
 	// some 0.3 s to decode on a computer and seconds on the reader.
 	largeSize = image.Pt(4800, 6400)
+	// posterSize is the poster of the showcase's video, a still of 16:9.
+	posterSize = image.Pt(800, 450)
 )
 
 // jpegQuality is the quality of the covers and CBZ pages.
@@ -57,6 +59,19 @@ func drawPlate() ([]byte, error) {
 		return nil, err
 	}
 	return encoded.Bytes(), nil
+}
+
+// drawPoster returns the poster of the showcase's video: its name on a white band across a dark
+// still, as a JPEG.
+func drawPoster() ([]byte, error) {
+	img := image.NewRGBA(image.Rectangle{Max: posterSize})
+	draw.Draw(img, img.Bounds(), image.NewUniform(color.Gray{Y: 70}), image.Point{}, draw.Src)
+	band := image.Rect(0, posterSize.Y/3, posterSize.X, posterSize.Y*2/3)
+	draw.Draw(img, band, image.White, image.Point{}, draw.Src)
+	if err := drawLines(img, band, 48, []string{"A video's poster"}); err != nil {
+		return nil, err
+	}
+	return encodeJPEG(img)
 }
 
 // largeImage returns the showcase's large photograph, gray squares of 400 pixels in a JPEG, made
