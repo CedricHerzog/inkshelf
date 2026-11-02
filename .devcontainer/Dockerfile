@@ -1,6 +1,6 @@
 # A container for working on Inkshelf, with Claude Code and Spec Kit: everything make verify,
-# make icons and make docs need. Its network is closed by init-firewall.sh, run when the
-# container starts.
+# make icons and make docs need. Its network is the host's, open: the reader under remote
+# control, the servers of make emu and the module proxies are all reached from it.
 
 ARG UV_VERSION=0.13.1
 
@@ -18,11 +18,11 @@ ARG GOLANGCI_LINT_VERSION=v2.14.0
 ARG CLAUDE_CODE_VERSION=latest
 ARG SPEC_KIT_VERSION=1.2.5
 
-# The firewall's tools (iptables, ipset, dig, aggregate), the icons' (rsvg-convert, ImageMagick),
-# Spec Kit's Python, and a shell to work in.
+# The icons' tools (rsvg-convert, ImageMagick), Spec Kit's Python, network tools to look into a
+# connection to the reader, and a shell to work in.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    aggregate ca-certificates curl dnsutils fzf gh git gnupg imagemagick iproute2 ipset iptables \
-    jq less librsvg2-bin make man-db procps python3 sudo unzip zsh \
+    ca-certificates curl dnsutils fzf gh git gnupg imagemagick iproute2 iputils-ping \
+    jq less librsvg2-bin make man-db procps python3 unzip zsh \
   && rm -rf /var/lib/apt/lists/*
 
 # The Makefile calls ImageMagick 7's magick. Should the distribution's package only ship
@@ -46,12 +46,6 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
 
 COPY --from=uv /uv /uvx /usr/local/bin/
 
-# The user may run the firewall script as root, and nothing else.
-COPY init-firewall.sh /usr/local/bin/init-firewall.sh
-RUN chmod 755 /usr/local/bin/init-firewall.sh \
-  && echo "${USERNAME} ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/firewall \
-  && chmod 0440 /etc/sudoers.d/firewall
-
 # Global npm packages in the user's home, so that Claude Code can update itself.
 ENV NPM_CONFIG_PREFIX=/home/${USERNAME}/.npm-global
 ENV PATH=/home/${USERNAME}/.npm-global/bin:${PATH}
@@ -71,8 +65,8 @@ USER ${USERNAME}
 
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
-# Spec Kit's specify CLI, installed now because the firewall closes PyPI once the container runs:
-# to upgrade it, change SPEC_KIT_VERSION and rebuild. uv uses the system's Python rather than
+# Spec Kit's specify CLI, at a pinned version: to upgrade it, change SPEC_KIT_VERSION and
+# rebuild. uv uses the system's Python rather than
 # downloading its own.
 ENV UV_PYTHON_PREFERENCE=only-system
 ENV UV_TOOL_BIN_DIR=/home/${USERNAME}/.local/bin
