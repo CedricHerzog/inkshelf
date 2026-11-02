@@ -9,9 +9,10 @@ import (
 	"github.com/CedricHerzog/inkshelf/internal/deadline"
 )
 
-// PageBudget is how long drawing a page waits in all for its slow elements (images, SVGs,
-// formulas). A crafted or merely huge element must not keep the reader on a blank page: past it,
-// every element not ready yet shows its text alternative.
+// PageBudget is how long a page waits in all for its slow elements (images, SVGs, formulas),
+// counted from the start of its layout when the caller starts it then. A crafted or merely huge
+// element must not keep the reader on a blank page: past it, every element not ready yet shows
+// its text alternative.
 const PageBudget = 10 * time.Second
 
 // Elements bounds how long drawing a page waits for its elements: each is prepared on a worker

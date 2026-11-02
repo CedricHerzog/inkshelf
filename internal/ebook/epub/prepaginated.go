@@ -63,6 +63,9 @@ func (book *Book) RenderPage(index int, size image.Point, elements layout.Elemen
 	if index < 0 || index >= book.Chapters() {
 		return nil, fmt.Errorf("chapter %d of %d", index, book.Chapters())
 	}
+	// The page's budget includes building it from its document, as a reflowable page's includes
+	// its layout.
+	elements = elements.Started()
 	page, err := book.fixedPage(book.ChapterItem(index))
 	if err != nil {
 		return nil, err

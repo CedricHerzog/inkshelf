@@ -145,5 +145,5 @@ func (text *TextBook) DrawPopupPage(page layout.Page, height int) (*image.Gray, 
 	if renderer.book == nil {
 		return nil, errClosed
 	}
-	return renderer.drawLocked(page, height)
+	return renderer.drawLocked(page, height, renderer.settings.Elements)
 }

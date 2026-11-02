@@ -225,9 +225,12 @@ elements 10 seconds in all (`PageBudget`), not each element 10 seconds.
   budget (`Budget`, `PageBudget` if 0) and the book, which names each element's key with its
   path and size. A nil pool prepares everything on the goroutine that draws, with no limit:
   tests and tools.
-- `Draw` starts the budget (`Elements.Started`) and prepares each background image, image and
-  formula through `PrepareElement`, which waits at most what is left of it. Once the budget is
-  spent, every element left shows its fallback without a wait.
+- The reader starts the budget (`Elements.Started`) before it lays out the page's chapter
+  (`reading`'s `draw`, `epub.Book.RenderPage` for a fixed-layout page), so that a slow layout
+  leaves the elements less time and the page still appears within the 10 seconds; `Draw` starts
+  it if no one has. It prepares each background image, image and formula through
+  `PrepareElement`, which waits at most what is left of it. Once the budget is spent, every
+  element left shows its fallback without a wait.
 - An element not ready in time shows its text alternative (`PlacedImage.Alt`, from the
   document's `Alt`) in its box, in the text's font, broken into lines between words and cut at
   the box's edges (`drawAlt`); without one the box stays empty. An image that cannot be decoded

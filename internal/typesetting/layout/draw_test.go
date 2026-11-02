@@ -101,6 +101,20 @@ func TestDrawShowsAltTextOfSlowImage(t *testing.T) {
 	}
 }
 
+// A budget started before the page was laid out, as the reader starts it, leaves the draw only
+// what is left: a slow layout and a slow element together still show the page within it.
+func TestDrawBudgetIncludesLayout(t *testing.T) {
+	faces := newTestFaces(t)
+	elements := Elements{Pool: startPool(t, 2), Budget: 100 * time.Millisecond, Book: "late"}.Started()
+	time.Sleep(80 * time.Millisecond) // the page's layout
+	box := image.Rect(50, 50, 450, 250)
+	page := Page{Images: []PlacedImage{altImage("late.png", box, "A lighthouse on a rock")}}
+	_, took := timedDraw(t, page, faces, slowLoader(t, 200*time.Millisecond), elements)
+	if took > 60*time.Millisecond {
+		t.Errorf("Draw took %v after 80 ms of layout, want what is left of the 100 ms budget", took)
+	}
+}
+
 func TestDrawShowsAltTextOfFailedFormula(t *testing.T) {
 	faces := newTestFaces(t)
 	box := image.Rect(50, 50, 450, 100)

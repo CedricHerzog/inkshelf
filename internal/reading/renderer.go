@@ -72,16 +72,19 @@ func (renderer *renderer) page(at PagePosition) (layout.Page, error) {
 	return pages[min(at.Page, len(pages)-1)], nil
 }
 
-// draw draws page at on a white canvas of the page's size.
+// draw draws page at on a white canvas of the page's size. The page's budget for its elements
+// starts before its chapter is laid out, so that a slow layout leaves them less time and the page
+// appears within the budget all the same.
 func (renderer *renderer) draw(at PagePosition) (*image.Gray, error) {
 	renderer.mu.Lock()
 	defer renderer.mu.Unlock()
+	elements := renderer.settings.Elements.Started()
 	pages, err := renderer.pagesLocked(at.Chapter)
 	if err != nil {
 		return nil, err
 	}
 	span := timing.Start(context.Background(), "render page")
-	canvas, err := renderer.drawLocked(pages[min(at.Page, len(pages)-1)], renderer.settings.Height)
+	canvas, err := renderer.drawLocked(pages[min(at.Page, len(pages)-1)], renderer.settings.Height, elements)
 	duration := span.End()
 	if err != nil {
 		return nil, err
@@ -90,14 +93,13 @@ func (renderer *renderer) draw(at PagePosition) (*image.Gray, error) {
 	return canvas, nil
 }
 
-// drawLocked draws page on a white canvas of the page's width, height high, with renderer.mu
-// held.
-func (renderer *renderer) drawLocked(page layout.Page, height int) (*image.Gray, error) {
+// drawLocked draws page on a white canvas of the page's width, height high, its elements through
+// elements, with renderer.mu held.
+func (renderer *renderer) drawLocked(page layout.Page, height int, elements layout.Elements) (*image.Gray, error) {
 	canvas := image.NewGray(image.Rect(0, 0, renderer.settings.Width, height))
 	for index := range canvas.Pix {
 		canvas.Pix[index] = 0xff // white
 	}
-	elements := renderer.settings.Elements
 	elements.Book = renderer.bookID
 	if err := page.Draw(canvas, renderer.faces, webimage.NewLoader(renderer.book.Resource, renderer.faces.SVGText()), elements); err != nil {
 		return nil, err
