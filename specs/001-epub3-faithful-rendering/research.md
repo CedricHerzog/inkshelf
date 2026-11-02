@@ -184,7 +184,9 @@ unpacking Noto Serif CJK JP takes 6.3 s on the B288, not the second expected, an
 shows 6.6 s after the tap, with nothing on the panel meanwhile; it happens once per install.
 Vertical page turns then take 0.11 to 0.43 s, 0.94 s for a turn that lays out a new chapter of 41
 pages (SC-005: under 2 s). Gibran's *The Broken Wings* (Arabic): opened in 0.1 s, turns in 0.11 s,
-as horizontal books do. Contrary to the facts above, `/ebrmain/fonts` on this firmware holds
+as horizontal books do. A horizontal novel (Verne's *Le tour du monde en quatre-vingts jours*,
+from Project Gutenberg) turns in 112 ms on average (100 to 124) with the build before this feature
+and 111 ms (100 to 114) with this one, each next page drawn ahead in 47 and 42 ms (T105, SC-005). Contrary to the facts above, `/ebrmain/fonts` on this firmware holds
 `NotoSansCJK-Regular.ttc` and `NotoSerifCJK-Regular.ttc`, beside `NotoSansArabicUI`, Hebrew,
 Devanagari and other Noto fonts: the compiled-in fonts and their unpacking could give way to the
 firmware's, when present.
@@ -267,6 +269,20 @@ chapter build.
 - Fixed-layout pages at download are already on the downloader's goroutines and not on screen;
   the same 10-second page budget applies there, through the download pool.
 - Caps (pixels, nodes, depth) stay the first defence; the limit catches what passes them.
+
+**On the reader (T104, T106, 2026-11-02).** A hostile book made for the check, a chapter per
+strain, read on the B288 (layout, then draw): 3,000 nested `div`s 0.25 s and 35 ms; 20,000 CSS
+rules 6.56 s and 28 ms; deep MathML (300 fractions) 29 ms and 32 ms, its `alttext` shown; a
+30-megapixel PNG 8 ms and 1.76 s; a word of 100,000 letters 1.98 s for its 95 pages; an SVG path
+of 200,000 segments 1.42 s, then its draw gave up at the limit (10.03 s) and the page appeared
+without it. The word first took 40 s on the host (minutes on the reader): `cutWord` measured the
+rest of the word at each character tried; it now measures only the start (FR-014). The heaviest
+books of the W3C suite (`lay-pp-embedded-images-svg`, `lay-roll-embedded-images-svg`, fixed
+layout) draw their pages at download in 4.2 and 3.2 s each on average, and turn as page images.
+A page of formulas draws in 177 ms, a full-page JPEG XL (1404x1872, quality 70) in 6.97 s. One
+departure from SC-006 remains: the 10 seconds count from the draw, so a page whose layout is slow
+(1.42 s for the SVG, 6.56 s for the stylesheet) and whose element then reaches the limit appears
+after both, 11.45 s for the SVG page.
 
 **Alternatives.** Cooperative cancellation (a context checked inside decoders): third-party
 decoders (JPEG XL, AVIF, WebP) take none. Running each element on a fresh goroutine: breaks

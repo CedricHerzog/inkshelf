@@ -101,11 +101,15 @@ book pair).
 
 ## Remaining work, by value for reading books on this reader
 
-1. Measured on the reader on 2 November 2026: the firmware's CJK fonts read in 0.08 to 0.1 s,
-   so a vertical book opens in 0.9 s (6.6 s with the app's own fonts to decompress); vertical page
-   turns 0.11 to 0.94 s; a full-page AVIF 5.75 s (under the 10-second limit). Still to measure there: a page of formulas
-   and a JPEG XL decode (about 270 ms on the Mac in pure Go for a full page, several seconds
-   expected on the ARM).
+1. The 10 seconds of a page count from its draw: a page whose layout is slow and whose element
+   then reaches the limit appears after both. On the reader, a hostile SVG path of 200,000
+   segments takes 1.42 s to lay out and its page appears after 11.45 s; a stylesheet of 20,000
+   rules takes 6.56 s to lay out. Counting the limit from the start of the page's preparation, or
+   bounding a stylesheet's size, would close it. Measured on the reader on 2 November 2026,
+   otherwise: the firmware's CJK fonts read in 0.08 to 0.1 s, so a vertical book opens in 0.9 s;
+   vertical page turns 0.11 to 0.94 s; horizontal ones 111 ms, as before this work (112 ms); a
+   page of formulas 177 ms; a full-page AVIF 5.75 s and a full-page JPEG XL 6.97 s, both under
+   the limit.
 2. AVIF's decoder runs an image's tiles on goroutines of its own, where a panic cannot be
    recovered: an option of gav1d to decode on the caller would close that.
 3. Vertical text keeps the horizontal meaning of CSS margins (`margin-top` is the space before
