@@ -205,6 +205,18 @@ assembly barely matters here. The same test built for ARMv7 ran under the contai
 emulation in 1.45 s per full page; that is not the B288's speed, which T091 measures on the
 reader. Go: T085–T091 go ahead.
 
+**Implementation (T085–T091, 2026-11-02).** Wired in behind `pageimage.Decode` (`decodeAVIF`):
+the header against `maxAVIFPixels` (8.4 Mpx), the decoder's `FrameSizeLimit` at the same, panics
+on the calling goroutine recovered, a `decode avif` span. One gap against the plan: gav1d's
+`avif` API has no thread option, and its AV1 decoder always runs an image's tiles on goroutines
+of its own (`av1/frame.go`, even for one tile), so a panic there cannot be recovered. Fuzzing
+stands in: `FuzzDecodeAVIF` ran 18.6 M inputs in 3 minutes on the host without a failure. A
+full page (1404x1872, noisy, quality 70) decodes in 0.14 s on the host
+(`BenchmarkDecodeAVIF`, 21.9 MB allocated). `pub-cmt-avif` passes. The reader's timing of a
+full-page AVIF is still to measure: the reader was not reachable over Wi-Fi when this was done.
+gav1d's tests carry no 10-bit file we may copy and its encoder writes 8 bits only, so the tests
+cover 8-bit 4:2:0 color, monochrome and alpha; 10-bit goes through `toGray`'s generic path.
+
 **Alternatives.** Writing an AV1 intra decoder: an estimated 15-25k lines. The `wasm2go`
 transpile of libavif: machine-translated WebAssembly, large and slow, and against the rule's
 spirit.

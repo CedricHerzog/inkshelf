@@ -17,7 +17,8 @@ const (
 
 // formulasXHTML is the last chapter of a book: MathML in lines of text (a fraction, scripts,
 // a root) and displayed (the quadratic formula, a sum with its limits, a matrix, an integral,
-// a binomial coefficient and a cube root); then a box, bordered, on a gray background, and a table.
+// a binomial coefficient and a cube root); then a box, bordered, on a gray background, a table,
+// and an AVIF image with no fallback.
 const formulasXHTML = `<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:m="http://www.w3.org/1998/Math/MathML" xml:lang="fr">
 <head><title>Formules</title><link rel="stylesheet" type="text/css" href="../style.css"/></head>
@@ -46,6 +47,8 @@ const formulasXHTML = `<?xml version="1.0" encoding="UTF-8"?>
       <tr><td>Nombre d'or</td><td><i>φ</i></td><td>1,61803</td></tr>
     </tbody>
   </table>
+  <p>Une image AVIF, sans image de secours&#160;:</p>
+  <p class="centre"><img src="../images/plate.avif" alt="Une image AVIF"/></p>
 </body>
 </html>
 `

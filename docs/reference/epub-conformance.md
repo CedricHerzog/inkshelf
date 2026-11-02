@@ -27,8 +27,8 @@ Two judgement calls:
 
 Nothing in a book is executed or fetched: no scripts (a `scripted` item shows its manifest
 fallback), no WebAssembly, no remote resource (an `http:` image is a missing file). The parsers
-added for this work (CSS colors and gradients, the SVG cascade, MathML, JPEG XL through
-`pageimage.Decode`) have limits on their input and fuzz tests.
+added for this work (CSS colors and gradients, the SVG cascade, MathML, JPEG XL and AVIF
+through `pageimage.Decode`) have limits on their input and fuzz tests.
 
 ## Results
 
@@ -39,7 +39,7 @@ added for this work (CSS colors and gradients, the SVG cascade, MathML, JPEG XL 
 | Internationalization | 9 | 2 | 0 | 7 | Titles shown are the server's. Text in the book is laid out bidirectionally now. |
 | Spine | 10 | 10 | 0 | 0 | |
 | Manifest fallbacks | 5 | 5 | 0 | 0 | |
-| Core media types | 10 | 6 | 1 | 3 | No AVIF decoder (its fallback is used); audio is out of scope. |
+| Core media types | 10 | 7 | 0 | 3 | Audio is out of scope. |
 | XHTML and resources | 12 | 9 | 1 | 2 | Malformed XML is read leniently, not refused (kept: real books have broken markup); no browser for web links. |
 | Fonts (`@font-face`, obfuscation) | 6 | 6 | 0 | 0 | |
 | CSS (`-epub-` properties) | 10 | 10 | 0 | 0 | |
@@ -51,14 +51,17 @@ added for this work (CSS colors and gradients, the SVG cascade, MathML, JPEG XL 
 | Reflowable layout (`rendition:flow`, roll) | 8 | 5 | 0 | 3 | Scrolled flows are shown paged, and `align-x-center` doesn't apply to paged e-ink. |
 | Scripting | 16 | 1 | 0 | 15 | No scripts; a scripted document's manifest fallback is shown. |
 | Media overlays | 21 | 1 | 0 | 20 | No audio; overlays are ignored, as required. |
-| **Total** | **179** | **118** | **3** | **58** | |
+| **Total** | **179** | **119** | **2** | **58** | |
 
-Of the 121 tests in scope, 118 pass (97%). The runs before this one gave 113, 109 and 101. The
-verdict of each test, and why, is in `cmd/epubtests/judgments.tsv`. Of the three that fail, two
-are the deliberate departures and one is AVIF.
+Of the 121 tests in scope, 119 pass (98%). The runs before this one gave 118, 113, 109 and 101.
+The verdict of each test, and why, is in `cmd/epubtests/judgments.tsv`. The two that fail are
+the deliberate departures.
 
 ## Done since the previous run
 
+- **AVIF** (`pageimage.decodeAVIF`): decoded by `gen2brain/gav1d`, a pure-Go port of dav1d,
+  behind a pixel cap and a frame size limit, its panics on the calling goroutine recovered
+  (`pub-cmt-avif`). AVIF is a core media type now: the fallback chain stops at it.
 - **Vertical writing** (`layout`, `vertical.go`): `writing-mode` `vertical-rl` and `vertical-lr`
   laid out in columns with the horizontal line breaker, turned onto the page; ideographs upright
   and shaped top to bottom (vertical forms of brackets and the long vowel), Latin turned, as
@@ -86,10 +89,12 @@ are the deliberate departures and one is AVIF.
 
 ## Remaining work, by value for reading books on this reader
 
-1. AVIF: `gen2brain/gav1d`, a pure-Go port of dav1d, builds for the reader; not yet wired in.
-2. On the reader: the time of a vertical page and of the first CJK page (its font's
-   decompression), of a shaped page, of a page of formulas, and of a JPEG XL decode (about
-   270 ms on the Mac in pure Go for a full page, several seconds expected on the ARM).
+1. On the reader: the time of a vertical page and of the first CJK page (its font's
+   decompression), of a shaped page, of a page of formulas, of a JPEG XL decode (about
+   270 ms on the Mac in pure Go for a full page, several seconds expected on the ARM), and of an
+   AVIF decode (0.14 s on a computer for a full page).
+2. AVIF's decoder runs an image's tiles on goroutines of its own, where a panic cannot be
+   recovered: an option of gav1d to decode on the caller would close that.
 3. Vertical text keeps the horizontal meaning of CSS margins (`margin-top` is the space before
    a block), and lays a formula out across.
 

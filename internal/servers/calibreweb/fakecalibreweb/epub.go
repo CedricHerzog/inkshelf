@@ -13,9 +13,13 @@ import (
 // floated at the right of the text in the second, a scene break of ◆, a navigation document
 // with nested entries, printed pages and a landmark, links in the first chapter (to a
 // footnote, to the last chapter, into the notes, a non-linear item of the spine, and to the
-// web), and a last chapter of MathML.
+// web), and a last chapter of MathML that ends with an AVIF image.
 func makeEPUB(item book) ([]byte, error) {
 	plate, err := drawPlate()
+	if err != nil {
+		return nil, err
+	}
+	avifPlate, err := drawAVIFPlate()
 	if err != nil {
 		return nil, err
 	}
@@ -23,6 +27,7 @@ func makeEPUB(item book) ([]byte, error) {
 		"META-INF/container.xml":  []byte(containerXML),
 		"OEBPS/style.css":         []byte(styleCSS),
 		"OEBPS/images/plate.png":  plate,
+		"OEBPS/images/plate.avif": avifPlate,
 		"OEBPS/images/figure.svg": []byte(figureSVG),
 		"OEBPS/content.opf":       []byte(contentOPF(item)),
 		"OEBPS/toc.ncx":           []byte(tocNCX(item)),
@@ -86,6 +91,7 @@ func contentOPF(item book) string {
     <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
     <item id="style" href="style.css" media-type="text/css"/>
     <item id="plate" href="images/plate.png" media-type="image/png"/>
+    <item id="avif" href="images/plate.avif" media-type="image/avif"/>
     <item id="figure" href="images/figure.svg" media-type="image/svg+xml"/>
     <item id="notes" href="notes.xhtml" media-type="application/xhtml+xml"/>
     <item id="formulas" href="text/formulas.xhtml" media-type="application/xhtml+xml"/>

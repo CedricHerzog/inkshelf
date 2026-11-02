@@ -508,21 +508,21 @@ image with no fallback; `make epub-tests` passes `pub-cmt-avif`.
 
 If T006 recorded that `gav1d` does not build or decode on ARMv7, skip T085–T089: AVIF stays on its manifest fallback, as FR-008 allows, and T091 only records the gap.
 
-- [ ] T085 [P] [US4] AVIF tests in `internal/graphics/pageimage/avif_test.go`:
+- [X] T085 [P] [US4] AVIF tests in `internal/graphics/pageimage/avif_test.go`:
   - decode a small AVIF built in code or from `internal/graphics/pageimage/testdata/` (8-bit 4:2:0, 10-bit, with alpha);
   - `FuzzDecodeAVIF` with no panic escaping;
   - `BenchmarkDecodeAVIF` (a 1404x1872 image).
-- [ ] T086 [US4] Add `github.com/gen2brain/gav1d` to go.mod, pinned to the commit T006 checked; confirm `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build ./...`
-- [ ] T087 [US4] Decode AVIF in `internal/graphics/pageimage/decode.go`, with JPEG XL's guards:
+- [X] T086 [US4] Add `github.com/gen2brain/gav1d` to go.mod, pinned to the commit T006 checked; confirm `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build ./...`
+- [X] T087 [US4] Decode AVIF in `internal/graphics/pageimage/decode.go`, with JPEG XL's guards:
   - check the header with `DecodeConfig` against a pixel cap (`maxAVIFPixels`, the same 8.4 Mpx);
   - recover panics with `recoverError`;
   - decode with one thread;
   - wrap the work in a `timing.Start("decode avif")` span.
-- [ ] T088 [US4] Accept AVIF:
+- [X] T088 [US4] Accept AVIF:
   - add `image/avif` to the core image types in `internal/ebook/epub/container/package_document.go` (`SupportedImage`), so the fallback chain stops at it;
   - make `internal/web/webimage/webimage.go` route it through `pageimage.Decode`.
-- [ ] T089 [US4] Add an AVIF image with no fallback to the fake MathML book (`internal/servers/calibreweb/fakecalibreweb/chapters.go` or `images.go`), with its step and `shot` in `emulator/scripts/calibreweb-mathml.txt`
-- [ ] T090 [US4] Update docs/reference/image-pipeline.md (constitution VII): AVIF, its pixel cap and its guards; run `make docs-build`
+- [X] T089 [US4] Add an AVIF image with no fallback to the fake MathML book (`internal/servers/calibreweb/fakecalibreweb/chapters.go` or `images.go`), with its step and `shot` in `emulator/scripts/calibreweb-mathml.txt`
+- [X] T090 [US4] Update docs/reference/image-pipeline.md (constitution VII): AVIF, its pixel cap and its guards; run `make docs-build`
 - [ ] T091 [US4] Run `make verify` and `make epub-tests` (update judgments for `pub-cmt-avif`). On the reader, time a full-page AVIF in the log (`go run ./cmd/readerctl log`) and note it in research.md R7. If it passes 10 s, the page budget of T054 shows its fallback: record that. If AVIF falls back (T006 or this timing), record `pub-cmt-avif` as a gap in `cmd/epubtests/judgments.tsv` and docs/reference/image-pipeline.md, as FR-008 allows. Update docs/reference/epub-conformance.md in the same change (constitution VII): the Core media types row (AVIF passes, or is recorded as a gap under FR-008), the Total row and the "Of the N tests in scope, M pass" sentence.
 
 **Checkpoint**: US4 works alone.

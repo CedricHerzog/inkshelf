@@ -4,6 +4,7 @@ go 1.27.2
 
 require (
 	github.com/andybalholm/brotli v1.2.6
+	github.com/gen2brain/gav1d v0.2.6
 	github.com/gen2brain/jxl v0.2.0
 	github.com/go-text/typesetting v0.3.5
 	github.com/rivo/uniseg v0.4.7

@@ -58,8 +58,9 @@ written last. A book folder without `book.json` is an interrupted download: the 
 ### 1. Decode to gray
 
 `DecodeGray` (`decode.go`) uses the standard library's JPEG and PNG decoders,
-`golang.org/x/image/webp`, and `github.com/gen2brain/jxl` for JPEG XL, all pure Go.
-(The firmware's libjpeg-turbo was 5–10× faster but needs cgo.)
+`golang.org/x/image/webp`, `github.com/gen2brain/jxl` for JPEG XL, and
+`github.com/gen2brain/gav1d` (a port of dav1d) for AVIF, all pure Go. (The firmware's
+libjpeg-turbo was 5–10× faster but needs cgo.)
 
 `toGray` has a fast path for each image type the decoders return. For a JPEG, the decoder
 already stores brightness (the Y plane of YCbCr) separately from color: that plane *is* the
@@ -72,9 +73,18 @@ opaque, and converted again only if one of its pixels is not.
 An image's header can ask for any size, and a book or a server could use that to take the
 reader's memory. So `pageimage.Decode` reads the header first and refuses an image above its
 cap before decoding: `maxJXLPixels` (8.4 Mpx) for JPEG XL, whose decoder works in float32 planes,
+`maxAVIFPixels` (the same) for AVIF, whose AV1 decoder keeps reference planes of 16-bit samples,
 and `maxPixels` (33.5 Mpx, a double page scanned at 400 dpi) for the other formats. It also
 recovers the decoders' panics. That is why the app decodes images through `pageimage.Decode`
 rather than `image.Decode`.
+
+The JPEG XL decoder runs on one thread, so that a panic stays on the calling goroutine, where it
+is recovered. The AVIF decoder (`decodeAVIF`) cannot: gav1d decodes an image's tiles on
+goroutines of its own and offers no option to keep them on the caller, so a panic there would end
+the app. Its guards are the pixel cap, the frame size limit given to the decoder, the recovery of
+what panics on the caller (parsing the container), and fuzzing (`FuzzDecodeAVIF`). A full page
+of AVIF (1404x1872) takes about 0.14 s to decode on a computer (`BenchmarkDecodeAVIF`); each
+decode is a `decode avif` span in the log and the trace.
 
 ### 2. Fit to the screen
 

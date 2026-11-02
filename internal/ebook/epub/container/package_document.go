@@ -13,10 +13,9 @@ var documentTypes = []string{"application/xhtml+xml", "text/html"}
 // IsDocumentType reports whether mediaType is that of a chapter read as XHTML.
 func IsDocumentType(mediaType string) bool { return slices.Contains(documentTypes, mediaType) }
 
-// imageTypes are the media types of the images the book can show: EPUB's core media types,
-// image/jpg, which books write for image/jpeg, and image/jxl. An AVIF image goes to its
-// fallback.
-var imageTypes = []string{"image/gif", "image/jpeg", "image/jpg", "image/jxl", "image/png", "image/svg+xml", "image/webp"}
+// imageTypes are the media types of the images the book can show: EPUB's core media types
+// (AVIF among them), image/jpg, which books write for image/jpeg, and image/jxl.
+var imageTypes = []string{"image/avif", "image/gif", "image/jpeg", "image/jpg", "image/jxl", "image/png", "image/svg+xml", "image/webp"}
 
 // SpineItem is an item of the spine: a part of the book, in reading order.
 type SpineItem struct {
