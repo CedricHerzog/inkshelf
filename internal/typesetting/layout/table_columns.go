@@ -306,12 +306,22 @@ func (layout *paginator) blockWidths(block document.Block) (minimum, maximum int
 		return 0, 0, nil
 	case document.Image:
 		if mathml.Is(block.Image) {
-			formula, _, err := layout.faces.formula(block.Image, layout.settings.FontSize, image.Pt(layout.content.Dx(), layout.pageHeight))
+			// As placeFormula places it: upright in vertical text, as long along the line as
+			// it is high.
+			limit := image.Pt(layout.content.Dx(), layout.pageHeight)
+			if layout.mode.Vertical() {
+				limit = image.Pt(layout.pageHeight, layout.content.Dx())
+			}
+			formula, _, err := layout.faces.formula(block.Image, layout.settings.FontSize, limit)
 			if err != nil {
 				log.Printf("layout: formula: %v", err)
 				return 0, 0, nil
 			}
-			return formula.Width + margins, formula.Width + margins, nil
+			along := formula.Width
+			if layout.mode.Vertical() {
+				along = formula.Ascent + formula.Descent
+			}
+			return along + margins, along + margins, nil
 		}
 		size, err := layout.sizer(block.Image)
 		if err != nil || size.X <= 0 || size.Y <= 0 {

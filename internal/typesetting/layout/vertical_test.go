@@ -372,3 +372,36 @@ func TestVerticalFormulas(t *testing.T) {
 		t.Errorf("displayed formula from x %d to %d, want it between the columns at %d and %d", block.Rect.Min.X, block.Rect.Max.X, before.X, next.X)
 	}
 }
+
+// In a table that stays vertical, a displayed formula's column is as long down the line as the
+// formula stands, its height, not its width: the next cell starts below it.
+func TestVerticalTableFormulaColumn(t *testing.T) {
+	display := formulaPath(t, `<math display="block"><msup><mi>a</mi><mn>2</mn></msup><mo>+</mo><msup><mi>b</mi><mn>2</mn></msup><mo>=</mo><msup><mi>c</mi><mn>2</mn></msup></math>`)
+	faces := newTestFaces(t)
+	doc := &document.Document{Language: "ja", WritingMode: document.VerticalRL}
+	table := &document.Table{Rows: 1, Columns: 2}
+	formulaCell := &document.TableCell{Table: table, RowSpan: 1, ColumnSpan: 1}
+	textCell := &document.TableCell{Table: table, Column: 1, RowSpan: 1, ColumnSpan: 1}
+	table.Cells = append(table.Cells, formulaCell, textCell)
+	doc.Add(document.Block{Cell: formulaCell, Kind: document.Image, Image: display, WritingMode: document.VerticalRL})
+	doc.Add(document.Block{Cell: textCell, WritingMode: document.VerticalRL, Runs: []document.Run{{Text: "後"}}})
+	pages, err := Paginate(doc, testSettings, faces, noImages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages[0].Images) != 1 {
+		t.Fatalf("images %+v, want the formula", pages[0].Images)
+	}
+	placed := pages[0].Images[0]
+	formula, _, err := faces.formula(display, placed.MathSize, image.Pt(1<<20, 1<<20))
+	if err != nil {
+		t.Fatal(err)
+	}
+	height := formula.Ascent + formula.Descent
+	// Between them only the cells' padding, less than the formula's height; its width, before,
+	// left a gap of 65 pixels.
+	if after := wordNamed(t, pages, "後").Top; after < placed.Rect.Max.Y || after-placed.Rect.Max.Y > height {
+		t.Errorf("formula from y %d to %d (%d high, %d wide), the next cell from y %d: want it just below the formula",
+			placed.Rect.Min.Y, placed.Rect.Max.Y, height, formula.Width, after)
+	}
+}

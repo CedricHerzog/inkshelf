@@ -221,7 +221,8 @@ with the same line breaking, justification and pagination as horizontal text.
   text it stands upright, as CSS places a box of the other direction: an inline one is an
   inline image as long down its column as the formula is high and as thick as it is wide,
   centred on the column (`makeFormats`); a displayed one takes a band across the columns as wide
-  as it is, centred down the page (`placeFormula`).
+  as it is, centred down the page (`placeFormula`), and in a table that stays vertical its column
+  is as long as the formula is high (`blockWidths`).
 - Not followed in vertical text: drop caps (merged into their paragraph).
 
 `Settings.Horizontal` lays every document out across whatever its mode: a note's popup is a

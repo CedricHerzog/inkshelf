@@ -704,4 +704,4 @@ Then:          T074 → T075 → T076, T077 → T078–T084
 
 ## Phase 14: Convergence
 
-- [ ] T115 Size a table column for a displayed formula by the formula's extent along the line in `blockWidths` (`internal/typesetting/layout/table_columns.go`), as T113 made `placeFormula` do: in a vertical layout, measure it within the swapped limit (`image.Pt(layout.pageHeight, layout.content.Dx())`) and take its height (`Ascent+Descent`), not its width, so that a formula in a table that stays vertical gets a column as long as it stands; add a test with such a table, per FR-002 and T113 (partial)
+- [X] T115 Size a table column for a displayed formula by the formula's extent along the line in `blockWidths` (`internal/typesetting/layout/table_columns.go`), as T113 made `placeFormula` do: in a vertical layout, measure it within the swapped limit (`image.Pt(layout.pageHeight, layout.content.Dx())`) and take its height (`Ascent+Descent`), not its width, so that a formula in a table that stays vertical gets a column as long as it stands; add a test with such a table, per FR-002 and T113 (partial)
