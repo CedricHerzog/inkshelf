@@ -206,10 +206,16 @@ with the same line breaking, justification and pagination as horizontal text.
   screen's size (a child paginator of its own), and places each resulting page as one box where
   the next block goes, as long as its content along the line and as wide as it across. Images
   and rules have no direction and stay in the page's.
-- Not followed in vertical text: drop caps (merged into their paragraph), and the physical
-  margins of CSS, which keep the meaning they have across: `margin-top` is the space before a
-  block, at the right of a `vertical-rl` page, not the space above its lines. A formula is laid
-  out as across.
+- **Box sides as the lines go.** CSS names a box's margins, paddings and borders by their sides
+  on the screen; the document model names them as its lines go: `MarginTop` is the space before
+  a block, `Left` the start of its lines. The EPUB's builder turns one into the other
+  (`epub.physicalSide`): in `vertical-rl`, `margin-right` is the space before a block,
+  `margin-left` the space after it, `margin-top` and `margin-bottom` the start and end of its
+  columns; `vertical-lr` has the space before on the left. A border box is laid out with its
+  sides logical too, and `pageTurner.box` puts them back where the book drew them: its border
+  before on the right of a `vertical-rl` page, on its first page only.
+- Not followed in vertical text: drop caps (merged into their paragraph). A formula is laid out
+  as across.
 
 `Settings.Horizontal` lays every document out across whatever its mode: a note's popup is a
 band across the page.

@@ -156,6 +156,21 @@ func (turner pageTurner) rect(rect image.Rectangle) image.Rectangle {
 	return image.Rect(turner.across(rect.Min.Y), rect.Min.X, turner.across(rect.Max.Y), rect.Max.X)
 }
 
+// box returns a logical border box on the page. Its sides were named as its lines go, as the
+// document model has them: its top border is before its first line, its left one at the start of
+// its lines. On the page, the side before is the right one in vertical-rl and the left one in
+// vertical-lr, and the lines start at the top.
+func (turner pageTurner) box(placed PlacedBorderBox) PlacedBorderBox {
+	before, after, start, end := placed.Top, placed.Bottom, placed.Left, placed.Right
+	placed.Rect = turner.rect(placed.Rect)
+	placed.Top, placed.Bottom = start, end
+	placed.Right, placed.Left = before, after
+	if turner.mode == document.VerticalLR {
+		placed.Left, placed.Right = before, after
+	}
+	return placed
+}
+
 // turnPage turns what a vertical layout placed on page onto the page. A word of vertical text
 // gets its column's centre line as its X and the top of its text as its Top: its font's line
 // from Top down was across the logical line, and the column's centre is that line's middle. An
@@ -191,7 +206,7 @@ func (turner pageTurner) turnPage(page *Page, faces *Faces) error {
 		page.Links[index].Rect = turner.rect(page.Links[index].Rect)
 	}
 	for index := range page.Boxes {
-		page.Boxes[index].Rect = turner.rect(page.Boxes[index].Rect)
+		page.Boxes[index] = turner.box(page.Boxes[index])
 	}
 	for index := range page.orthogonal {
 		page.orthogonal[index].rect = turner.rect(page.orthogonal[index].rect)

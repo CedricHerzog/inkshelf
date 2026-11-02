@@ -254,3 +254,48 @@ func TestHorizontalSetting(t *testing.T) {
 		t.Errorf("word %+v, want horizontal", word)
 	}
 }
+
+// A box in vertical text has its sides as the lines go: its top border before its first column,
+// drawn on the page's right in vertical-rl and on its left in vertical-lr, its left border at the
+// top, where the columns start.
+func TestVerticalBox(t *testing.T) {
+	faces := newTestFaces(t)
+	for _, mode := range []document.WritingMode{document.VerticalRL, document.VerticalLR} {
+		doc := verticalDocument(mode, 3)
+		doc.Boxes = []document.BorderBox{{
+			Start: doc.Blocks[1].Start, End: doc.Blocks[2].Start,
+			Top: solid(25, 0), Left: solid(50, 0x40), PaddingTop: 100,
+		}}
+		pages, err := Paginate(doc, testSettings, faces, noImages)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(pages[0].Boxes) != 1 {
+			t.Fatalf("mode %d: boxes %+v, want 1", mode, pages[0].Boxes)
+		}
+		placed := pages[0].Boxes[0]
+		before, other := placed.Right, placed.Left
+		if mode == document.VerticalLR {
+			before, other = placed.Left, placed.Right
+		}
+		if before.Style != document.Solid || other.Style != document.NoBorder || placed.Top.Gray != 0x40 || placed.Bottom.Style != document.NoBorder {
+			t.Errorf("mode %d: box sides top %+v right %+v bottom %+v left %+v", mode, placed.Top, placed.Right, placed.Bottom, placed.Left)
+		}
+		// The first column in the box is inside its border and padding, 6 and 24 pixels, by half
+		// its width: its words' X is its centre.
+		column := 0
+		for _, line := range pages[0].Lines {
+			if line.Start >= doc.Blocks[1].Start {
+				column = line.Words[0].X
+				break
+			}
+		}
+		inset := placed.Rect.Max.X - column
+		if mode == document.VerticalLR {
+			inset = column - placed.Rect.Min.X
+		}
+		if inset < 6+24 || inset > 6+24+testSettings.FontSize {
+			t.Errorf("mode %d: first column at x %d, %d inside the box's edge before it, want %d and half a column", mode, column, inset, 6+24)
+		}
+	}
+}

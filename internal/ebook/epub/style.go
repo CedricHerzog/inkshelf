@@ -188,9 +188,55 @@ func computeStyle(parent *style, declared map[string]string, familyOf func(strin
 		computed.setTextProperty(property, value, keyword)
 		computed.setBoxProperty(property, keyword, parent)
 	}
-	computed.borderTop = isVisibleBorder(declared["border-top-style"], declared["border-top-width"])
-	computed.borderBottom = isVisibleBorder(declared["border-bottom-style"], declared["border-bottom-width"])
+	if computed.writingMode.Vertical() {
+		computed.turnMargins()
+	}
+	top, bottom := physicalSide(computed.writingMode, "top"), physicalSide(computed.writingMode, "bottom")
+	computed.borderTop = isVisibleBorder(declared["border-"+top+"-style"], declared["border-"+top+"-width"])
+	computed.borderBottom = isVisibleBorder(declared["border-"+bottom+"-style"], declared["border-"+bottom+"-width"])
 	return computed
+}
+
+// CSS names a box's sides as they are on the screen, but the document model names them as its
+// lines go: top is the side its lines stack from, the space before it, bottom the space after it,
+// left the start of its lines and right their end. In horizontal text they are the same. In
+// vertical-rl the lines stack from the right, so margin-right is the space before a block and
+// margin-top the start of its lines; vertical-lr stacks them from the left.
+
+// physicalSide returns the CSS side ("top", "right"…) of a box whose lines go in mode that is its
+// logical side in the document model.
+func physicalSide(mode document.WritingMode, logical string) string {
+	if !mode.Vertical() {
+		return logical
+	}
+	switch logical {
+	case "top":
+		if mode == document.VerticalLR {
+			return "left"
+		}
+		return "right"
+	case "bottom":
+		if mode == document.VerticalLR {
+			return "right"
+		}
+		return "left"
+	case "left":
+		return "top"
+	}
+	return "bottom"
+}
+
+// turnMargins turns the margins of a vertical element, read by their sides on the screen, into
+// the document model's. The spaces before and after a block are never negative.
+func (computed *style) turnMargins() {
+	physical := map[string]int{
+		"top": computed.marginTop, "right": computed.marginRight, "bottom": computed.marginBottom, "left": computed.marginLeft,
+	}
+	mode := computed.writingMode
+	computed.marginTop = max(physical[physicalSide(mode, "top")], 0)
+	computed.marginBottom = max(physical[physicalSide(mode, "bottom")], 0)
+	computed.marginLeft = physical[physicalSide(mode, "left")]
+	computed.marginRight = physical[physicalSide(mode, "right")]
 }
 
 // inheritOrReset follows a property set to inherit, initial or unset. A style starts with its

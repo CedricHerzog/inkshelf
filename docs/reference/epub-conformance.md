@@ -81,8 +81,10 @@ book pair).
   old names) across one cell; emphasis marks and underlines to the right, or to the left
   (`css-epub-writing-mode`, `-text-orientation`, `-text-combine-horizontal`,
   `-text-underline-position`, the vertical half of `-text-emphasis`). A block in the other
-  direction (a horizontal table) is laid out apart, as one box. A vertical-rl book without a
-  page progression turns its pages from right to left.
+  direction (a horizontal table) is laid out apart, as one box. Margins, paddings and borders
+  keep the sides CSS gives them: in `vertical-rl`, `margin-right` is the space before a block
+  and `margin-top` the start of its columns. A vertical-rl book without a page progression
+  turns its pages from right to left.
 - **CJK fonts**: Noto Serif and Sans CJK JP ship in the program, compressed, as the firmware has
   no font for Chinese, Japanese or Korean.
 - **`html`'s style**: what a stylesheet of the head sets on `html` (its writing mode, its
@@ -111,8 +113,7 @@ book pair).
    the limit.
 2. AVIF's decoder runs an image's tiles on goroutines of its own, where a panic cannot be
    recovered: an option of gav1d to decode on the caller would close that.
-3. Vertical text keeps the horizontal meaning of CSS margins (`margin-top` is the space before
-   a block), and lays a formula out across.
+3. Vertical text lays a formula out across.
 
 ## Whole books
 
@@ -126,7 +127,8 @@ made in code: no missing glyph, no rune left out, pages turning right to left.
 
 Two real novels were read this way on 2 November 2026 (SC-003): Natsume Sōseki's *Kusamakura*
 in vertical Japanese (the IDPF's `kusamakura-japanese-vertical-writing.epub`, 15 chapters, 334
-pages) and Gibran's *The Broken Wings* in Arabic (Wikisource's EPUB 3 export of «الأجنحة
+pages, 298 since its margins keep their sides: its text's `margin-left: 12em`, the space after
+it, had started every column 12em down) and Gibran's *The Broken Wings* in Arabic (Wikisource's EPUB 3 export of «الأجنحة
 المتكسرة», 14 chapters, 87 pages). Neither draws a missing glyph or leaves a rune off its pages,
 and both turn right to left: Sōseki from the spine, Gibran, whose spine gives no direction, from
 the language. Read on the reader, Gibran's letters first had their dots beside their place: the

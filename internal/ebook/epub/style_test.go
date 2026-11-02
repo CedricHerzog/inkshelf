@@ -561,6 +561,44 @@ func BenchmarkChapter(b *testing.B) {
 	}
 }
 
+// CSS names a box's sides as they are on the screen, the document model as its lines go: in
+// vertical-rl, margin-right is the space before a block and margin-left the space after it, and
+// margin-top and margin-bottom are at the start and end of its lines; vertical-lr has the space
+// before on the left. Borders and paddings turn likewise, and text across keeps its sides.
+func TestVerticalBoxSides(t *testing.T) {
+	const css = `p { margin: 0.5em 2em 1em 3em } div { border-right: 2px solid; border-top: 4px double; padding: 0 1em 0 0 }`
+	for _, test := range []struct {
+		mode                      string
+		before, after             document.Hundredths
+		start, end                document.Hundredths
+		boxBefore                 document.BorderStyle
+		boxStart                  document.BorderStyle
+		paddingBefore, ruleBefore bool
+	}{
+		{"horizontal-tb", 50, 100, 300, 200, document.Double, document.NoBorder, false, false},
+		{"vertical-rl", 200, 300, 50, 100, document.Solid, document.Double, true, true},
+		{"vertical-lr", 300, 200, 50, 100, document.NoBorder, document.Double, false, false},
+	} {
+		doc := styledChapter(t, `body { writing-mode: `+test.mode+` } `+css+` section { border-right: 1px solid }`,
+			`<p>縦書き</p><div><h2>箱</h2></div><section></section><h3>線</h3>`)
+		if block := doc.Blocks[0]; block.MarginTop != test.before || block.MarginBottom != test.after || block.Left != test.start || block.Right != test.end {
+			t.Errorf("%s: margins before %d, after %d, start %d, end %d, want %d, %d, %d, %d", test.mode,
+				block.MarginTop, block.MarginBottom, block.Left, block.Right, test.before, test.after, test.start, test.end)
+		}
+		if len(doc.Boxes) != 1 {
+			t.Fatalf("%s: boxes %+v, want 1", test.mode, doc.Boxes)
+		}
+		box := doc.Boxes[0]
+		if box.Top.Style != test.boxBefore || box.Left.Style != test.boxStart || (box.PaddingTop == 100) != test.paddingBefore {
+			t.Errorf("%s: box before %v, at the start %v, padding before %d", test.mode, box.Top, box.Left, box.PaddingTop)
+		}
+		// An empty box's border before it is a rule before the next block.
+		if rule := doc.Blocks[2]; rule.BorderTop != test.ruleBefore {
+			t.Errorf("%s: an empty box's border-right is a rule before the next block: %t, want %t", test.mode, rule.BorderTop, test.ruleBefore)
+		}
+	}
+}
+
 // Vertical text is read from writing-mode, its -epub- and -webkit- forms and the values of SVG
 // 1.1, set on html in a stylesheet of the head as well as on the body; text-orientation,
 // text-combine-upright and the positions of marks and underlines go with it.

@@ -122,11 +122,13 @@ func (parser *builder) borderBoxOf(opened *element, declared map[string]string) 
 		return nil
 	}
 	fontSize := opened.style.fontSize
+	// The box's sides are logical, as its lines go (physicalSide): layout turns them back.
+	mode := opened.style.writingMode
 	box := document.BorderBox{
-		Top:    parser.borderOf(declared, "top", opened),
-		Right:  parser.borderOf(declared, "right", opened),
-		Bottom: parser.borderOf(declared, "bottom", opened),
-		Left:   parser.borderOf(declared, "left", opened),
+		Top:    parser.borderOf(declared, physicalSide(mode, "top"), opened),
+		Right:  parser.borderOf(declared, physicalSide(mode, "right"), opened),
+		Bottom: parser.borderOf(declared, physicalSide(mode, "bottom"), opened),
+		Left:   parser.borderOf(declared, physicalSide(mode, "left"), opened),
 	}
 	if gray, ok := backgroundGray(declared, opened.color, opened.background); ok {
 		box.Background, box.Filled = gray, true
@@ -137,10 +139,10 @@ func (parser *builder) borderBoxOf(opened *element, declared map[string]string) 
 		return nil
 	}
 	padding := func(side string) int {
-		return min(positive(lengthOf(strings.ToLower(declared["padding-"+side]), fontSize, textWidth)), maxMargin)
+		return min(positive(lengthOf(strings.ToLower(declared["padding-"+physicalSide(mode, side)]), fontSize, textWidth)), maxMargin)
 	}
 	margin := func(side string) int {
-		length, _ := lengthOf(strings.ToLower(declared["margin-"+side]), fontSize, textWidth)
+		length, _ := lengthOf(strings.ToLower(declared["margin-"+physicalSide(mode, side)]), fontSize, textWidth)
 		return length
 	}
 	box.PaddingTop, box.PaddingBottom = padding("top"), padding("bottom")
