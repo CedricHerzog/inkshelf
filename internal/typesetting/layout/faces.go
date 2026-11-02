@@ -360,3 +360,44 @@ func fontStyle(style document.Style) fonts.Style {
 	}
 	return fonts.Regular
 }
+
+// MissingCharacters returns the characters of page's words, each once, that neither their font
+// nor any of its fallbacks has: drawn as the font's missing-glyph box. Spaces, controls,
+// combining marks and format characters (joiners, direction marks) are not counted: they draw
+// nothing of their own, or with the letter they belong to.
+func (faces *Faces) MissingCharacters(page Page) []rune {
+	seen := map[rune]bool{}
+	var missing []rune
+	for _, line := range page.Lines {
+		for _, word := range line.Words {
+			if word.Mark != NoMark {
+				continue
+			}
+			format := word.format()
+			font, err := faces.FamilyFont(format.family, format.style, format.size)
+			if err != nil {
+				continue
+			}
+			for _, character := range word.Text {
+				if seen[character] || unicode.IsSpace(character) || unicode.IsControl(character) ||
+					unicode.In(character, unicode.Mn, unicode.Me, unicode.Cf) {
+					continue
+				}
+				seen[character] = true
+				if !faces.canDrawIn(font, format, character) {
+					missing = append(missing, character)
+				}
+			}
+		}
+	}
+	return missing
+}
+
+// canDrawIn reports whether font, or a fallback of its format's family and style, has character.
+func (faces *Faces) canDrawIn(font *fonts.Font, format textFormat, character rune) bool {
+	if font.Has(character) {
+		return true
+	}
+	fallbacks, err := faces.fallbacksOf(format.family, fontStyle(format.style), font.Size())
+	return err == nil && slices.ContainsFunc(fallbacks, func(fallback *fonts.Font) bool { return fallback.Has(character) })
+}

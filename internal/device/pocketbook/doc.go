@@ -22,6 +22,12 @@
 // slow to write, so the copy moves pixels four at a time in whole 32-bit words
 // (framebuffer_copy.go). It runs on every page turn.
 //
+// The app may also hold the screen in landscape, to show two pages of a book side by side
+// (SetOrientation). It then draws into a canvas of its own the framebuffer's shape, copied row
+// for row with no turn (copyStraight), and touches map to it. The firmware's shared canvas stays
+// portrait, as the firmware and the other apps expect; the app goes back to it before it goes to
+// the background, and the first refresh after a change of orientation flashes the whole panel.
+//
 // # E-ink refreshes and waveforms
 //
 // An e-ink pixel is a cell of black and white particles that an electric field moves up or

@@ -166,7 +166,13 @@ decompresses its font. Formulas (MathML) are laid out with the text, at its size
 styles and their text, their strokes as thick as the drawing says. Borders and backgrounds of
 paragraphs and boxes (colors, images, gradients, tiled patterns) are drawn in grays, and
 colored text as its gray, kept legible: light text is darkened, but on a dark box. Emphasis
-marks (dots, circles, sesames, triangles) are drawn above or under each character.
+marks (dots, circles, sesames, triangles) are drawn above or under each character. Images may
+be JPEG, PNG, GIF, WebP, JPEG XL, AVIF or SVG. A page waits 10 seconds in all for its pictures
+and formulas: one not ready by then shows its description (the book's `alt` text) in its place,
+and is not waited for again until the app restarts. A picture across two pages of the book (two
+pages of one image, pinned left and right) shows whole, in landscape. Nothing in a book runs or
+is fetched: scripts are ignored, a picture or a font on the web is left out, a video shows its
+poster or its text, and audio its text.
 Books protected by DRM are refused at download. How much of EPUB 3.3
 this covers, measured with the W3C's tests, is in [epub-conformance.md](epub-conformance.md).
 

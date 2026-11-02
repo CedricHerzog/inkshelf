@@ -32,7 +32,8 @@ var screenSize = image.Pt(1404, 1872)
 type options struct {
 	tests, out, previous, judgments, fontsDir string
 	pages                                     int
-	verbose                                   bool
+	verbose, whole                            bool
+	books                                     string
 }
 
 func main() {
@@ -44,7 +45,17 @@ func main() {
 	flag.StringVar(&opts.fontsDir, "fonts", "emulator/fonts", "fonts to add to the firmware's, as the emulator does")
 	flag.IntVar(&opts.pages, "pages", 3, "how many pages of each test to draw")
 	flag.BoolVar(&opts.verbose, "v", false, "keep the app's log, which says what each chapter and page cost")
+	flag.BoolVar(&opts.whole, "whole", false, "read the EPUBs of -books whole instead of the suite: every chapter laid out, every page drawn")
+	flag.StringVar(&opts.books, "books", "", "with -whole, the EPUBs to read, separated by the system's list separator (: on Linux)")
 	flag.Parse()
+	if opts.whole {
+		if !opts.verbose {
+			log.SetOutput(io.Discard)
+		}
+		fonts.AddDir(opts.fontsDir)
+		readWholeBooks(filepath.SplitList(opts.books), os.Stdout)
+		return
+	}
 	if err := run(opts, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, "epubtests:", err)
 		os.Exit(1)

@@ -30,7 +30,8 @@
 //
 //  6. Drawing. A Page holds everything at its place, in pixels; Page.Draw draws it with Faces,
 //     which open fonts as they are needed and fall back to other fonts for the characters a font
-//     lacks.
+//     lacks. A page's images and formulas are prepared on workers (Elements): it waits 10
+//     seconds for them in all, and one not ready by then shows its text alternative instead.
 //
 // Vertical text (Chinese and Japanese in columns, writing-mode vertical-rl) goes through the
 // same steps, on the page turned a quarter turn: a line is a column as long as the page is high,

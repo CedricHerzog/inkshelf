@@ -1,13 +1,14 @@
 # EPUB 3.3 conformance
 
 Measured with the W3C's reading-system tests ([w3c/epub-tests](https://github.com/w3c/epub-tests),
-commit 54092b4, 2026-09-29). Each test is a small EPUB that says what passes ("you see X"). The 27
-tests marked deprecated are left out, which leaves 179.
+commit 54092b4, 2026-09-29), last run on 2026-11-02. Each test is a small EPUB that says what passes
+("you see X"). The 27 tests marked deprecated are left out, which leaves 179.
 
 How they were run: a throwaway program zipped each test, opened it with `epub.Open`, built its
 `epub.BuildIndex`, laid out its first chapters with `layout.Paginate` and drew their first pages
 with the reader's settings (`openbook.TextSettings` in `internal/app/openbook`: 1404×1872, the default text
-size); a fixed-layout book's pages went through `Book.RenderPage`, as at download time. Visible-text tests were
+size); a fixed-layout book's pages went through `Book.RenderPage`, as at download time, and
+its spreads through `Book.RenderSpread`. Visible-text tests were
 checked on the laid-out words, the others on the PNGs, each against the same run on the previous
 version, so that a test that passed and changed was looked at again. A test that does not apply to
 an offline e-ink reader without scripts, audio or a browser counts as out of scope.
@@ -57,6 +58,12 @@ Of the 124 tests in scope, 122 pass (98%). The runs before this one gave 118, 11
 The verdict of each test, and why, is in `cmd/epubtests/judgments.tsv`. The two that fail are
 the deliberate departures.
 
+Of the 55 out of scope, 43 need scripts, the network, a browser or audio. The other 12 are: 7
+titles and creators that the app's lists show from the server, 3 scrolled flows and
+`align-x-center`, which a paged e-ink screen has no use for, a test of EPUBCheck, and a page of
+flowing text set in a spread, which this reader leaves alone (only image pages of a reflowable
+book pair).
+
 ## Done since the previous run
 
 - **Spreads** (`epub.Book.Spreads`, the device's landscape): two pages of a fixed-layout book
@@ -102,6 +109,17 @@ the deliberate departures.
    recovered: an option of gav1d to decode on the caller would close that.
 3. Vertical text keeps the horizontal meaning of CSS margins (`margin-top` is the space before
    a block), and lays a formula out across.
+
+## Whole books
+
+A test of the suite checks one feature on a few pages. `go run ./cmd/epubtests -whole -books
+a.epub:b.epub` reads real books whole instead, every chapter laid out and every page drawn with
+footnotes kept in the text, and reports per book: the characters drawn as the missing-glyph box
+(`layout.Faces.MissingCharacters`), the runes that no page shows, and which way the pages turn
+against the spine's `page-progression-direction` and the language. The books stay where they
+are; nothing is committed. `TestReadWholeBooks` runs it on a vertical Japanese and an Arabic book
+made in code: no missing glyph, no rune left out, pages turning right to left. A real vertical
+Japanese novel and a real Arabic novel remain to be read this way (SC-003).
 
 ## A real library
 

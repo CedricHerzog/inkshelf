@@ -176,7 +176,9 @@ from 16,187,552 to 43,712,672 bytes. Decompressing in the emulator (arm64 host) 
 the sans and 0.3 s for the serif. Parsing each file once makes opening a second size 3 times
 quicker on the host (4.8 → 1.6 µs for Go's fonts, which are compiled in; on the reader the read
 of the file is saved too). Times on the reader (first CJK page, a vertical page turn) are still
-to measure: the reader under remote control was not reachable from the build machine (T050).
+to measure: the reader under remote control was not reachable from the build machine (T050). On the finished branch (T101, 2026-11-02) the stripped app is 45,088,928 bytes, from
+16,056,480 before this feature: 27.5 MB of CJK fonts and 1.2 MB of AVIF decoder, against the
+plan's estimate of 16 MB for the fonts.
 
 **Alternatives.** Separate font files copied by `deploy.sh`: users install the app by copying
 one file, and a missing font would fail silently. Japan-only subsets: fail FR-005 for Korean and

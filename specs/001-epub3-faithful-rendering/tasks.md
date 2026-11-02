@@ -489,7 +489,7 @@ A book folder saved before the change reads in portrait.
   - docs/reference/usage.md: spreads; drop "two-page spreads show one page at a time";
   - docs/learn/screen/eink.mdx: orientation.
   - Run `make docs-build`.
-- [ ] T084 [US3] Run `make verify`, `make bench-compare` (`copyRotated` unchanged; `BenchmarkCopyStraight` new) and `make epub-tests`:
+- [X] T084 [US3] Run `make verify`, `make bench-compare` (`copyRotated` unchanged; `BenchmarkCopyStraight` new) and `make epub-tests`:
   - Update `cmd/epubtests/judgments.tsv` for the five fixed-layout tests that come into scope.
   - Update docs/reference/epub-conformance.md in the same change (constitution VII): the Fixed layout row (the five spread tests in scope; remove "No synthetic spreads" from its main gaps), the Total row and the "Of the N tests in scope, M pass" sentence.
   - Open each changed shot.
@@ -556,7 +556,7 @@ shows a poster and a fallback.
 
 ## Phase 9: Polish and cross-cutting concerns
 
-- [ ] T095 Run the whole conformance suite (`make epub-tests`) and finish docs/reference/epub-conformance.md (each story already updated its rows):
+- [X] T095 Run the whole conformance suite (`make epub-tests`) and finish docs/reference/epub-conformance.md (each story already updated its rows):
   - check the results table's totals against the run;
   - write "Done since the previous run";
   - record the run's w3c/epub-tests commit and date.
@@ -566,7 +566,7 @@ shows a poster and a fallback.
   - Add a `-whole` mode to `cmd/epubtests/main.go`: for each EPUB given by `-books` (paths outside the repository; nothing is committed), lay out every chapter and draw every page.
   - Report missing glyphs (a .notdef drawn), runes left out (each chapter's coverage by its pages), and the page order against the spine's direction.
   - Run it on a real vertical Japanese novel and a real Arabic novel. Expected: zero of each. Record the result in docs/reference/epub-conformance.md.
-- [ ] T098 [P] Check that the reference docs are complete and consistent across stories (each story updated its own pages; fill what is missing), following docs/WRITING.md:
+- [X] T098 [P] Check that the reference docs are complete and consistent across stories (each story updated its own pages; fill what is missing), following docs/WRITING.md:
   - docs/reference/epub-to-page.md: rendition, spreads, vertical styles, backgrounds.
   - docs/reference/pagination.md: vertical columns, mark shapes, the deadline at draw.
   - docs/reference/document-model.md: style fields, `BackgroundLayer`, `Image.Alt`.
@@ -574,14 +574,14 @@ shows a poster and a fallback.
   - docs/reference/app-threading.md: element workers, the orientation switch.
   - docs/reference/emulator.md: landscape shots.
   - docs/reference/usage.md: spreads, vertical books, the 10-second rule; drop "two-page spreads show one page at a time".
-- [ ] T099 [P] Check that the learn chapters are complete and consistent across stories:
+- [X] T099 [P] Check that the learn chapters are complete and consistent across stories:
   - docs/learn/books/lines.mdx and docs/learn/books/pages.mdx: vertical lines and columns.
   - docs/learn/books/fonts.mdx: the CJK fallback and its cache.
   - docs/learn/books/css.mdx: writing modes, backgrounds.
   - docs/learn/screen/eink.mdx: orientation.
   - Then run `make docs-build` (no broken link).
-- [ ] T100 [P] Update the package docs (`doc.go`) of the packages whose domain grew: `internal/device/pocketbook/doc.go` (orientation), `internal/graphics/fonts/doc.go` (CJK fonts, vertical shaping), `internal/typesetting/layout/doc.go` (writing modes), `internal/ebook/epub/doc.go` (rendition, spreads)
-- [ ] T101 Check the constitution's gates on the finished branch:
+- [X] T100 [P] Update the package docs (`doc.go`) of the packages whose domain grew: `internal/device/pocketbook/doc.go` (orientation), `internal/graphics/fonts/doc.go` (CJK fonts, vertical shaping), `internal/typesetting/layout/doc.go` (writing modes), `internal/ebook/epub/doc.go` (rendition, spreads)
+- [X] T101 Check the constitution's gates on the finished branch:
   - `make build` (static; record the binary's growth against 16,056,480 bytes);
   - `go list -deps ./internal/app/... ./internal/shelf | grep -E 'servers/(komga|mealie|calibreweb)'` prints nothing;
   - `go test ./internal/shelf ./internal/graphics/pageimage ./internal/servers ./internal/app/state -run Golden` passes with the old golden files unchanged;
