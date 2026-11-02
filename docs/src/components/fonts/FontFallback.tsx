@@ -3,13 +3,14 @@
 
 import React, {useState} from 'react';
 import {Button, Segmented} from '@site/src/components/kit';
-import {bookFont, coveredParts, dejaVuSans, goFont, notoSerifCJK, readerSerif, type ToyFont} from '@site/src/lib/fontFallback';
+import {bookFont, coveredParts, dejaVuSans, goFont, notoSansArabic, notoSerifCJK, readerSerif, type ToyFont} from '@site/src/lib/fontFallback';
 import styles from './fonts.module.css';
 
 const samples = [
   'Le café coûte 3 €',
   'λόγος → the word',
   'Shalom: שלום',
+  'Salaam: سلام',
   'Kanji: 漢字',
   'Hangul: 한국어',
   '∀x ∈ ℝ ☺',
@@ -19,11 +20,12 @@ const colors = new Map<string, string>([
   [bookFont.name, 'var(--ink-muted)'],
   [readerSerif.name, 'var(--ink-blue)'],
   [dejaVuSans.name, 'var(--ink-ok)'],
+  [notoSansArabic.name, 'var(--ink-violet)'],
   [notoSerifCJK.name, 'var(--ink-text)'],
   [goFont.name, 'var(--ink-accent)'],
 ]);
 
-const fallbacks = [readerSerif, dejaVuSans, notoSerifCJK, goFont];
+const fallbacks = [readerSerif, dejaVuSans, notoSansArabic, notoSerifCJK, goFont];
 
 export default function FontFallback() {
   const [text, setText] = useState(samples[1]);
