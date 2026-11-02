@@ -3,6 +3,7 @@ package epub
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"hash/crc32"
 	"image"
 	"image/png"
@@ -64,6 +65,15 @@ func TestHostileBooks(t *testing.T) {
 	nestedMedia := strings.Repeat("@media screen { ", 10_000) + "p { color: red }" + strings.Repeat(" }", 10_000)
 	nestedNot := "p" + strings.Repeat(":not(", 10_000) + "a" + strings.Repeat(")", 10_000) + " { color: red }"
 	hugeStylesheet := strings.Repeat("p.c { margin: 1em } ", 400_000) // 8 MB
+	// A stylesheet that imports 100 others of a quarter megabyte of rules each, which the book's
+	// budget of stylesheets cuts.
+	manySheets := map[string]string{}
+	var imports strings.Builder
+	for index := range 100 {
+		name := fmt.Sprintf("sheet%03d.css", index)
+		fmt.Fprintf(&imports, "@import url(%s);\n", name)
+		manySheets["OEBPS/"+name] = strings.Repeat(fmt.Sprintf(".c%d p span.x > em:not(.y) { margin-left: 1px; color: #123456 }\n", index), 4000)
+	}
 
 	for _, test := range []struct {
 		name, css, body string
@@ -75,6 +85,8 @@ func TestHostileBooks(t *testing.T) {
 		{name: "deep MathML", body: `<p>So ` + deepMath + `.</p>`},
 		{name: "nested CSS", css: nestedMedia + nestedNot, body: `<p>Text</p>`},
 		{name: "huge stylesheet", css: hugeStylesheet, body: `<p class="c">Text</p>`},
+		{name: "many stylesheets", css: imports.String(), body: `<p class="c1"><span class="x"><em>Text</em></span></p>`, files: manySheets},
+		{name: "word with no break", body: `<p>` + strings.Repeat("a", 100_000) + `</p>`},
 		{name: "WOFF bomb", css: `@font-face { font-family: Bomb; src: url(bomb.woff) } p { font-family: Bomb }`, body: `<p>Text</p>`,
 			files: map[string]string{"OEBPS/bomb.woff": woffBomb()}},
 	} {

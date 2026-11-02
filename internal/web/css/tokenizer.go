@@ -52,7 +52,8 @@ func tokenize(css string) []token {
 		css = strings.NewReplacer("\r\n", "\n", "\r", "\n", "\f", "\n", "\x00", "�").Replace(css)
 	}
 	scanner := tokenizer{css: css}
-	var tokens []token
+	// Stylesheets run about one token per two bytes: room for them at once, not grown by copies.
+	tokens := make([]token, 0, len(css)/2+1)
 	for {
 		scanner.skipComments()
 		if scanner.position >= len(css) {

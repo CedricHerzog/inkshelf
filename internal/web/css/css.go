@@ -32,10 +32,11 @@ type rule struct {
 }
 
 // The work a stylesheet may ask of the parser, against hostile books: past maxStylesheetBytes
-// a stylesheet is cut, its tokens taking some 40 bytes each; @media rules deeper than
-// maxMediaDepth are dropped.
+// a stylesheet is cut, a byte making half a token of 56 bytes, which the reader's memory makes
+// slow (a megabyte of rules took 6.5 s to parse there; the largest of 345 real stylesheets is
+// 24 KB); @media rules deeper than maxMediaDepth are dropped.
 const (
-	maxStylesheetBytes = 1 << 20
+	maxStylesheetBytes = 256 << 10
 	maxMediaDepth      = 16
 )
 

@@ -31,6 +31,10 @@ type Cascade struct {
 	rules                 int // the rules added so far, which orders them
 }
 
+// maxCascadeRules bounds the rules of a cascade, against hostile books: past it the first are
+// kept and the rest ignored, so that matching an element stays cheap. Real books use hundreds.
+const maxCascadeRules = 10000
+
 // indexedSelector is a selector of a rule, with the rule's declarations and order.
 type indexedSelector struct {
 	selector     selector
@@ -47,6 +51,9 @@ func NewCascade() *Cascade {
 // specificity. The sheets that sheet imports go first.
 func (cascade *Cascade) Add(sheet *Stylesheet) {
 	for _, added := range sheet.rules {
+		if cascade.rules >= maxCascadeRules {
+			return
+		}
 		for _, parsed := range added.selectors {
 			indexed := indexedSelector{selector: parsed, declarations: added.declarations, order: cascade.rules}
 			switch rightmost := parsed.compounds[0]; {

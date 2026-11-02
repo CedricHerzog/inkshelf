@@ -10,9 +10,14 @@ import (
 	"github.com/CedricHerzog/inkshelf/internal/web/webfont"
 )
 
+// maxBookStylesheetBytes bounds the stylesheets a book has parsed in all, against hostile books:
+// css cuts each sheet, but a book of many would still take minutes on the reader (a quarter
+// megabyte of rules takes about half a second there). Real books hold under 100 KB.
+const maxBookStylesheetBytes = 1 << 20
+
 // Stylesheet returns the stylesheet at sheetPath, parsed once for every chapter that links
 // it, its @media rules kept if they match media (the same for every call); nil if the book
-// has none there.
+// has none there, or has used up maxBookStylesheetBytes, past which a sheet is cut.
 func (book *Book) Stylesheet(sheetPath string, media css.Media) *css.Stylesheet {
 	book.cacheMu.Lock()
 	defer book.cacheMu.Unlock()
@@ -21,7 +26,15 @@ func (book *Book) Stylesheet(sheetPath string, media css.Media) *css.Stylesheet 
 	}
 	var sheet *css.Stylesheet
 	if data, err := book.ReadFile(sheetPath); err == nil {
-		sheet = css.Parse(string(data), media)
+		left := maxBookStylesheetBytes - book.sheetBytes
+		if len(data) > left {
+			log.Printf("epub: stylesheet %s: past the book's %d bytes of stylesheets, cut to %d", sheetPath, maxBookStylesheetBytes, max(left, 0))
+			data = data[:max(left, 0)]
+		}
+		book.sheetBytes += len(data)
+		if len(data) > 0 {
+			sheet = css.Parse(string(data), media)
+		}
 	}
 	if book.sheets == nil {
 		book.sheets = map[string]*css.Stylesheet{}

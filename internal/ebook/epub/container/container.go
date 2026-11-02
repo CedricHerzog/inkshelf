@@ -52,6 +52,9 @@ type Book struct {
 	cacheMu sync.Mutex
 	sheets  map[string]*css.Stylesheet
 	fonts   map[string]*fonts.File
+	// sheetBytes is how much of the book's stylesheets has been parsed, against
+	// maxBookStylesheetBytes.
+	sheetBytes int
 }
 
 // Open opens the EPUB at filePath.

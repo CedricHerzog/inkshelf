@@ -79,6 +79,10 @@ All paths are paths inside the zip. A link in a file is relative to that file, a
   (`userAgentCSS` in `style.go`, the defaults such as "h1 is bold and large") first, then the
   book's `<link>`ed sheets, `<style>` blocks and `style` attributes. The cascade decides which
   declaration wins: `!important`, then the more specific selector, then the later rule.
+- Against hostile books, stylesheets are bounded where parsing them costs: each is cut at
+  256 KB (`maxStylesheetBytes`), a book parses 1 MB of linked sheets in all
+  (`maxBookStylesheetBytes`, logged when it cuts), and a cascade keeps its first 10,000 rules
+  (`maxCascadeRules`). The largest of 345 real stylesheets is 24 KB.
 - CSS selectors only look at an element, its ancestors and its *previous* siblings. That is
   what lets the builder style an element the moment it opens, without the whole tree. Selectors
   that need later siblings (`:last-child`, `:empty`) are dropped.
