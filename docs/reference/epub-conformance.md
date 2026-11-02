@@ -101,17 +101,15 @@ book pair).
 
 ## Remaining work, by value for reading books on this reader
 
-1. Book titles in the lists are neither shaped nor given the CJK fonts: Arabic titles show their
-   letters apart and in logical order, Japanese ones as boxes.
-2. The first CJK page waits 6.3 s on the reader for its font's decompression (once per install),
-   with nothing on the panel; the firmware has Noto Sans and Serif CJK of its own, which would
+1. The first CJK page, or the first list with a Chinese, Japanese or Korean title, waits 6.3 s on
+   the reader for its font's decompression (once per install), with nothing on the panel; the firmware has Noto Sans and Serif CJK of its own, which would
    need none. Measured on the reader on 2 November 2026: vertical page turns 0.11 to 0.94 s, a
    full-page AVIF 5.75 s (under the 10-second limit). Still to measure there: a page of formulas
    and a JPEG XL decode (about 270 ms on the Mac in pure Go for a full page, several seconds
    expected on the ARM).
-3. AVIF's decoder runs an image's tiles on goroutines of its own, where a panic cannot be
+2. AVIF's decoder runs an image's tiles on goroutines of its own, where a panic cannot be
    recovered: an option of gav1d to decode on the caller would close that.
-4. Vertical text keeps the horizontal meaning of CSS margins (`margin-top` is the space before
+3. Vertical text keeps the horizontal meaning of CSS margins (`margin-top` is the space before
    a block), and lays a formula out across.
 
 ## Whole books
@@ -131,7 +129,9 @@ pages) and Gibran's *The Broken Wings* in Arabic (Wikisource's EPUB 3 export of 
 and both turn right to left: Sōseki from the spine, Gibran, whose spine gives no direction, from
 the language. Read on the reader, Gibran's letters first had their dots beside their place: the
 book sets its text in sans-serif, and the firmware's Liberation Sans has Arabic letters but no
-rules to join them. Arabic now goes to the firmware's Noto Sans Arabic UI, which has both.
+rules to join them. Arabic now goes to the firmware's Noto Sans Arabic UI, which has both. The
+lists showed the titles of both books wrong, Gibran's letters apart and in logical order, Sōseki's
+as boxes; the interface now sets such a title as a line of a book (`layout.Label`).
 
 ## A real library
 

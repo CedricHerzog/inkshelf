@@ -17,5 +17,6 @@ tap 1200 900                # right third: back to the first page
 shot 03-back
 tap 700 900                 # the toolbar
 tap 720 84                  # Contents
+shot 03b-contents           # the chapters' titles in the interface's font: 縦書き in the CJK font, العربية joined, no box
 tap 700 375                 # the Arabic chapter: horizontal lines again, right to left
 shot 04-arabic

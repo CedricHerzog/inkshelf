@@ -38,6 +38,11 @@
 // and the pages are turned back once laid out. Its characters are drawn upright or sideways, as
 // Unicode's Vertical_Orientation says (vertical.go).
 //
+// The interface's text is set by the same rules when it needs them: a Label is one line, a book's
+// title in a list say, its characters in fonts that have them, its letters joined, its
+// right-to-left runs in visual order. PlainLabel tells the text that needs none of that, most of
+// it, which the interface draws a character after another as before.
+//
 // Positions in a document are offsets in runes: each block's text counts its runes, spaces
 // included, and an image or a rule counts as one. Layout never changes them, and every page
 // knows the offsets it shows, so that a reading position survives a new layout at another font
